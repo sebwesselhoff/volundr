@@ -949,11 +949,16 @@ SESSION ACTIVE:
  - activeProject set in registry
  - Dashboard shows live state
 
-SESSION STOP (session-stop.js hook):
-  1. Mark ALL running agents as completed (mother + any subagents)
+STOP (session-stop.js hook) - fires on intermediate stops too, NOT just final exit:
+  1. Log stop event (minimal - no cleanup)
+  2. Does NOT complete agents or clear activeProject (Stop fires mid-session)
+
+SESSION END (session-end.js hook) - fires ONCE on true session termination:
+  1. Complete ALL running agents for active project
   2. Log session_ended event
   3. Clear activeProject in registry → null
   4. Dashboard shows: no active project, blank slate
+  NOTE: Also wired as StopFailure fallback (safety net)
 
 CRASH / ALT-F4 (no hook fires):
  - Stale agents remain "running" in DB
