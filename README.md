@@ -11,7 +11,7 @@
 
 Vǫlundr is an autonomous PM, architect, and orchestrator that runs inside Claude Code. It manages multi-agent software projects from discovery through deployment - planning work as cards, spawning specialized agent teammates, scoring quality, and learning across projects.
 
-> **Open `guide.html` in your browser for the full interactive documentation.**
+> **[Read the full documentation](https://sebwesselhoff.github.io/volundr/guide.html)** or open `guide.html` locally in your browser.
 
 ---
 
@@ -90,7 +90,7 @@ Discovery  -->  Blueprint  -->  Cards  -->  Agents  -->  Ship
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/volundr.git
+git clone https://github.com/sebwesselhoff/volundr.git
 cd volundr
 ```
 
