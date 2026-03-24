@@ -29,6 +29,7 @@ Vǫlundr is an autonomous PM, architect, and orchestrator that runs inside Claud
 - [Tech Stack](#tech-stack)
 - [Configuration](#configuration)
 - [FAQ](#faq)
+- [The Name](#the-name)
 - [License](#license)
 
 ---
@@ -300,6 +301,16 @@ Vǫlundr's quality gate runs after every agent completes. On failure, a Fixer ag
 
 **Can I add custom agents?**
 Yes. Add agent packs to `framework/packs/` following the existing pack structure (`pack.json` + `prompts/*.md`).
+
+---
+
+## The Name
+
+**Vǫlundr** (Old Norse: *Völundr*, English: *Wayland the Smith*) is the legendary master craftsman of Norse mythology. A smith of unmatched skill, he could forge anything - weapons, jewelry, machines - working alone in his forge with tireless precision.
+
+When asked what the framework should be called, the AI chose the name itself. An autonomous smith that takes raw materials and forges finished work, orchestrating a team of specialists around a campfire. The name fit.
+
+The dashboard is called **The Forge**. The agent visualization is called **The Þing** (Old Norse assembly). The campfire is where the team gathers.
 
 ---
 
