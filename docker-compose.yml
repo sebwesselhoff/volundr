@@ -1,0 +1,27 @@
+name: volundr
+services:
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    image: volundr-dashboard
+    ports:
+      - "3000:3000"
+      - "3141:3141"
+    volumes:
+      # VLDR_HOME_DATA must be set by start.bat/start.sh before running
+      - ${VLDR_HOME_DATA:?Set VLDR_HOME_DATA before running docker compose}:/app/data
+      - ./framework/lessons:/app/seed:ro
+      # Mount host's ~/.claude for Agent Teams file watching
+      - ${CLAUDE_HOME:?Set CLAUDE_HOME before running docker compose}:/root/.claude:ro
+    environment:
+      - NODE_ENV=production
+      - VLDR_DB_PATH=/app/data/the-forge.db
+      - VLDR_SEED_PATH=/app/seed/seed.json
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3141/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped

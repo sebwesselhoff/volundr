@@ -1,0 +1,1 @@
+{"name":"core","version":"1.0.0","description":"Core agent types — always loaded","alwaysLoad":true,"agentTypes":["developer","architect","reviewer"],"signals":[]}

@@ -1,0 +1,317 @@
+import { Router } from 'express';
+import { getDb, schema } from '@vldr/db';
+import { eq } from 'drizzle-orm';
+import type { Card } from '@vldr/shared';
+import { ApiError } from '../middleware/error-handler.js';
+import { broadcastToAll } from '../ws/broadcast.js';
+import { validateDeps } from '../lib/dep-validation.js';
+
+const router = Router();
+
+function parseCardJsonFields(card: typeof schema.cards.$inferSelect) {
+  return {
+    ...card,
+    deps: card.deps ? JSON.parse(card.deps) : [],
+    filesCreated: card.filesCreated ? JSON.parse(card.filesCreated) : [],
+    filesModified: card.filesModified ? JSON.parse(card.filesModified) : [],
+    isc: parseIsc(card.isc),
+  };
+}
+
+function parseIsc(raw: string | null | undefined): any[] | null {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+// GET /projects/:projectId/cards — list cards (filter by epicId, status, priority)
+router.get('/projects/:projectId/cards', (req, res) => {
+  const db = getDb();
+  const rows = db.select().from(schema.cards).where(eq(schema.cards.projectId, req.params.projectId)).all();
+
+  const { epicId, status, priority } = req.query as {
+    epicId?: string;
+    status?: string;
+    priority?: string;
+  };
+
+  let filtered = rows;
+  if (epicId) filtered = filtered.filter(c => c.epicId === epicId);
+  if (status) filtered = filtered.filter(c => c.status === status);
+  if (priority) filtered = filtered.filter(c => c.priority === priority);
+
+  res.json(filtered.map(parseCardJsonFields));
+});
+
+// POST /projects/:projectId/cards — create card
+router.post('/projects/:projectId/cards', (req, res) => {
+  const {
+    id, epicId, title, size, priority,
+    description, status, deps, criteria, technicalNotes,
+    filesCreated, filesModified, branch, isc,
+  } = req.body as {
+    id?: string;
+    epicId?: string;
+    title?: string;
+    size?: string;
+    priority?: string;
+    description?: string;
+    status?: string;
+    deps?: string[];
+    criteria?: string;
+    technicalNotes?: string;
+    filesCreated?: string[];
+    filesModified?: string[];
+    branch?: string;
+    isc?: Array<{ criterion: string; evidence: string | null; passed: boolean | null }>;
+  };
+
+  if (!id || !epicId || !title || !size || !priority) {
+    throw new ApiError(400, 'id, epicId, title, size, and priority are required');
+  }
+
+  const depsArr = deps ?? [];
+  validateDeps(req.params.projectId, id, depsArr);
+
+  const db = getDb();
+  db.insert(schema.cards).values({
+    id,
+    epicId,
+    projectId: req.params.projectId,
+    title,
+    description: description ?? '',
+    size,
+    priority,
+    ...(status ? { status } : {}),
+    deps: JSON.stringify(depsArr),
+    criteria: criteria ?? '',
+    technicalNotes: technicalNotes ?? '',
+    filesCreated: JSON.stringify(filesCreated ?? []),
+    filesModified: JSON.stringify(filesModified ?? []),
+    branch: branch ?? '',
+    ...(isc ? { isc: JSON.stringify(isc) } : {}),
+  }).run();
+
+  const [card] = db.select().from(schema.cards).where(eq(schema.cards.id, id)).all();
+  const parsed = parseCardJsonFields(card);
+  broadcastToAll({ type: 'card:updated', data: parsed as Card });
+  res.status(201).json(parsed);
+});
+
+// GET /cards/:id — get single card by id
+router.get('/cards/:id', (req, res) => {
+  const db = getDb();
+  const [card] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
+  if (!card) throw new ApiError(404, `Card ${req.params.id} not found`);
+  res.json(parseCardJsonFields(card));
+});
+
+// POST /cards/:id/checkout — atomic task checkout (prevents double-claiming)
+router.post('/cards/:id/checkout', (req, res) => {
+  const db = getDb();
+  const [card] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
+  if (!card) return res.status(404).json({ error: 'Card not found' });
+
+  if (card.status === 'in_progress') {
+    return res.status(409).json({
+      error: 'Card already checked out',
+      detail: `Card ${req.params.id} is already in_progress. Do not retry a 409.`,
+    });
+  }
+
+  db.update(schema.cards)
+    .set({ status: 'in_progress', updatedAt: new Date().toISOString() })
+    .where(eq(schema.cards.id, req.params.id))
+    .run();
+
+  const [updated] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
+  const parsed = parseCardJsonFields(updated);
+  broadcastToAll({ type: 'card:updated', data: parsed as Card });
+  res.json(parsed);
+});
+
+// PATCH /cards/:id/isc — update ISC criteria (must be before /:id to avoid route conflict)
+router.patch('/cards/:id/isc', (req, res) => {
+  const db = getDb();
+  const [card] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
+  if (!card) return res.status(404).json({ error: 'Card not found' });
+
+  const now = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+
+  if (req.body.isc) {
+    db.update(schema.cards)
+      .set({ isc: JSON.stringify(req.body.isc), updatedAt: now })
+      .where(eq(schema.cards.id, req.params.id))
+      .run();
+    const [updated] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
+    const parsed = parseCardJsonFields(updated);
+    broadcastToAll({ type: 'card:updated', data: parsed as Card });
+    return res.json(parsed);
+  }
+
+  if (req.body.index !== undefined) {
+    const isc: any[] = card.isc ? JSON.parse(card.isc) : [];
+    const idx = req.body.index;
+    if (idx < 0 || idx >= isc.length) {
+      return res.status(400).json({ error: `Index ${idx} out of range (0-${isc.length - 1})` });
+    }
+    if (req.body.evidence !== undefined) isc[idx].evidence = req.body.evidence;
+    if (req.body.passed !== undefined) isc[idx].passed = req.body.passed;
+    db.update(schema.cards)
+      .set({ isc: JSON.stringify(isc), updatedAt: now })
+      .where(eq(schema.cards.id, req.params.id))
+      .run();
+    const [updated] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
+    const parsed = parseCardJsonFields(updated);
+    broadcastToAll({ type: 'card:updated', data: parsed as Card });
+    return res.json(parsed);
+  }
+
+  return res.status(400).json({ error: 'Provide either "isc" (full array) or "index" (single update)' });
+});
+
+// PATCH /cards/:id — update card
+router.patch('/cards/:id', (req, res) => {
+  const db = getDb();
+  const [existing] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
+  if (!existing) throw new ApiError(404, `Card ${req.params.id} not found`);
+
+  const {
+    status, branch, priority, completedAt,
+    filesCreated, filesModified, deps,
+    epicId, title, description, size,
+    criteria, technicalNotes, quality,
+  } = req.body as {
+    status?: string;
+    branch?: string;
+    priority?: string;
+    completedAt?: string;
+    filesCreated?: string[];
+    filesModified?: string[];
+    deps?: string[];
+    epicId?: string;
+    title?: string;
+    description?: string;
+    size?: string;
+    criteria?: string;
+    technicalNotes?: string;
+    quality?: {
+      completeness: number;
+      codeQuality: number;
+      formatCompliance: number;
+      independence: number;
+      implementationType: string;
+    };
+  };
+
+  // Enforce quality scoring when marking a card as done
+  if (status === 'done' && existing.status !== 'done') {
+    if (!quality) {
+      throw new ApiError(400, 'Quality scoring required when marking card as done. Include a "quality" object with: completeness, codeQuality, formatCompliance, independence, implementationType (each 1-5)');
+    }
+    if (
+      quality.completeness == null || quality.codeQuality == null ||
+      quality.formatCompliance == null || quality.independence == null ||
+      !quality.implementationType
+    ) {
+      throw new ApiError(400, 'Quality object must include: completeness, codeQuality, formatCompliance, independence (1-5), and implementationType (agent|direct|human)');
+    }
+  }
+
+  // Enforce ISC gate when marking a card as done
+  if (status === 'done' && existing.status !== 'done') {
+    const isc = existing.isc ? JSON.parse(existing.isc) : [];
+    if (isc.length > 0) {
+      const unverified = isc.filter((c: any) => c.passed === null);
+      if (unverified.length > 0) {
+        return res.status(400).json({
+          error: 'ISC criteria not fully verified',
+          detail: `${unverified.length} of ${isc.length} criteria still pending`,
+          unverified: unverified.map((c: any) => c.criterion),
+        });
+      }
+    }
+  }
+
+  if (deps !== undefined) {
+    validateDeps(existing.projectId, req.params.id, deps);
+  }
+
+  const now = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+
+  const updates: Record<string, unknown> = { updatedAt: now };
+  if (status != null) updates.status = status;
+  if (branch != null) updates.branch = branch;
+  if (priority != null) updates.priority = priority;
+  if (completedAt != null) updates.completedAt = completedAt;
+  if (status === 'done' && !completedAt) updates.completedAt = now;
+  if (filesCreated !== undefined) updates.filesCreated = JSON.stringify(filesCreated);
+  if (filesModified !== undefined) updates.filesModified = JSON.stringify(filesModified);
+  if (deps !== undefined) updates.deps = JSON.stringify(deps);
+  if (epicId != null) updates.epicId = epicId;
+  if (title != null) updates.title = title;
+  if (description != null) updates.description = description;
+  if (size != null) updates.size = size;
+  if (criteria != null) updates.criteria = criteria;
+  if (technicalNotes != null) updates.technicalNotes = technicalNotes;
+
+  db.update(schema.cards).set(updates).where(eq(schema.cards.id, req.params.id)).run();
+
+  // Upsert quality score atomically when marking done
+  if (quality && status === 'done') {
+    const C = quality.completeness;
+    const Q = quality.codeQuality;
+    const F = quality.formatCompliance;
+    const I = quality.independence;
+    const weightedScore = (C * 3 + Q * 3 + F * 2 + I * 2) / 10;
+
+    const [existingScore] = db.select().from(schema.qualityScores)
+      .where(eq(schema.qualityScores.cardId, req.params.id)).all();
+
+    if (existingScore) {
+      db.update(schema.qualityScores).set({
+        completeness: C, codeQuality: Q, formatCompliance: F, independence: I,
+        weightedScore, implementationType: quality.implementationType, updatedAt: now,
+      }).where(eq(schema.qualityScores.cardId, req.params.id)).run();
+    } else {
+      db.insert(schema.qualityScores).values({
+        cardId: req.params.id,
+        completeness: C, codeQuality: Q, formatCompliance: F, independence: I,
+        weightedScore, implementationType: quality.implementationType,
+      }).run();
+    }
+  }
+
+  const [updated] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
+  const parsed = parseCardJsonFields(updated);
+  broadcastToAll({ type: 'card:updated', data: parsed as Card });
+  res.json(parsed);
+});
+
+// DELETE /cards/:id — delete card
+router.delete('/cards/:id', (req, res) => {
+  const db = getDb();
+  const [existing] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
+  if (!existing) throw new ApiError(404, `Card ${req.params.id} not found`);
+  if (existing.status === 'in_progress') throw new ApiError(400, 'Cannot delete a card that is in_progress');
+
+  // Check no other cards depend on this one
+  const allCards = db.select({ id: schema.cards.id, deps: schema.cards.deps })
+    .from(schema.cards)
+    .where(eq(schema.cards.projectId, existing.projectId))
+    .all();
+
+  const dependents = allCards.filter(c => {
+    if (c.id === req.params.id) return false;
+    const deps: string[] = c.deps ? JSON.parse(c.deps) : [];
+    return deps.includes(req.params.id);
+  });
+
+  if (dependents.length > 0) {
+    throw new ApiError(400, `Cannot delete card: ${dependents.map(c => c.id).join(', ')} depend(s) on it`);
+  }
+
+  db.delete(schema.cards).where(eq(schema.cards.id, req.params.id)).run();
+  res.status(204).send();
+});
+
+export default router;

@@ -1,0 +1,173 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "VLDR_API_URL": "http://localhost:3141",
+    "VLDR_PROJECT_ID": "",
+    "CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS": "5000",
+    "CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS": "1",
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "80",
+    "CLAUDE_CODE_EFFORT_LEVEL": "high",
+    "BASH_DEFAULT_TIMEOUT_MS": "30000",
+    "BASH_MAX_TIMEOUT_MS": "120000"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-agent-tool.js\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/agent-start.js\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/agent-stop.js\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/task-completed.js\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/teammate-idle.js\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-stop.js\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-end.js\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-compact.js\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/tool-failure.js\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-end.js\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "WorktreeCreate": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/worktree-create.js\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/worktree-remove.js\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@vldr/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vldr/shared": "*",
+    "ws": "^8"
+  },
+  "devDependencies": {
+    "@types/ws": "^8",
+    "typescript": "^5.7"
+  }
+}

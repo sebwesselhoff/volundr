@@ -1,0 +1,60 @@
+# Composable trait modifiers for agent prompts
+# Volundr selects relevant traits based on card metadata, project constraints, and steering rules
+# Max 5 traits per agent. Typical: 1-3.
+# Duplicates from multiple sources are deduplicated before injection (keep first occurrence).
+
+expertise:
+  security:
+    inject: |
+      Apply security-first thinking. Review for OWASP Top 10.
+      Validate all inputs at boundaries. Never trust external data.
+      Flag any hardcoded credentials or secrets.
+  performance:
+    inject: |
+      Profile before optimizing. Prefer algorithmic improvements
+      over micro-optimizations. Watch for N+1 queries, unbounded
+      loops, and memory leaks. Measure before and after.
+  accessibility:
+    inject: |
+      Follow WCAG 2.1 AA. Semantic HTML, ARIA labels, keyboard
+      navigation, color contrast. Test with screen reader mentally.
+  database:
+    inject: |
+      Validate migration safety. Check for index usage. Avoid
+      breaking schema changes. Use transactions for multi-step ops.
+  api-design:
+    inject: |
+      RESTful conventions. Consistent error responses. Validate
+      request bodies. Document breaking changes. Version endpoints.
+
+approach:
+  thorough:
+    inject: |
+      Verify every edge case. Write defensive code. Test unhappy
+      paths. Don't assume inputs are well-formed.
+  pragmatic:
+    inject: |
+      Ship the simplest thing that works. Avoid premature abstraction.
+      TODOs are acceptable for non-critical improvements.
+  cautious:
+    inject: |
+      Make reversible changes. Prefer additive over destructive
+      modifications. When uncertain, ask before proceeding.
+  fast:
+    inject: |
+      Minimize scope. Skip nice-to-haves. One approach, execute,
+      verify, done. No over-engineering.
+
+domain:
+  frontend:
+    inject: |
+      Component-first architecture. Responsive by default.
+      Minimize client-side JS. Accessible markup.
+  backend:
+    inject: |
+      Type-safe APIs. Structured error handling. Logging at
+      boundaries. Idempotent operations where possible.
+  infra:
+    inject: |
+      Reproducible environments. Fail fast with clear errors.
+      No secrets in source. Health checks on everything.

@@ -1,0 +1,120 @@
+/* Kindle — elements spark into existence */
+@keyframes kindle {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 4px var(--vldr-accent); }
+  50% { box-shadow: 0 0 12px var(--vldr-accent); }
+}
+
+@keyframes gold-pulse {
+  0%, 100% { box-shadow: 0 0 4px #e8a83860; }
+  50% { box-shadow: 0 0 16px #e8a83860; }
+}
+
+@keyframes ember-pulse {
+  0%, 100% { box-shadow: 0 0 4px #d4581a60; }
+  50% { box-shadow: 0 0 16px #d4581a60; }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes agent-spawn {
+  0% { opacity: 0; transform: scale(0.5); box-shadow: 0 0 20px #e8a83880; }
+  60% { opacity: 1; transform: scale(1.05); box-shadow: 0 0 10px #e8a83840; }
+  100% { transform: scale(1); box-shadow: none; }
+}
+
+@keyframes agent-fade {
+  to { opacity: 0; transform: scale(0.8); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Forge embers — particles drifting upward with swirling paths */
+.ember {
+  position: absolute;
+  bottom: -10px;
+  left: var(--start-x);
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: var(--color);
+  box-shadow: 0 0 6px 1px var(--glow), 0 0 14px 3px var(--glow);
+  will-change: transform, opacity;
+}
+
+/* Three swirl path variants — each combines upward rise with different horizontal oscillation */
+.ember-path-0 {
+  animation:
+    ember-rise var(--duration) linear var(--delay) infinite,
+    ember-swirl-0 calc(var(--duration) * 0.4) ease-in-out var(--delay) infinite,
+    ember-flicker 0.8s ease-in-out var(--delay) infinite;
+}
+.ember-path-1 {
+  animation:
+    ember-rise var(--duration) linear var(--delay) infinite,
+    ember-swirl-1 calc(var(--duration) * 0.3) ease-in-out var(--delay) infinite,
+    ember-flicker 1.1s ease-in-out var(--delay) infinite;
+}
+.ember-path-2 {
+  animation:
+    ember-rise var(--duration) linear var(--delay) infinite,
+    ember-swirl-2 calc(var(--duration) * 0.5) ease-in-out var(--delay) infinite,
+    ember-flicker 0.6s ease-in-out var(--delay) infinite;
+}
+
+/* Vertical rise — bottom to top, fading out in the upper third */
+@keyframes ember-rise {
+  0%   { transform: translateY(0); opacity: 0; }
+  5%   { opacity: 0.9; }
+  60%  { opacity: 0.7; }
+  85%  { opacity: 0.2; }
+  100% { transform: translateY(-110vh); opacity: 0; }
+}
+
+/* Horizontal swirl variants — sinusoidal left-right drift */
+@keyframes ember-swirl-0 {
+  0%   { margin-left: 0; }
+  25%  { margin-left: var(--drift); }
+  50%  { margin-left: 0; }
+  75%  { margin-left: calc(var(--drift) * -0.6); }
+  100% { margin-left: 0; }
+}
+
+@keyframes ember-swirl-1 {
+  0%   { margin-left: 0; }
+  20%  { margin-left: calc(var(--drift) * -0.8); }
+  40%  { margin-left: calc(var(--drift) * 0.4); }
+  60%  { margin-left: calc(var(--drift) * -0.5); }
+  80%  { margin-left: calc(var(--drift) * 0.7); }
+  100% { margin-left: 0; }
+}
+
+@keyframes ember-swirl-2 {
+  0%   { margin-left: 0; }
+  33%  { margin-left: var(--drift); }
+  66%  { margin-left: calc(var(--drift) * -0.7); }
+  100% { margin-left: 0; }
+}
+
+/* Flicker — subtle brightness pulsing like a real ember */
+@keyframes ember-flicker {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(0.4); }
+}
+
+.kindle { animation: kindle 400ms ease-out both; }
+.kindle-1 { animation-delay: 80ms; }
+.kindle-2 { animation-delay: 160ms; }
+.kindle-3 { animation-delay: 240ms; }
+.kindle-4 { animation-delay: 320ms; }
+.kindle-5 { animation-delay: 400ms; }

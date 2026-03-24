@@ -1,0 +1,26 @@
+node_modules/
+.worktrees/
+.superpowers/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env
+.env.local
+.next/
+.turbo/
+dist/
+
+# User data — lives in VLDR_HOME (~/.volundr), not in the repo
+projects/
+global/
+.claude/worktrees/
+
+# Development artifacts (not for published repo)
+.mother-claude.bak/
+.motherclaude/
+.playwright-mcp/
+docs/superpowers/
+/*.png
+.mcp.json
+.claude/settings.local.json

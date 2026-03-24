@@ -1,0 +1,1 @@
+{"name":"infrastructure","version":"1.0.0","description":"Infrastructure and DevOps","alwaysLoad":false,"agentTypes":["devops-engineer","content"],"signals":["infra","deploy","docker","ci"]}

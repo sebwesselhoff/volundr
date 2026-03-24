@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vǫlundr - Autonomous Agent Orchestration for Claude Code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0b0f;--bg-2:#12141a;--bg-3:#1a1d26;--bg-4:#222633;
+  --text:#e4e7ef;--text-2:#9ba3b8;--text-3:#636b82;
+  --accent:#3b82f6;--accent-glow:#3b82f620;--accent-glow-s:#3b82f680;
+  --cyan:#06b6d4;--cyan-glow:#06b6d420;
+  --amber:#f59e0b;--amber-glow:#f59e0b20;
+  --green:#10b981;--green-glow:#10b98120;
+  --red:#ef4444;--red-glow:#ef444420;
+  --purple:#a855f7;--purple-glow:#a855f720;
+  --border:#1e2230;--border-glow:#2a3040;
+}
+html{scroll-behavior:smooth;font-size:16px}
+body{
+  font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);
+  line-height:1.7;overflow-x:hidden;
+}
+::selection{background:var(--accent);color:#fff}
+
+/* Grain */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  opacity:.025;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Grid background */
+.grid-bg{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:
+    linear-gradient(var(--border) 1px,transparent 1px),
+    linear-gradient(90deg,var(--border) 1px,transparent 1px);
+  background-size:60px 60px;opacity:.3;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,black 20%,transparent 70%);
+}
+
+/* Layout */
+section{position:relative;z-index:1;padding:6rem 2rem}
+.container{max-width:1200px;margin:0 auto}
+
+/* NAV */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  padding:.75rem 2rem;
+  background:rgba(10,11,15,.85);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.logo{font-weight:800;font-size:1.1rem;letter-spacing:-.02em}
+.logo span{
+  background:linear-gradient(135deg,#fff,var(--amber),#d97706);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.nav-links{display:flex;gap:1.5rem}
+.nav-links a{color:var(--text-3);text-decoration:none;font-size:.85rem;transition:color .2s;font-weight:500}
+.nav-links a:hover{color:var(--text)}
+
+/* HERO */
+.hero{
+  min-height:100vh;display:flex;align-items:center;
+  justify-content:center;text-align:center;padding-top:0;
+  position:relative;overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;z-index:0;
+  background:radial-gradient(ellipse 70% 50% at 50% 40%,rgba(245,158,11,.08) 0%,transparent 70%);
+}
+.hero .container{position:relative;z-index:1}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:.5rem;
+  padding:.4rem 1.2rem;border-radius:100px;
+  background:var(--amber-glow);border:1px solid rgba(245,158,11,.5);
+  font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--amber);
+  letter-spacing:.06em;text-transform:uppercase;margin-bottom:2rem;
+  animation:fadeDown .8s ease both;
+}
+.hero-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.hero h1{
+  font-size:clamp(3.5rem,10vw,7.5rem);font-weight:900;
+  letter-spacing:-.05em;line-height:.95;
+  margin-bottom:1.5rem;
+  background:linear-gradient(135deg,#fff 0%,#fde68a 35%,var(--amber) 60%,#d97706 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  animation:fadeDown 1s ease .2s both;
+}
+.hero .tagline{
+  font-size:clamp(1.1rem,2.5vw,1.45rem);color:var(--text-2);
+  max-width:620px;margin:0 auto 1rem;font-weight:300;
+  animation:fadeDown 1s ease .35s both;
+}
+.hero .version-badge{
+  display:inline-block;margin-bottom:3rem;
+  font-family:'JetBrains Mono',monospace;font-size:.75rem;
+  color:var(--text-3);letter-spacing:.08em;
+  animation:fadeDown 1s ease .45s both;
+}
+.hero-stats{
+  display:flex;gap:2.5rem;justify-content:center;flex-wrap:wrap;
+  animation:fadeDown 1s ease .6s both;
+}
+.hero-stat{text-align:center}
+.hero-stat .num{
+  font-family:'JetBrains Mono',monospace;font-size:2.2rem;font-weight:700;
+  background:linear-gradient(135deg,#fff,var(--amber));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero-stat .label{font-size:.75rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.12em;margin-top:.15rem}
+@keyframes fadeDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
+
+/* SECTION HEADER */
+.section-label{
+  font-family:'JetBrains Mono',monospace;font-size:.68rem;
+  color:var(--cyan);text-transform:uppercase;letter-spacing:.22em;
+  margin-bottom:.6rem;display:flex;align-items:center;gap:.75rem;
+}
+.section-label::before{content:'';width:24px;height:1px;background:var(--cyan)}
+h2{font-size:clamp(1.9rem,4vw,2.8rem);font-weight:800;letter-spacing:-.03em;margin-bottom:1rem}
+h3{font-size:1.35rem;font-weight:700;margin-bottom:.65rem;letter-spacing:-.01em}
+.section-desc{color:var(--text-2);font-size:1.05rem;max-width:650px;margin-bottom:3rem;line-height:1.8}
+
+/* CARDS */
+.card{
+  background:var(--bg-2);border:1px solid var(--border);border-radius:12px;
+  padding:2rem;transition:all .3s ease;position:relative;overflow:hidden;
+}
+.card:hover{border-color:var(--border-glow);transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+.card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  opacity:0;transition:opacity .3s;
+}
+.card:hover::before{opacity:.5}
+.card-icon{
+  width:42px;height:42px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.2rem;margin-bottom:1.1rem;
+}
+
+/* GRIDS */
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.5rem}
+.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem}
+.grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem}
+
+/* LIFECYCLE FLOW - horizontal */
+.lifecycle-flow{
+  display:grid;grid-template-columns:repeat(5,1fr);gap:0;
+  position:relative;margin:2rem 0;
+}
+.lifecycle-flow::before{
+  content:'';position:absolute;top:40px;left:10%;right:10%;height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--cyan),var(--green),var(--amber),var(--purple));
+  z-index:0;
+}
+.lifecycle-step{
+  display:flex;flex-direction:column;align-items:center;
+  text-align:center;padding:0 .75rem;position:relative;z-index:1;
+}
+.lifecycle-step .step-bubble{
+  width:80px;height:80px;border-radius:50%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;font-weight:700;
+  background:var(--bg-2);border:2px solid;
+  margin-bottom:1rem;position:relative;
+  transition:all .3s;
+}
+.lifecycle-step:hover .step-bubble{transform:scale(1.08)}
+.lifecycle-step .step-num{font-size:.65rem;color:inherit;opacity:.7}
+.lifecycle-step .step-icon{font-size:1.4rem}
+.lifecycle-step h4{font-size:.9rem;font-weight:700;margin-bottom:.3rem}
+.lifecycle-step p{font-size:.78rem;color:var(--text-3);line-height:1.5}
+
+/* SCREENSHOT */
+.screenshot-frame{
+  background:var(--bg-2);border:1px solid var(--border);border-radius:16px;
+  overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5);
+}
+.screenshot-titlebar{
+  display:flex;align-items:center;gap:.5rem;
+  padding:.65rem 1rem;background:var(--bg-3);border-bottom:1px solid var(--border);
+}
+.dot-r{width:10px;height:10px;border-radius:50%;background:var(--red)}
+.dot-a{width:10px;height:10px;border-radius:50%;background:var(--amber)}
+.dot-g{width:10px;height:10px;border-radius:50%;background:var(--green)}
+.titlebar-label{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--text-3);margin-left:.5rem}
+.screenshot-frame img{width:100%;display:block}
+.screenshot-frame .no-img{
+  height:320px;display:flex;align-items:center;justify-content:center;
+  color:var(--text-3);font-family:'JetBrains Mono',monospace;font-size:.8rem;
+  background:var(--bg-3);flex-direction:column;gap:.75rem;
+}
+
+/* FEATURE GRID for dashboard */
+.feature-item{
+  display:flex;gap:1rem;align-items:flex-start;
+  padding:1.25rem;background:var(--bg-2);border:1px solid var(--border);
+  border-radius:10px;transition:all .25s;
+}
+.feature-item:hover{border-color:var(--border-glow);background:var(--bg-3)}
+.feature-icon{
+  width:38px;height:38px;flex-shrink:0;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;font-size:1.1rem;
+}
+.feature-text h4{font-size:.95rem;font-weight:700;margin-bottom:.2rem}
+.feature-text p{font-size:.82rem;color:var(--text-2);line-height:1.55}
+
+/* AGENT ROSTER */
+.agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.25rem}
+.agent-card{
+  background:var(--bg-2);border:1px solid var(--border);border-radius:12px;
+  padding:1.5rem;position:relative;overflow:hidden;
+  transition:all .25s;
+}
+.agent-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.agent-badge{
+  font-family:'JetBrains Mono',monospace;font-size:.62rem;
+  padding:.2rem .55rem;border-radius:100px;display:inline-block;
+  text-transform:uppercase;letter-spacing:.08em;margin-bottom:.8rem;
+}
+.agent-name{font-weight:700;font-size:1.05rem;margin-bottom:.4rem}
+.agent-desc{color:var(--text-2);font-size:.85rem;line-height:1.6}
+
+/* CODE BLOCKS */
+pre{
+  background:var(--bg-3);border:1px solid var(--border);border-radius:10px;
+  padding:1.25rem 1.5rem;overflow-x:auto;
+  font-family:'JetBrains Mono',monospace;font-size:.8rem;
+  color:var(--text-2);line-height:1.9;
+}
+code{font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--accent)}
+
+/* STEP LIST */
+.step-list{display:flex;flex-direction:column;gap:0}
+.step-item{
+  display:flex;gap:1.5rem;align-items:flex-start;
+  padding:1.75rem 0;border-bottom:1px solid var(--border);
+  position:relative;
+}
+.step-item:last-child{border-bottom:none}
+.step-num-circle{
+  width:40px;height:40px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;font-weight:700;font-size:.95rem;
+}
+.step-body h4{font-size:1.05rem;font-weight:700;margin-bottom:.4rem}
+.step-body p{color:var(--text-2);font-size:.9rem;margin-bottom:.75rem}
+.step-body pre{margin-top:.5rem}
+
+/* ARCH DIR */
+.dir-block{
+  background:var(--bg-2);border:1px solid var(--border);border-radius:12px;
+  padding:2rem;overflow:hidden;
+}
+.dir-row{
+  display:flex;gap:1rem;align-items:flex-start;
+  padding:.6rem 0;border-bottom:1px solid rgba(30,34,48,.6);
+}
+.dir-row:last-child{border-bottom:none}
+.dir-path{
+  font-family:'JetBrains Mono',monospace;font-size:.82rem;
+  color:var(--cyan);min-width:200px;flex-shrink:0;
+}
+.dir-desc{font-size:.85rem;color:var(--text-2);line-height:1.55}
+
+/* DATA FLOW */
+.flow-pipe{
+  display:flex;align-items:center;gap:0;flex-wrap:wrap;
+  background:var(--bg-2);border:1px solid var(--border);border-radius:12px;
+  padding:1.5rem 2rem;overflow-x:auto;
+}
+.flow-node{
+  display:flex;flex-direction:column;align-items:center;
+  padding:.75rem 1.25rem;background:var(--bg-3);border:1px solid var(--border);
+  border-radius:8px;font-size:.82rem;font-weight:600;text-align:center;
+  white-space:nowrap;min-width:100px;
+}
+.flow-node .fn-label{font-size:.65rem;color:var(--text-3);margin-top:.2rem;font-family:'JetBrains Mono',monospace}
+.flow-arrow{
+  font-size:1rem;color:var(--border-glow);padding:0 .5rem;flex-shrink:0;
+}
+
+/* FAQ */
+.faq-item{
+  border-bottom:1px solid var(--border);padding:1.5rem 0;
+}
+.faq-item:last-child{border-bottom:none}
+.faq-item h4{font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--text)}
+.faq-item p{color:var(--text-2);font-size:.9rem;line-height:1.7}
+.faq-item code{color:var(--cyan)}
+
+/* TAGS */
+.tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:.62rem;padding:.15rem .5rem;border-radius:4px;text-transform:uppercase;letter-spacing:.05em}
+.tag-blue{background:var(--accent-glow);color:var(--accent);border:1px solid var(--accent-glow-s)}
+.tag-cyan{background:var(--cyan-glow);color:var(--cyan);border:1px solid rgba(6,182,212,.3)}
+.tag-amber{background:var(--amber-glow);color:var(--amber);border:1px solid rgba(245,158,11,.3)}
+.tag-green{background:var(--green-glow);color:var(--green);border:1px solid rgba(16,185,129,.3)}
+.tag-red{background:var(--red-glow);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.tag-purple{background:var(--purple-glow);color:var(--purple);border:1px solid rgba(168,85,247,.3)}
+
+/* DIVIDER */
+.divider{
+  height:1px;margin:0;
+  background:linear-gradient(90deg,transparent,var(--border-glow) 20%,var(--accent-glow-s) 50%,var(--border-glow) 80%,transparent);
+}
+
+/* SCROLL REVEAL */
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .65s ease,transform .65s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+  .lifecycle-flow{grid-template-columns:1fr;gap:1.5rem}
+  .lifecycle-flow::before{display:none}
+  .lifecycle-step{flex-direction:row;text-align:left;gap:1rem}
+  .lifecycle-step .step-bubble{width:52px;height:52px;flex-shrink:0;margin-bottom:0}
+  .lifecycle-step .step-icon{font-size:1rem}
+}
+@media(max-width:768px){
+  section{padding:4rem 1.25rem}
+  .hero-stats{gap:1.5rem}
+  nav .nav-links{display:none}
+  .dir-path{min-width:140px}
+  .flow-pipe{gap:.5rem}
+}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="logo"><span>Vǫlundr</span></div>
+  <div class="nav-links">
+    <a href="#what">What Is This?</a>
+    <a href="#how">How It Works</a>
+    <a href="#forge">The Forge</a>
+    <a href="#campfire">Campfire</a>
+    <a href="#agents">Agents</a>
+    <a href="#start">Get Started</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#commands">Commands</a>
+    <a href="#faq">FAQ</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-badge"><span class="dot"></span>Open Source · MIT License</div>
+    <h1>Vǫlundr</h1>
+    <p class="tagline">Autonomous Agent Orchestration for Claude Code</p>
+    <div class="version-badge">v1.0.0 - MIT License</div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="num">13</div><div class="label">Hooks</div></div>
+      <div class="hero-stat"><div class="num">8</div><div class="label">Agent Types</div></div>
+      <div class="hero-stat"><div class="num">Live</div><div class="label">Dashboard</div></div>
+      <div class="hero-stat"><div class="num">Cross</div><div class="label">Project Memory</div></div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- WHAT IS THIS -->
+<section id="what">
+  <div class="container">
+    <div class="section-label">Overview</div>
+    <h2>What Is This?</h2>
+    <p class="section-desc">Vǫlundr turns Claude Code into a senior engineering lead that manages the entire software development lifecycle - automatically.</p>
+
+    <div class="grid-3 reveal">
+      <div class="card">
+        <div class="card-icon" style="background:var(--accent-glow);color:var(--accent)">&#9889;</div>
+        <h3>One Command to Start</h3>
+        <p style="color:var(--text-2);font-size:.9rem">Open Claude Code in the volundr directory and say "Wake up!" - Vǫlundr handles everything from there. It interviews you, creates a blueprint, breaks work into cards, and starts building.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:var(--cyan-glow);color:var(--cyan)">&#128101;</div>
+        <h3>Real Agent Teams</h3>
+        <p style="color:var(--text-2);font-size:.9rem">Vǫlundr spawns specialized agents - Developer, Architect, QA, DevOps, Designer, Reviewer, Guardian, Researcher - each with their own domain, tools, and communication channels.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:var(--green-glow);color:var(--green)">&#129504;</div>
+        <h3>Learns Across Projects</h3>
+        <p style="color:var(--text-2);font-size:.9rem">Every session ends with a self-review. Lessons are extracted, patterns identified, and knowledge accumulates in a private local database - making every future project smarter.</p>
+      </div>
+    </div>
+
+    <div class="card reveal" style="margin-top:2rem;border-left:3px solid var(--accent)">
+      <h3 style="font-size:1.15rem;margin-bottom:.75rem">The Elevator Pitch</h3>
+      <p style="color:var(--text-2);line-height:1.85">
+        Vǫlundr is a PM, architect, and engineering lead that lives inside Claude Code. You describe what you want to build. It interviews you with 5-10 targeted questions. It writes a blueprint and reviews it with a panel of virtual perspectives. It breaks work into cards with binary success criteria. It spawns specialized agent teammates - one per domain, running in parallel. It scores every deliverable, retries failures, generates behavioral rules from low scores, and writes a retrospective when done. All data stays on your machine. Nothing leaves your environment. Start with <code>"Wake up!"</code>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="container">
+    <div class="section-label">Lifecycle</div>
+    <h2>How It Works</h2>
+    <p class="section-desc">Every project follows the same five-stage flow. Vǫlundr guides you through each stage and handles the complexity automatically.</p>
+
+    <div class="lifecycle-flow reveal">
+      <div class="lifecycle-step">
+        <div class="step-bubble" style="border-color:var(--accent);color:var(--accent)">
+          <div class="step-num">01</div>
+          <div class="step-icon">&#128172;</div>
+        </div>
+        <h4>Discovery</h4>
+        <p>Vǫlundr interviews you - vision, stack, constraints, design, and review gate level. Opinionated defaults. Challenges vague requirements.</p>
+      </div>
+      <div class="lifecycle-step">
+        <div class="step-bubble" style="border-color:var(--cyan);color:var(--cyan)">
+          <div class="step-num">02</div>
+          <div class="step-icon">&#128196;</div>
+        </div>
+        <h4>Blueprint</h4>
+        <p>Architecture, card breakdown, dependency graph. A virtual roundtable of perspectives debates the plan before work starts.</p>
+      </div>
+      <div class="lifecycle-step">
+        <div class="step-bubble" style="border-color:var(--amber);color:var(--amber)">
+          <div class="step-num">03</div>
+          <div class="step-icon">&#9881;</div>
+        </div>
+        <h4>Execution</h4>
+        <p>Agent teammates run in parallel - one per domain. Each works in an isolated worktree with trait-composed prompts. Architect and QA run alongside.</p>
+      </div>
+      <div class="lifecycle-step">
+        <div class="step-bubble" style="border-color:var(--green);color:var(--green)">
+          <div class="step-num">04</div>
+          <div class="step-icon">&#10003;</div>
+        </div>
+        <h4>Quality</h4>
+        <p>Every card is scored on four dimensions. Failures get retried. Low scores generate behavioral rules. Mandatory cross-branch review before merge.</p>
+      </div>
+      <div class="lifecycle-step">
+        <div class="step-bubble" style="border-color:var(--purple);color:var(--purple)">
+          <div class="step-num">05</div>
+          <div class="step-icon">&#128640;</div>
+        </div>
+        <h4>Ship</h4>
+        <p>Integration testing. Guardian architecture audit. Documentation. Retrospective. Lesson promotion to the global knowledge base.</p>
+      </div>
+    </div>
+
+    <div class="grid-2 reveal" style="margin-top:3rem">
+      <div class="card">
+        <h3 style="color:var(--cyan);font-size:1.1rem">Card System</h3>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.7">Work is broken into cards with binary testable success criteria. The dashboard enforces these - a card cannot be marked done unless all criteria pass with evidence. Quality is scored on completeness, code quality, format compliance, and independence.</p>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--amber);font-size:1.1rem">Quality Gates</h3>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.7">After every agent completes: type check, smoke test, anti-pattern scan, and success criteria verification. On failure: a lightweight Fixer agent is spawned for up to two retries. On double failure: escalated to a developer for direct resolution.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- THE FORGE -->
+<section id="forge">
+  <div class="container">
+    <div class="section-label">Dashboard</div>
+    <h2>The Forge</h2>
+    <p class="section-desc">A real-time dashboard that shows everything happening across your project. WebSocket live updates. No polling. No refresh needed.</p>
+
+    <div class="screenshot-frame reveal" style="margin-bottom:2.5rem">
+      <div class="screenshot-titlebar">
+        <span class="dot-r"></span><span class="dot-a"></span><span class="dot-g"></span>
+        <span class="titlebar-label">localhost:3000 - The Forge</span>
+      </div>
+      <img src="docs/images/forge-dashboard.png" alt="The Forge dashboard" onerror="this.parentElement.innerHTML='<div class=\'screenshot-titlebar\'><span class=\'dot-r\'></span><span class=\'dot-a\'></span><span class=\'dot-g\'></span><span class=\'titlebar-label\'>localhost:3000 - The Forge</span></div><div class=\'no-img\'>&#127381;<span>Screenshot: docs/images/forge-dashboard.png</span></div>'">
+    </div>
+
+    <div class="screenshot-frame reveal" style="margin-bottom:2.5rem">
+      <div class="screenshot-titlebar">
+        <span class="dot-r"></span><span class="dot-a"></span><span class="dot-g"></span>
+        <span class="titlebar-label">Board - Card Kanban</span>
+      </div>
+      <img src="docs/images/board-kanban.png" alt="Kanban board with cards" style="width:100%;display:block">
+    </div>
+
+    <div class="grid-2 reveal">
+      <div class="feature-item">
+        <div class="feature-icon" style="background:var(--accent-glow);color:var(--accent)">&#128203;</div>
+        <div class="feature-text">
+          <h4>Real-Time Kanban</h4>
+          <p>Live card board with status columns: backlog, ready, in-progress, blocked, in-review, done. Cards update in real time as agents complete work.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon" style="background:var(--cyan-glow);color:var(--cyan)">&#127795;</div>
+        <div class="feature-text">
+          <h4>Agent Tracker</h4>
+          <p>Every agent registered, tracked, and completed. See which agents are live, what they are working on, and how many tokens they have consumed.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon" style="background:var(--green-glow);color:var(--green)">&#128200;</div>
+        <div class="feature-text">
+          <h4>Quality Scores</h4>
+          <p>Per-card quality scores with trend lines. Four dimensions weighted and aggregated. Session average vs all-time average. Low scores flagged automatically.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon" style="background:var(--amber-glow);color:var(--amber)">&#128181;</div>
+        <div class="feature-text">
+          <h4>Cost Metrics</h4>
+          <p>Token usage and dollar cost tracked per card, per agent, and per session. Cache hit ratio. Cost per card. Budget gating prevents runaway spending.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon" style="background:var(--purple-glow);color:var(--purple)">&#128225;</div>
+        <div class="feature-text">
+          <h4>Event Log</h4>
+          <p>Every significant action logged with timestamp and context. Agent spawns, card transitions, quality gate outcomes, and steering rule generations.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon" style="background:var(--red-glow);color:var(--red)">&#9889;</div>
+        <div class="feature-text">
+          <h4>WebSocket Live Updates</h4>
+          <p>The dashboard uses WebSockets for instant updates. No polling delay. Changes from agents appear on the board within milliseconds.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- THE CAMPFIRE -->
+<section id="campfire">
+  <div class="container">
+    <div class="section-label">Visualization</div>
+    <h2>The Campfire</h2>
+    <p class="section-desc">The heartbeat of your project. A live visualization showing Vǫlundr and every active agent gathered around an animated campfire.</p>
+
+    <div class="grid-2 reveal" style="align-items:start;gap:2.5rem">
+      <div>
+        <div class="screenshot-frame">
+          <div class="screenshot-titlebar">
+            <span class="dot-r"></span><span class="dot-a"></span><span class="dot-g"></span>
+            <span class="titlebar-label">The Campfire - Live Agent View</span>
+          </div>
+          <img src="docs/images/the-thing-full-team.png" alt="The Campfire - full team around the fire" style="width:100%;display:block">
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1.25rem">
+        <div class="card" style="padding:1.5rem">
+          <h4 style="font-size:.95rem;font-weight:700;margin-bottom:.4rem;color:var(--amber)">&#128293; The Campfire</h4>
+          <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">At the center: an animated campfire with flickering light. Around it: every active agent appears as a silhouette figure. The campfire grows brighter as more agents join the project.</p>
+        </div>
+        <div class="card" style="padding:1.5rem">
+          <h4 style="font-size:.95rem;font-weight:700;margin-bottom:.4rem;color:var(--cyan)">&#128172; Speech Bubbles</h4>
+          <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Each agent shows a speech bubble with what it is currently working on. Watch developers claim tasks, architects raise concerns, and QA engineers report test results - all in real time.</p>
+        </div>
+        <div class="card" style="padding:1.5rem">
+          <h4 style="font-size:.95rem;font-weight:700;margin-bottom:.4rem;color:var(--green)">&#127775; Seating Position</h4>
+          <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Vǫlundr sits at the conductor's seat. Domain developers fan out around the fire. Specialists appear as they are spawned. Agents facing inward - facing the work. When an agent completes, its silhouette fades out gracefully.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- AGENT SYSTEM -->
+<section id="agents">
+  <div class="container">
+    <div class="section-label">Agent System</div>
+    <h2>The Roster</h2>
+    <p class="section-desc">Eight specialized agent types, each with a defined role, tool access, model tier, and communication protocol. Vǫlundr selects and spawns the right agents based on the work at hand.</p>
+
+    <!-- Hierarchy diagram -->
+    <div class="reveal" style="margin-bottom:2.5rem">
+      <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:16px;padding:2.5rem;text-align:center;position:relative;overflow:hidden">
+        <div style="position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(59,130,246,.05) 0%,transparent 65%)"></div>
+        <div style="position:relative;z-index:1">
+          <div style="display:inline-flex;flex-direction:column;align-items:center;padding:1.25rem 2.5rem;border-radius:12px;background:linear-gradient(135deg,var(--accent-glow),var(--cyan-glow));border:2px solid var(--accent);margin-bottom:1.5rem">
+            <div style="font-weight:800;font-size:1.2rem">Vǫlundr</div>
+            <div style="font-size:.78rem;color:var(--text-2);font-family:'JetBrains Mono',monospace">Team Lead - Orchestrates Everything</div>
+          </div>
+          <div style="width:2px;height:32px;background:linear-gradient(to bottom,var(--accent),var(--border));margin:0 auto"></div>
+          <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-top:.5rem">
+            <div style="padding:.6rem 1.1rem;background:var(--bg-3);border:1px solid var(--border);border-left:3px solid var(--cyan);border-radius:8px;font-size:.82rem;font-weight:600">Developers</div>
+            <div style="padding:.6rem 1.1rem;background:var(--bg-3);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;font-size:.82rem;font-weight:600">Architect</div>
+            <div style="padding:.6rem 1.1rem;background:var(--bg-3);border:1px solid var(--border);border-left:3px solid var(--green);border-radius:8px;font-size:.82rem;font-weight:600">QA Engineer</div>
+            <div style="padding:.6rem 1.1rem;background:var(--bg-3);border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:8px;font-size:.82rem;font-weight:600">DevOps Engineer</div>
+            <div style="padding:.6rem 1.1rem;background:var(--bg-3);border:1px solid var(--border);border-left:3px solid var(--purple);border-radius:8px;font-size:.82rem;font-weight:600">Designer</div>
+            <div style="padding:.6rem 1.1rem;background:var(--bg-3);border:1px solid var(--border);border-left:3px solid var(--green);border-radius:8px;font-size:.82rem;font-weight:600">Reviewer</div>
+            <div style="padding:.6rem 1.1rem;background:var(--bg-3);border:1px solid var(--border);border-left:3px solid var(--red);border-radius:8px;font-size:.82rem;font-weight:600">Guardian</div>
+            <div style="padding:.6rem 1.1rem;background:var(--bg-3);border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:8px;font-size:.82rem;font-weight:600">Researcher</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="agent-grid reveal">
+      <div class="agent-card" style="border-top:3px solid var(--accent)">
+        <span class="agent-badge" style="background:var(--accent-glow);color:var(--accent);border:1px solid var(--accent-glow-s)">Orchestrator</span>
+        <div class="agent-name">Vǫlundr</div>
+        <div class="agent-desc">The PM, architect, and engineering lead rolled into one. Manages the entire project lifecycle, spawns all agents, merges branches, scores quality, and generates steering rules from failures.</div>
+      </div>
+
+      <div class="agent-card" style="border-top:3px solid var(--cyan)">
+        <span class="agent-badge" style="background:var(--cyan-glow);color:var(--cyan);border:1px solid rgba(6,182,212,.3)">Teammate</span>
+        <div class="agent-name">Developer</div>
+        <div class="agent-desc">Claims tasks from the shared task list and implements cards directly in isolated worktrees. One per domain, up to four running in parallel. Trait-composed per card type.</div>
+      </div>
+
+      <div class="agent-card" style="border-top:3px solid var(--accent)">
+        <span class="agent-badge" style="background:var(--accent-glow);color:var(--accent);border:1px solid var(--accent-glow-s)">Teammate</span>
+        <div class="agent-name">Architect</div>
+        <div class="agent-desc">Continuous design guardian. Reviews card specs before work starts. Catches scope creep, pattern violations, and anti-patterns. Read-only - influences through messages and comments.</div>
+      </div>
+
+      <div class="agent-card" style="border-top:3px solid var(--green)">
+        <span class="agent-badge" style="background:var(--green-glow);color:var(--green);border:1px solid rgba(16,185,129,.3)">Teammate</span>
+        <div class="agent-name">QA Engineer</div>
+        <div class="agent-desc">Owns test strategy and coverage. Writes tests alongside implementation, runs test suites, and messages developers directly when failures are found. Tracks coverage across the project.</div>
+      </div>
+
+      <div class="agent-card" style="border-top:3px solid var(--amber)">
+        <span class="agent-badge" style="background:var(--amber-glow);color:var(--amber);border:1px solid rgba(245,158,11,.3)">Teammate</span>
+        <div class="agent-name">DevOps Engineer</div>
+        <div class="agent-desc">Owns infrastructure: Docker, CI/CD, migrations, environment config, and deployment pipelines. Runs environment verification at the start of every project.</div>
+      </div>
+
+      <div class="agent-card" style="border-top:3px solid var(--purple)">
+        <span class="agent-badge" style="background:var(--purple-glow);color:var(--purple);border:1px solid rgba(168,85,247,.3)">Teammate</span>
+        <div class="agent-name">Designer</div>
+        <div class="agent-desc">UI/UX quality, component patterns, accessibility, and responsive design. Reviews via browser screenshots. Implements CSS and design tokens directly in the codebase.</div>
+      </div>
+
+      <div class="agent-card" style="border-top:3px solid var(--green)">
+        <span class="agent-badge" style="background:var(--green-glow);color:var(--green);border:1px solid rgba(16,185,129,.3)">Teammate</span>
+        <div class="agent-name">Reviewer</div>
+        <div class="agent-desc">Cross-domain code review and spotcheck enforcement. Reads all completed branches, flags issues with file:line references. Severity levels: BLOCK, WARN, and INFO. BLOCK findings prevent merge.</div>
+      </div>
+
+      <div class="agent-card" style="border-top:3px solid var(--red)">
+        <span class="agent-badge" style="background:var(--red-glow);color:var(--red);border:1px solid rgba(239,68,68,.3)">Milestone</span>
+        <div class="agent-name">Guardian</div>
+        <div class="agent-desc">Full codebase architecture audit at milestones. Reviews for pattern consistency, circular imports, type safety, duplication, and security. Grades the codebase A/B/C with specific remediation steps.</div>
+      </div>
+
+      <div class="agent-card" style="border-top:3px solid var(--amber)">
+        <span class="agent-badge" style="background:var(--amber-glow);color:var(--amber);border:1px solid rgba(245,158,11,.3)">Teammate</span>
+        <div class="agent-name">Researcher</div>
+        <div class="agent-desc">Pre-implementation research on external APIs, libraries, and documentation. Produces reports, TypeScript interface mappings, and endpoint catalogs that developers can use directly.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- GETTING STARTED -->
+<section id="start">
+  <div class="container">
+    <div class="section-label">Getting Started</div>
+    <h2>Start in 5 Steps</h2>
+    <p class="section-desc">Prerequisites: Docker, Node.js 20+, and the Claude Code CLI. The dashboard runs in Docker so there is nothing to install locally beyond the CLI.</p>
+
+    <div class="step-list reveal">
+      <div class="step-item">
+        <div class="step-num-circle" style="background:var(--accent-glow);color:var(--accent);border:2px solid var(--accent)">1</div>
+        <div class="step-body">
+          <h4>Install Prerequisites</h4>
+          <p>You need Docker, Node.js 20+, and the Claude Code CLI. If you already have Claude Code installed, you can skip the last line.</p>
+          <pre>npm install -g @anthropic-ai/claude-code</pre>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num-circle" style="background:var(--cyan-glow);color:var(--cyan);border:2px solid var(--cyan)">2</div>
+        <div class="step-body">
+          <h4>Clone the Repository</h4>
+          <p>Clone Vǫlundr and enter the directory. The framework lives here - your project data stays in <code>~/.volundr/</code> and never touches this repo.</p>
+          <pre>git clone https://github.com/YOUR_USERNAME/volundr.git
+cd volundr</pre>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num-circle" style="background:var(--amber-glow);color:var(--amber);border:2px solid var(--amber)">3</div>
+        <div class="step-body">
+          <h4>Start the Dashboard</h4>
+          <p>Run the launcher script. It starts the Docker containers for The Forge (Next.js + Express API + SQLite) and opens the dashboard in your browser.</p>
+          <pre># macOS / Linux
+./start.sh
+
+# Windows
+start.bat</pre>
+          <p style="margin-top:.75rem;margin-bottom:0">The dashboard will be at <code>http://localhost:3000</code>. The API runs at <code>http://localhost:3141</code>.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num-circle" style="background:var(--green-glow);color:var(--green);border:2px solid var(--green)">4</div>
+        <div class="step-body">
+          <h4>Start Claude Code</h4>
+          <p>Open Claude Code <strong>from the volundr directory</strong> - this is where the framework files, hooks, and CLAUDE.md live. Vǫlundr will navigate to your project path automatically.</p>
+          <pre>cd volundr
+claude
+
+# Or for fully autonomous operation (no permission prompts):
+claude --dangerously-skip-permissions</pre>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num-circle" style="background:var(--purple-glow);color:var(--purple);border:2px solid var(--purple)">5</div>
+        <div class="step-body">
+          <h4>Say "Wake up!"</h4>
+          <p>That is it. Vǫlundr activates, checks the dashboard connection, loads or creates a project, and starts the discovery interview. You describe what you want to build - Vǫlundr does the rest.</p>
+          <pre># In Claude Code, just type:
+Wake up!</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <div class="container">
+    <div class="section-label">Architecture</div>
+    <h2>How It's Structured</h2>
+    <p class="section-desc">Two parts: the framework (this repo) and user data (your machine). They never mix. Updates to the framework never overwrite your project data.</p>
+
+    <div class="dir-block reveal" style="margin-bottom:2rem">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--text-3);margin-bottom:1.25rem;text-transform:uppercase;letter-spacing:.1em">Framework Layout (this repo)</div>
+      <div class="dir-row">
+        <div class="dir-path">framework/</div>
+        <div class="dir-desc">System instructions, agent prompts, quality rubric, hierarchy logic, community lessons seed</div>
+      </div>
+      <div class="dir-row">
+        <div class="dir-path">framework/agents/prompts/</div>
+        <div class="dir-desc">Prompt templates for each agent type (Developer, Architect, QA, DevOps, Designer, Reviewer, Guardian, Researcher)</div>
+      </div>
+      <div class="dir-row">
+        <div class="dir-path">dashboard/</div>
+        <div class="dir-desc">The Forge - Turborepo monorepo: @vldr/web (Next.js 15), @vldr/api (Express), @vldr/db (Drizzle + SQLite), @vldr/sdk, @vldr/shared</div>
+      </div>
+      <div class="dir-row">
+        <div class="dir-path">.claude/hooks/</div>
+        <div class="dir-desc">13 lifecycle hooks: session start/stop, agent start/stop, task completed, teammate idle, worktree management, pre-compact state preservation</div>
+      </div>
+      <div class="dir-row">
+        <div class="dir-path">start.sh / start.bat</div>
+        <div class="dir-desc">One-click launchers - starts Docker, seeds community lessons, opens The Forge</div>
+      </div>
+    </div>
+
+    <div class="dir-block reveal" style="margin-bottom:2rem">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--text-3);margin-bottom:1.25rem;text-transform:uppercase;letter-spacing:.1em">User Data (~/.volundr/ - your machine, never in the repo)</div>
+      <div class="dir-row">
+        <div class="dir-path">projects/registry.json</div>
+        <div class="dir-desc">Active project pointer, project index, session state</div>
+      </div>
+      <div class="dir-row">
+        <div class="dir-path">projects/{id}/</div>
+        <div class="dir-desc">Per-project: blueprint.md, constraints.md, cards/, reports/, checkpoints/, sow/</div>
+      </div>
+      <div class="dir-row">
+        <div class="dir-path">global/lessons.md</div>
+        <div class="dir-desc">Aggregated lessons promoted from individual projects</div>
+      </div>
+      <div class="dir-row">
+        <div class="dir-path">global/patterns/</div>
+        <div class="dir-desc">Reusable patterns from high-scoring cards, available to all future projects</div>
+      </div>
+      <div class="dir-row">
+        <div class="dir-path">data/the-forge.db</div>
+        <div class="dir-desc">SQLite database - bind-mounted into Docker. Cards, agents, events, quality scores, cost tracking</div>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <h3 style="margin-bottom:1.25rem">Data Flow</h3>
+      <div class="flow-pipe">
+        <div class="flow-node">Claude Code<div class="fn-label">CLI</div></div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-node">13 Hooks<div class="fn-label">.claude/hooks/</div></div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-node">Dashboard API<div class="fn-label">:3141 Express</div></div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-node">SQLite DB<div class="fn-label">~/.volundr/data/</div></div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-node">The Forge<div class="fn-label">:3000 Next.js</div></div>
+      </div>
+    </div>
+
+    <div class="grid-3 reveal" style="margin-top:2rem">
+      <div class="card">
+        <h3 style="font-size:1rem;color:var(--cyan)">13 Lifecycle Hooks</h3>
+        <p style="color:var(--text-2);font-size:.85rem;line-height:1.65">Claude Code hooks intercept every significant moment. Session start runs crash recovery. Session end clears active project. Agent start injects project context. Agent stop accumulates token costs. Pre-compact preserves state across context resets.</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:1rem;color:var(--amber)">Worktree Isolation</h3>
+        <p style="color:var(--text-2);font-size:.85rem;line-height:1.65">Every Developer agent works in a dedicated git worktree. Branches never collide. Vǫlundr merges branches in dependency order after each parallel round. Failed branches are discarded cleanly.</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:1rem;color:var(--green)">Three-Tier Memory</h3>
+        <p style="color:var(--text-2);font-size:.85rem;line-height:1.65"><strong>HOT</strong> - always loaded: project summary, steering rules, last session. <strong>WARM</strong> - phase-selective: blueprint during planning, card specs during implementation. <strong>COLD</strong> - on demand: full history. Automatically managed.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="container">
+    <div class="section-label">FAQ</div>
+    <h2>Common Questions</h2>
+    <p class="section-desc">Things people ask before getting started.</p>
+
+    <div class="reveal">
+      <div class="faq-item">
+        <h4>Does this require Claude Pro or Claude Max?</h4>
+        <p>Vǫlundr works with any Claude Code plan that supports the CLI. The framework itself has no subscription requirement. You pay for Claude usage the same way you always do - through your Anthropic account.</p>
+      </div>
+      <div class="faq-item">
+        <h4>Can I add my own agents or customize existing ones?</h4>
+        <p>Yes. Add prompt templates to <code>framework/agents/prompts/</code> for new agent types, or place override files in <code>~/.volundr/customizations/{agent-type}/override.md</code> for project-level customization. Overrides are additive - they extend the base prompt without replacing it.</p>
+      </div>
+      <div class="faq-item">
+        <h4>How much does a typical project cost?</h4>
+        <p>Vǫlundr tracks token usage and dollar cost per card, per agent, and per session. A small project (5-10 cards) typically runs $2-10. Larger projects with multiple parallel agents scale linearly. Budget gating pauses execution before spawning agents if estimated cost exceeds your configured threshold.</p>
+      </div>
+      <div class="faq-item">
+        <h4>What models does it use?</h4>
+        <p>Configurable per agent role. Default tiers: Haiku for lightweight fix agents, Sonnet for domain developers and most team roles, Opus for architecture decisions and the Guardian review. You can override the model tier per role, per card type, or per session.</p>
+      </div>
+      <div class="faq-item">
+        <h4>Is my project data shared anywhere?</h4>
+        <p>No. All project data stays in <code>~/.volundr/</code> on your local machine. The SQLite database, blueprints, card specs, lessons, and session history never leave your environment. The framework repo contains only the community lessons seed file - which is anonymized patterns, not project content.</p>
+      </div>
+      <div class="faq-item">
+        <h4>How does the cross-project memory work?</h4>
+        <p>After each session, Vǫlundr runs a self-review: it identifies quality trends, extracts lessons from failures, and promotes high-value patterns to the global knowledge base at <code>~/.volundr/global/</code>. These patterns are loaded into future projects automatically, so agents get smarter over time.</p>
+      </div>
+      <div class="faq-item">
+        <h4>What if an agent fails or produces bad output?</h4>
+        <p>Vǫlundr's quality gate runs after every agent completes. On failure, a lightweight Fixer agent is spawned for up to two retries. On double failure, the issue is escalated to you directly. Low quality scores (below 2.5/5) automatically generate behavioral steering rules to prevent the same issue in future agents.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- COMMANDS & SKILLS -->
+<section id="commands">
+  <div class="container">
+    <div class="section-label">Slash Commands</div>
+    <h2>Commands & Skills</h2>
+    <p class="section-desc">Built-in slash commands you can type during a session. These are shortcuts for common operations - Volundr handles the API calls and formatting.</p>
+
+    <div class="grid-2 reveal">
+      <div class="card" style="padding:1.75rem">
+        <h4 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--amber)"><code>/vldr-shutdown</code></h4>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Graceful shutdown protocol. Saves all work-in-progress, writes a session summary, runs a self-review (quality trends, cost analysis, pattern identification), generates lessons, creates a checkpoint, and presents a final status report. Always run this before ending a session.</p>
+      </div>
+      <div class="card" style="padding:1.75rem">
+        <h4 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--cyan)"><code>/vldr-journal</code></h4>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Log a journal entry - decisions, insights, blockers, pivots. These provide cognitive context that helps future sessions understand what happened and why. Run without arguments to see recent entries.</p>
+        <pre style="margin-top:.75rem;font-size:.75rem;background:var(--bg-3);padding:.5rem .75rem;border-radius:6px;color:var(--text-2)">/vldr-journal decision Chose flat hierarchy - only 4 cards
+/vldr-journal blocker Migration failing on nullable columns
+/vldr-journal insight Build gate must run AFTER npm install</pre>
+      </div>
+      <div class="card" style="padding:1.75rem">
+        <h4 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--green)"><code>/vldr-status</code></h4>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Quick project status dashboard. Shows dashboard health, active project, card progress by status, running agents, and total cost. Useful for a quick check mid-session.</p>
+      </div>
+      <div class="card" style="padding:1.75rem">
+        <h4 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--purple)"><code>/vldr-compact</code></h4>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Context compaction with state preservation. When your conversation gets long, this compacts the context while retaining critical project state - active cards, teammate assignments, phase, and recovery instructions.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- FOOTER -->
+<section style="padding:3rem 2rem;text-align:center">
+  <div class="container">
+    <div style="font-size:clamp(1.5rem,3vw,2rem);font-weight:900;letter-spacing:-.03em;margin-bottom:.75rem;background:linear-gradient(135deg,#fff,var(--amber),#d97706);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Ready to build?</div>
+    <p style="color:var(--text-3);font-size:.95rem;margin-bottom:2rem">Clone the repo, start the dashboard, launch Claude Code, and say "Wake up!"</p>
+    <div style="display:inline-block;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:1rem 2rem;font-family:'JetBrains Mono',monospace;font-size:.85rem;color:var(--text-2)">
+      git clone https://github.com/YOUR_USERNAME/volundr.git
+    </div>
+    <div style="margin-top:3rem;color:var(--text-3);font-size:.8rem">MIT License - Vǫlundr Autonomous Agent Framework</div>
+  </div>
+</section>
+
+<script>
+// Scroll reveal
+const obs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      obs.unobserve(e.target);
+    }
+  });
+}, {threshold: 0.1, rootMargin: '0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "name": "@vldr/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" },
+    "./schema": { "import": "./dist/schema.js", "types": "./dist/schema.d.ts" }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:seed": "tsx src/seed.ts"
+  },
+  "dependencies": {
+    "@vldr/shared": "*",
+    "better-sqlite3": "^11",
+    "drizzle-orm": "^0.38"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7",
+    "drizzle-kit": "^0.30",
+    "tsx": "^4",
+    "typescript": "^5.7"
+  }
+}

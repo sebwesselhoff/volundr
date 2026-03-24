@@ -1,0 +1,1 @@
+{"name":"quality","version":"1.0.0","description":"Quality assurance agents","alwaysLoad":true,"agentTypes":["guardian","fixer"],"signals":[]}

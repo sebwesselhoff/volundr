@@ -1,0 +1,28 @@
+{
+  "name": "@vldr/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vldr/db": "*",
+    "@vldr/shared": "*",
+    "chokidar": "^4.0.3",
+    "express": "^5",
+    "uuid": "^11",
+    "ws": "^8"
+  },
+  "devDependencies": {
+    "@types/express": "^5",
+    "@types/uuid": "^10",
+    "@types/ws": "^8",
+    "tsx": "^4",
+    "typescript": "^5.7"
+  }
+}

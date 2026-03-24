@@ -1,0 +1,1 @@
+{"name":"security","version":"1.0.0","description":"Security-focused traits","alwaysLoad":false,"agentTypes":[],"signals":["security","auth","encryption"]}

@@ -1,0 +1,56 @@
+[
+  {
+    "title": "Framework Compliance Is Non-Negotiable",
+    "content": "Every piece of work gets a card BEFORE implementation starts. Every card completion is tracked through the SDK (card status, events, quality log). If work is happening without a card, STOP and create one first.",
+    "stack": "Any (Vǫlundr framework)",
+    "source": "community"
+  },
+  {
+    "title": "Type Contracts Must Be Shared Inline",
+    "content": "Never let parallel agents define shared types independently. Complete the types card first, include definitions inline in every consumer agent's prompt. Spawning producer + consumer agents simultaneously without shared type contract causes 7+ TypeScript errors post-merge.",
+    "stack": "TypeScript, parallel agents",
+    "source": "community"
+  },
+  {
+    "title": "YAML Round-Trip Is Dangerous for Template Expressions",
+    "content": "The `yaml` npm library mangles `${{ if }}` / `${{ each }}` expressions, comments, anchors, and quoting. For files with template expressions, use pure string-level insertion instead of parse/serialize.",
+    "stack": "TypeScript, Azure DevOps YAML",
+    "source": "community"
+  },
+  {
+    "title": "Parameter Naming Must Be Consistent Across Tools",
+    "content": "In tool sets consumed by LLMs, parameter names must be consistent across tools. LLMs reuse parameter names from one tool's output as another tool's input. Inconsistency causes wrong-value errors.",
+    "stack": "MCP tools, any LLM consumer",
+    "source": "community"
+  },
+  {
+    "title": "DryRun Is Essential for LLM Workflows",
+    "content": "LLMs will call destructive tools immediately without user review. Always provide a `dryRun` parameter that returns a full preview without side effects.",
+    "stack": "MCP tools, any LLM consumer",
+    "source": "community"
+  },
+  {
+    "title": "Absolute Paths Prevent Cross-Tool Confusion",
+    "content": "Tools that return file paths should use absolute paths. Relative paths cause resolution failures when passed between tools with different working directory contexts.",
+    "stack": "MCP tools, any multi-tool workflow",
+    "source": "community"
+  },
+  {
+    "title": "Agent Prompt Design",
+    "content": "Self-contained prompts with all context inline work reliably (~21-48s). Prompts requiring file reads timeout. Developer agents must NOT use Bash — Write/Read tools only. Always include environment constraints block and known antipatterns list.",
+    "stack": "Any (Vǫlundr framework)",
+    "source": "community"
+  },
+  {
+    "title": "Build Gates After Every Agent",
+    "content": "Run `tsc --noEmit` (or equivalent) after every agent, not just at card boundaries. Errors compound silently when gates are deferred. Route smoke tests catch runtime errors that type checkers miss.",
+    "stack": "TypeScript, any compiled language",
+    "source": "community"
+  },
+  {
+    "title": "State Persistence Enables Instant Resume",
+    "content": "SDK-managed state (cards, events, checkpoints) enables instant resume without re-investigation. Context loss without state causes re-orientation and lost nuance. Update card status after every card and write checkpoints before risky operations.",
+    "stack": "Any (Vǫlundr framework)",
+    "source": "community"
+  }
+]

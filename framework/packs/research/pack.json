@@ -1,0 +1,1 @@
+{"name":"research","version":"1.0.0","description":"External API research","alwaysLoad":false,"agentTypes":["researcher"],"signals":["api","integration","webhook","oauth"]}

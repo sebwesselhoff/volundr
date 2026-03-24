@@ -1,0 +1,20 @@
+{
+  "name": "the-forge",
+  "private": true,
+  "packageManager": "npm@11.4.2",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck"
+  },
+  "dependencies": {
+    "concurrently": "^9"
+  },
+  "devDependencies": {
+    "turbo": "^2",
+    "typescript": "^5.7"
+  }
+}

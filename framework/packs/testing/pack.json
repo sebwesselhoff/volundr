@@ -1,0 +1,1 @@
+{"name":"testing","version":"1.0.0","description":"Test strategy and execution","alwaysLoad":false,"agentTypes":["qa-engineer","tester"],"signals":["test","coverage","e2e"]}
