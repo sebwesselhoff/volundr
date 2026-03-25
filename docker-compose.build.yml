@@ -1,0 +1,9 @@
+# Local build override — use when developing the dashboard itself.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
+name: volundr
+services:
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    image: volundr-dashboard:local

@@ -1,10 +1,7 @@
 name: volundr
 services:
   dashboard:
-    build:
-      context: ./dashboard
-      dockerfile: Dockerfile
-    image: volundr-dashboard
+    image: ghcr.io/sebwesselhoff/volundr-dashboard:latest
     ports:
       - "3000:3000"
       - "3141:3141"

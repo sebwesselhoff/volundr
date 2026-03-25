@@ -31,6 +31,14 @@ if [ ! -f "$VLDR_HOME/projects/registry.json" ]; then
     echo
 fi
 
+# --- Parse flags ---
+LOCAL_BUILD=false
+for arg in "$@"; do
+    case "$arg" in
+        --rebuild|--local) LOCAL_BUILD=true ;;
+    esac
+done
+
 # --- Step 1: Start Docker if not running ---
 if ! docker info >/dev/null 2>&1; then
     echo "Starting Docker..."
@@ -49,11 +57,35 @@ fi
 
 echo
 
-# --- Step 2: Build and start dashboard container ---
-echo "Building and starting dashboard..."
+# --- Fast path: dashboard already running and healthy ---
+if [ "$LOCAL_BUILD" = false ] && curl -sf http://localhost:3141/api/health >/dev/null 2>&1; then
+    echo "Dashboard already running."
+    echo
+    echo "Opening dashboard in browser..."
+    if command -v xdg-open &>/dev/null; then xdg-open http://localhost:3000
+    elif command -v open &>/dev/null; then open http://localhost:3000
+    fi
+    echo
+    echo "============================================"
+    echo "  Dashboard ready. Launching Claude CLI..."
+    echo "============================================"
+    echo
+    exec claude "Wake up!" --dangerously-skip-permissions
+fi
+
+# --- Step 2: Start dashboard ---
 export VLDR_HOME_DATA="$VLDR_HOME/data"
 export CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
-docker compose up --build -d
+
+if [ "$LOCAL_BUILD" = true ]; then
+    echo "Building dashboard from source..."
+    export DOCKER_BUILDKIT=1
+    docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
+else
+    echo "Pulling and starting dashboard..."
+    docker compose pull
+    docker compose up -d
+fi
 
 echo "Waiting for dashboard health check..."
 until curl -sf http://localhost:3141/api/health >/dev/null 2>&1; do sleep 2; done

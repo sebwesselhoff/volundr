@@ -14,7 +14,9 @@ WORKDIR /app
 # Copy pruned package.json files and lockfile
 COPY --from=prune /app/out/json/ .
 # Windows-generated lockfile lacks Linux optional deps — delete and install fresh
-RUN rm -f package-lock.json && npm install
+# Cache npm downloads between builds so reinstalls are fast
+RUN --mount=type=cache,target=/root/.npm \
+    rm -f package-lock.json && npm install
 
 # ============================================
 # Stage 3: Build all packages
@@ -33,7 +35,9 @@ FROM node:24-slim AS runner
 WORKDIR /app
 
 # Install curl for healthcheck, procps for concurrently process management
-RUN apt-get update && apt-get install -y --no-install-recommends curl procps && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends curl procps && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create data directory for SQLite volume mount
 RUN mkdir -p /app/data
