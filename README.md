@@ -2,9 +2,10 @@
 
 **Autonomous Agent Orchestration for Claude Code**
 
+[![CI](https://github.com/sebwesselhoff/volundr/actions/workflows/ci.yml/badge.svg)](https://github.com/sebwesselhoff/volundr/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/built%20for-Claude%20Code-orange.svg)](https://docs.anthropic.com/en/docs/claude-code)
-[![Node 20+](https://img.shields.io/badge/node-20%2B-green.svg)](https://nodejs.org)
+[![Node 24+](https://img.shields.io/badge/node-24%2B-green.svg)](https://nodejs.org)
 [![Docker](https://img.shields.io/badge/docker-required-blue.svg)](https://www.docker.com)
 
 ![The Campfire - Full Team](docs/images/the-thing-full-team.png)
@@ -79,7 +80,7 @@ Discovery  -->  Blueprint  -->  Cards  -->  Agents  -->  Ship
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| **Node.js** | 20+ | Required for the dashboard |
+| **Node.js** | 24+ | Required for the dashboard |
 | **Docker** | Any recent | Required for the dashboard container |
 | **Claude Code** | Latest | `npm install -g @anthropic-ai/claude-code` |
 | **Git** | 2.30+ | Worktree support required |
@@ -97,7 +98,7 @@ cd volundr
 
 ### 2. Start the dashboard
 
-The launcher script handles everything - Docker container build, database initialization, and health checks.
+The launcher script handles everything - pulling the pre-built dashboard image, database initialization, and health checks.
 
 **macOS / Linux:**
 ```bash
@@ -112,9 +113,16 @@ start.bat
 This will:
 - Initialize `~/.volundr/` (VLDR_HOME) if it doesn't exist
 - Start Docker Desktop if not running
-- Build and start the dashboard container
+- Pull the pre-built dashboard image from `ghcr.io` (~30s on first run)
 - Wait for the API health check at `http://localhost:3141`
 - Open the dashboard at `http://localhost:3000`
+
+If the dashboard is already running, start is near-instant (~2s).
+
+To build the dashboard from source instead of pulling (for development):
+```bash
+./start.sh --rebuild    # or start.bat --rebuild
+```
 
 ### 3. Configure MCP servers (optional)
 
@@ -253,7 +261,8 @@ Claude Code  -->  Lifecycle Hooks  -->  Dashboard API  -->  SQLite DB
 | **API** | Express, WebSocket (ws) |
 | **Database** | better-sqlite3, Drizzle ORM |
 | **Build** | Turborepo, TypeScript 5.7 |
-| **Container** | Docker, multi-stage build |
+| **Container** | Docker, pre-built image via [GHCR](https://ghcr.io/sebwesselhoff/volundr-dashboard) |
+| **CI** | GitHub Actions (typecheck, build, shellcheck, spell check, link check) |
 | **Visualization** | Custom pixel-art campfire scene |
 | **Charts** | Recharts (metrics/insights) |
 
