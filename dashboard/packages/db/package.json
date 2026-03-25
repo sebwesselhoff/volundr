@@ -21,11 +21,11 @@
   "dependencies": {
     "@vldr/shared": "*",
     "better-sqlite3": "^11",
-    "drizzle-orm": "^0.38"
+    "drizzle-orm": "^0.45"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7",
-    "drizzle-kit": "^0.30",
+    "drizzle-kit": "^0.31",
     "tsx": "^4",
     "typescript": "^5.7"
   }
