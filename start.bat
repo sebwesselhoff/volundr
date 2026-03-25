@@ -32,8 +32,10 @@ if not exist "%VLDR_HOME%\projects\registry.json" (
 
 REM --- Parse flags ---
 set "LOCAL_BUILD=0"
-if "%~1"=="--rebuild" set "LOCAL_BUILD=1"
-if "%~1"=="--local" set "LOCAL_BUILD=1"
+for %%A in (%*) do (
+    if /I "%%~A"=="--rebuild" set "LOCAL_BUILD=1"
+    if /I "%%~A"=="--local" set "LOCAL_BUILD=1"
+)
 
 REM --- Step 1: Start Docker Desktop if not running ---
 docker info >nul 2>&1
@@ -72,7 +74,18 @@ if "%LOCAL_BUILD%"=="1" (
 ) else (
     echo Pulling and starting dashboard...
     docker compose pull
-    docker compose up -d
+    if errorlevel 1 (
+        echo.
+        echo Failed to pull dashboard image. This can happen if:
+        echo   - The image hasn't been published yet ^(first-time setup^)
+        echo   - Docker can't reach ghcr.io ^(network issue^)
+        echo.
+        echo Falling back to local build...
+        set "DOCKER_BUILDKIT=1"
+        docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
+    ) else (
+        docker compose up -d
+    )
 )
 
 echo Waiting for dashboard health check...

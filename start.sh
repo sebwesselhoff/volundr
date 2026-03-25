@@ -83,8 +83,18 @@ if [ "$LOCAL_BUILD" = true ]; then
     docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
 else
     echo "Pulling and starting dashboard..."
-    docker compose pull
-    docker compose up -d
+    if ! docker compose pull; then
+        echo
+        echo "Failed to pull dashboard image. This can happen if:"
+        echo "  - The image hasn't been published yet (first-time setup)"
+        echo "  - Docker can't reach ghcr.io (network issue)"
+        echo
+        echo "Falling back to local build..."
+        export DOCKER_BUILDKIT=1
+        docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
+    else
+        docker compose up -d
+    fi
 fi
 
 echo "Waiting for dashboard health check..."
