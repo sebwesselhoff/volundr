@@ -15,7 +15,7 @@
     "@vldr/shared": "*",
     "chokidar": "^4.0.3",
     "express": "^5",
-    "uuid": "^11",
+    "uuid": "^13",
     "ws": "^8"
   },
   "devDependencies": {
