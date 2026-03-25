@@ -30,6 +30,13 @@ if not exist "%VLDR_HOME%\projects\registry.json" (
     echo.
 )
 
+REM --- Parse flags ---
+set "LOCAL_BUILD=0"
+for %%A in (%*) do (
+    if /I "%%~A"=="--rebuild" set "LOCAL_BUILD=1"
+    if /I "%%~A"=="--local" set "LOCAL_BUILD=1"
+)
+
 REM --- Step 1: Start Docker Desktop if not running ---
 docker info >nul 2>&1
 if errorlevel 1 (
@@ -47,11 +54,39 @@ if errorlevel 1 (
 
 echo.
 
-REM --- Step 2: Build and start dashboard container ---
-echo Building and starting dashboard...
+REM --- Fast path: dashboard already running and healthy ---
+if "%LOCAL_BUILD%"=="1" goto skip_fast_path
+curl -sf http://localhost:3141/api/health >nul 2>&1
+if not errorlevel 1 (
+    echo Dashboard already running.
+    goto open_browser
+)
+:skip_fast_path
+
+REM --- Step 2: Start dashboard ---
 set "VLDR_HOME_DATA=%VLDR_HOME%\data"
 set "CLAUDE_HOME=%USERPROFILE%\.claude"
-docker compose up --build -d
+
+if "%LOCAL_BUILD%"=="1" (
+    echo Building dashboard from source...
+    set "DOCKER_BUILDKIT=1"
+    docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
+) else (
+    echo Pulling and starting dashboard...
+    docker compose pull
+    if errorlevel 1 (
+        echo.
+        echo Failed to pull dashboard image. This can happen if:
+        echo   - The image hasn't been published yet ^(first-time setup^)
+        echo   - Docker can't reach ghcr.io ^(network issue^)
+        echo.
+        echo Falling back to local build...
+        set "DOCKER_BUILDKIT=1"
+        docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
+    ) else (
+        docker compose up -d
+    )
+)
 
 echo Waiting for dashboard health check...
 :health_loop
@@ -63,6 +98,7 @@ echo Dashboard is healthy.
 
 echo.
 
+:open_browser
 REM --- Step 3: Open browser ---
 echo Opening dashboard in browser...
 start http://localhost:3000
