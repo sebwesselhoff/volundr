@@ -2,7 +2,7 @@
 # ============================================
 # Stage 1: Prune workspace for Docker
 # ============================================
-FROM node:24-slim AS prune
+FROM node:25-slim AS prune
 WORKDIR /app
 COPY . .
 RUN npx -y turbo@2 prune @vldr/api @vldr/web --docker
@@ -10,7 +10,7 @@ RUN npx -y turbo@2 prune @vldr/api @vldr/web --docker
 # ============================================
 # Stage 2: Install dependencies
 # ============================================
-FROM node:24 AS deps
+FROM node:25 AS deps
 WORKDIR /app
 # Copy pruned package.json files and lockfile
 COPY --from=prune /app/out/json/ .
@@ -32,7 +32,7 @@ RUN npx turbo build
 # ============================================
 # Stage 4: Production runner
 # ============================================
-FROM node:24-slim AS runner
+FROM node:25-slim AS runner
 WORKDIR /app
 
 # Install curl for healthcheck, procps for concurrently process management
