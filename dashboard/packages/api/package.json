@@ -23,6 +23,6 @@
     "@types/uuid": "^10",
     "@types/ws": "^8",
     "tsx": "^4",
-    "typescript": "^5.7"
+    "typescript": "^6.0"
   }
 }
