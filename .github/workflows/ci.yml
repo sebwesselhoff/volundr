@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Quality checks
+    name: Typecheck & lint
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -42,7 +42,7 @@ jobs:
         uses: raven-actions/actionlint@v2
 
   build:
-    name: Build
+    name: Build dashboard
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -63,7 +63,7 @@ jobs:
         run: npx turbo build
 
   docs:
-    name: Docs
+    name: Docs & spelling
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
