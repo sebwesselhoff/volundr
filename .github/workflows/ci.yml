@@ -38,6 +38,7 @@ jobs:
         with:
           scandir: .
           additional_files: start.sh
+          ignore_paths: node_modules
 
       - name: Actionlint
         uses: raven-actions/actionlint@v2
