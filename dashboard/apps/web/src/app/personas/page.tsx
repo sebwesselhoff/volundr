@@ -948,7 +948,6 @@ export default function PersonasPage() {
             key={s}
             onClick={() => setStatusFilter(s)}
             style={{
-              background: 'transparent',
               border: 'none',
               cursor: 'pointer',
               fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',

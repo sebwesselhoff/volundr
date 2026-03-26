@@ -236,7 +236,7 @@ function getEventLabel(type: Event['type']): string {
     case 'session_started': return 'Session Start';
     case 'session_ended': return 'Session End';
     case 'shutdown_started': return 'Shutdown';
-    default: return type.replace(/_/g, ' ');
+    default: return (type as string).replace(/_/g, ' ');
   }
 }
 
