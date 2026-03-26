@@ -44,6 +44,27 @@ async function main() {
     });
   }
 
+  // Session summary check: auto-create a minimal summary if none exists recently
+  if (PROJECT_ID) {
+    const summaries = await apiGet(`/api/projects/${PROJECT_ID}/session-summaries?limit=1`);
+    const recentSummary = summaries && summaries.length > 0 && summaries[0];
+    const summaryAge = recentSummary ? (Date.now() - new Date(recentSummary.startedAt).getTime()) : Infinity;
+
+    // If no summary in the last 2 hours, create a minimal one
+    if (summaryAge > 2 * 60 * 60 * 1000) {
+      const cards = await apiGet(`/api/projects/${PROJECT_ID}/cards`);
+      const done = cards ? cards.filter(c => c.status === 'done').length : 0;
+      const total = cards ? cards.length : 0;
+      await apiPost('/api/session-summaries', {
+        projectId: PROJECT_ID,
+        startedAt: new Date(Date.now() - 3600000).toISOString(), // approximate
+        endedAt: new Date().toISOString(),
+        summary: `Auto-generated: Session ended without explicit summary. Progress: ${done}/${total} cards done.`,
+      });
+      log.info('auto_summary_created', `Created auto session summary (${done}/${total} cards)`);
+    }
+  }
+
   // Clear activeProject in registry.json
   const registryPath = path.join(VLDR_HOME, 'projects', 'registry.json');
   try {
