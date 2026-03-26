@@ -27,6 +27,12 @@ import journalRouter from './routes/journal.js';
 import sessionSummariesRouter from './routes/session-summaries.js';
 import teamsRouter from './routes/teams.js';
 import personasRouter from './routes/personas.js';
+import routingRulesRouter from './routes/routing-rules.js';
+import directivesRouter from './routes/directives.js';
+import skillsRouter from './routes/skills.js';
+import economyRouter from './routes/economy.js';
+import reviewerLockoutsRouter from './routes/reviewer-lockouts.js';
+import ceremoniesRouter from './routes/ceremonies.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Matches the DB path used by the db package (dashboard/data/the-forge.db)
@@ -100,6 +106,12 @@ app.use('/api', journalRouter);
 app.use('/api', sessionSummariesRouter);
 app.use('/api', teamsRouter);
 app.use('/api', personasRouter);
+app.use('/api', routingRulesRouter);
+app.use('/api', directivesRouter);
+app.use('/api', skillsRouter);
+app.use('/api', economyRouter);
+app.use('/api', reviewerLockoutsRouter);
+app.use('/api', ceremoniesRouter);
 
 // Error handler (must be after routes)
 app.use(errorHandler);

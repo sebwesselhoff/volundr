@@ -165,3 +165,4 @@ export const schemaVersion = sqliteTable('schema_version', {
 
 export { teams, teamMembers, teamMessages, teamTasks } from './team-schema.js';
 export { personas, personaHistory, personaStats } from './persona-schema.js';
+export { routingRules, directives, skills, reviewerLockouts } from './routing-governance-schema.js';
