@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb, schema } from '@vldr/db';
-import { eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { v4 as uuid } from 'uuid';
 import { ApiError } from '../middleware/error-handler.js';
 
 const router = Router();
@@ -41,7 +42,8 @@ router.post('/quality', (req, res) => {
   if (!cardId) throw new ApiError(400, 'cardId is required');
 
   const db = getDb();
-  const [card] = db.select({ id: schema.cards.id }).from(schema.cards).where(eq(schema.cards.id, cardId)).all();
+  const [card] = db.select({ id: schema.cards.id, projectId: schema.cards.projectId })
+    .from(schema.cards).where(eq(schema.cards.id, cardId)).all();
   if (!card) throw new ApiError(404, `Card ${cardId} not found`);
 
   const C = completeness ?? 0;
@@ -54,6 +56,8 @@ router.post('/quality', (req, res) => {
 
   const now = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
 
+  let scoreRow: typeof schema.qualityScores.$inferSelect;
+
   if (existing) {
     db.update(schema.qualityScores).set({
       completeness: C,
@@ -65,22 +69,48 @@ router.post('/quality', (req, res) => {
       updatedAt: now,
     }).where(eq(schema.qualityScores.cardId, cardId)).run();
 
-    const [updated] = db.select().from(schema.qualityScores).where(eq(schema.qualityScores.cardId, cardId)).all();
-    return res.json(updated);
+    [scoreRow] = db.select().from(schema.qualityScores).where(eq(schema.qualityScores.cardId, cardId)).all();
+  } else {
+    const result = db.insert(schema.qualityScores).values({
+      cardId,
+      completeness: C,
+      codeQuality: Q,
+      formatCompliance: F,
+      independence: I,
+      weightedScore,
+      implementationType: implementationType ?? 'unknown',
+    }).run();
+
+    [scoreRow] = db.select().from(schema.qualityScores).where(eq(schema.qualityScores.id, Number(result.lastInsertRowid))).all();
   }
 
-  const result = db.insert(schema.qualityScores).values({
-    cardId,
-    completeness: C,
-    codeQuality: Q,
-    formatCompliance: F,
-    independence: I,
-    weightedScore,
-    implementationType: implementationType ?? 'unknown',
-  }).run();
+  // Gate 6: optimization cycle nudge every 5 done cards in the project
+  try {
+    const doneCards = db.select({ id: schema.cards.id })
+      .from(schema.cards)
+      .where(eq(schema.cards.projectId, card.projectId))
+      .all()
+      .filter(c => {
+        // cards that have a quality score = implicitly done
+        const qs = db.select({ id: schema.qualityScores.id })
+          .from(schema.qualityScores)
+          .where(eq(schema.qualityScores.cardId, c.id))
+          .all();
+        return qs.length > 0;
+      });
+    const doneCount = doneCards.length;
+    if (doneCount > 0 && doneCount % 5 === 0) {
+      db.insert(schema.commands).values({
+        id: uuid(),
+        projectId: card.projectId,
+        type: 'optimization_cycle_due',
+        detail: `${doneCount} cards scored — time for an optimization review`,
+        status: 'pending',
+      }).run();
+    }
+  } catch { /* nudge failure must not block the response */ }
 
-  const [created] = db.select().from(schema.qualityScores).where(eq(schema.qualityScores.id, Number(result.lastInsertRowid))).all();
-  res.status(201).json(created);
+  res.status(existing ? 200 : 201).json(scoreRow!);
 });
 
 export default router;

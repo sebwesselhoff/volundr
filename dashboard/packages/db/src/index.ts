@@ -180,6 +180,29 @@ export function getDb() {
         completed_at TEXT
       );
       CREATE UNIQUE INDEX IF NOT EXISTS idx_team_tasks_dedup ON team_tasks(team_id, task_id);
+      CREATE TABLE IF NOT EXISTS routing_rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        work_type TEXT NOT NULL,
+        persona_id TEXT NOT NULL,
+        examples TEXT,
+        confidence TEXT NOT NULL DEFAULT 'medium',
+        module_pattern TEXT,
+        priority INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS directives (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        source TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        priority INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT,
+        superseded_by INTEGER
+      );
     `);
 
     // Idempotent migrations for existing DBs
@@ -193,6 +216,31 @@ export function getDb() {
 
     // ISC column migration for existing DBs
     try { sqlite.exec('ALTER TABLE cards ADD COLUMN isc TEXT'); } catch {}
+
+    // Migration 008: economy_mode column on projects
+    const projCols = sqlite.prepare("PRAGMA table_info(projects)").all().map((r: any) => r.name);
+    if (!projCols.includes('economy_mode')) {
+      sqlite.exec("ALTER TABLE projects ADD COLUMN economy_mode INTEGER NOT NULL DEFAULT 0");
+    }
+
+    // Seed default routing rules if table is empty (11 rules covering common work types)
+    const ruleCount = (sqlite.prepare("SELECT COUNT(*) as c FROM routing_rules").get() as any).c;
+    if (ruleCount === 0) {
+      sqlite.exec(`
+        INSERT INTO routing_rules (work_type, persona_id, examples, confidence, priority) VALUES
+          ('TypeScript/JavaScript implementation', 'fullstack-web', '["ts","tsx","js","jsx","node"]', 'high', 10),
+          ('SQL and database design', 'backend-api', '["sql","migration","schema","drizzle","postgres"]', 'high', 9),
+          ('Azure infrastructure', 'devops-engineer', '["azure","bicep","arm","terraform","aks"]', 'high', 9),
+          ('Authentication and authorization', 'security-specialist', '["auth","oauth","jwt","rbac","permissions"]', 'high', 8),
+          ('Testing and QA', 'qa-engineer', '["test","spec","jest","vitest","playwright","cypress"]', 'high', 8),
+          ('Security review', 'security-specialist', '["security","vulnerability","cve","pentest","owasp"]', 'high', 8),
+          ('CI/CD pipelines', 'devops-engineer', '["pipeline","github-actions","ci","cd","deploy"]', 'medium', 7),
+          ('Architecture and design', 'architect', '["architecture","design","adr","system","diagram"]', 'high', 7),
+          ('Database migrations', 'backend-api', '["migration","alter","add column","drop","create table"]', 'medium', 6),
+          ('Performance optimization', 'fullstack-web', '["perf","performance","latency","throughput","optimize"]', 'medium', 5),
+          ('Documentation', 'researcher', '["docs","readme","guide","markdown","wiki"]', 'low', 1);
+      `);
+    }
 
     _db = drizzle(sqlite, { schema });
   }
