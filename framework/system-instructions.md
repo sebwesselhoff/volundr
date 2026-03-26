@@ -615,9 +615,27 @@ Be opinionated. Suggest defaults.
 5. Git commit: `git add VLDR_HOME/projects/{id}/ && git commit -m "docs: blueprint and SoWs"`
 6. Inform developer (pause if Gate Level 2+)
 
-### Phase 2.3: Blueprint Review Round Table
+### Phase 2.3: Blueprint Review — Lineup Selection
 
 **After writing the blueprint, before CARD-000, run a team-based moderated debate.**
+
+Two lineups are available. Select based on project character:
+
+| Signal | Use Round Table | Use Chaos Engine |
+|--------|----------------|------------------|
+| Established patterns, known stack | Yes | |
+| Greenfield product, novel concept | | Yes |
+| Migration, refactor, infrastructure | Yes | |
+| Consumer-facing, design-driven | | Yes |
+| High regulatory/compliance needs | Yes | |
+| Innovation sprint, hackathon-style | | Yes |
+| Developer preference | Either — ask during Discovery Interview |
+
+**Default:** Round Table (stress-test). Use Chaos Engine when the project needs breakthrough thinking over risk mitigation.
+
+---
+
+#### Phase 2.3a: Round Table (Stress-Test Lineup)
 
 1. Create team: `roundtable-{project-id}`
 2. Create Round 1 tasks (3-5 focused review questions):
@@ -629,17 +647,59 @@ Be opinionated. Suggest defaults.
 3. Spawn 5-6 voice teammates simultaneously (all Sonnet):
   - The Architect, The Skeptic, The Pragmatist, The User Advocate, The Operations Realist
   - Add The Designer if project has frontend cards
-  - Use `framework/agents/prompts/roundtable-teammate.md` template with voice variables
+  - Use `framework/packs/roundtable/prompts/roundtable-teammate.md` template with voice variables
 4. Voices claim tasks, post positions, challenge each other via SendMessage
 5. Vǫlundr reads Round 1 conversation, posts Round 2 tasks (targeted follow-ups based on disagreements)
-6. Voices debate Round 2 - must name who they agree/disagree with and why
+6. Voices debate Round 2 — must name who they agree/disagree with and why
 7. Volundr synthesizes, revises blueprint, writes `VLDR_HOME/projects/{id}/reports/roundtable-review.md`
 8. Shut down all voices, delete team
 
-**Error handling:**
+---
+
+#### Phase 2.3b: Chaos Engine (Breakthrough Lineup)
+
+A high-intensity idea evolution system. Does NOT optimize for safety — optimizes for **breakthrough + coherence**. Ideas are amplified before being reduced. Criticism transforms, never eliminates.
+
+1. Create team: `chaos-engine-{project-id}`
+2. Create Round 1 tasks — **Expansion** (3-5 questions that demand bold directions):
+  - "What's the most ambitious version of this that could actually work?"
+  - "What would make this a category-defining product instead of another {X}?"
+  - "What conventional assumption in this space is wrong?"
+  - "Where does AI create unfair advantage — not incremental, but 10x?"
+  - "What would users tell their friends about?" *(if consumer-facing)*
+3. Spawn 6 voice teammates simultaneously (all Sonnet, `chaos-engine-voice` type):
+  - The Visionary, The Mad Designer, The AI Maximalist, The Idea Defender, The Constraint Hacker, The Surgical Skeptic
+  - Add The Future User if project has strong user-facing components
+  - Use `framework/packs/roundtable/prompts/chaos-engine-teammate.md` template with voice variables
+  - Assign **Driver** and **Challenger** power roles (rotate each round)
+4. Voices claim tasks, post positions, engage via **Conflict Protocol**:
+  - Each voice MUST send at least 1 Attack ("You're optimizing for {wrong thing}") and 1 Elevation ("This becomes 10x if we change {X to Y}")
+  - Ideas are scored on: Boldness, Differentiation, Feasibility, Leverage (1-10 each)
+5. Vǫlundr reads Round 1, posts Round 2 tasks — **Collision** (targeted based on tensions):
+  - Focus on disagreements: "The Visionary and The Constraint Hacker disagree on {X}. Resolve."
+  - Push weak ideas to transform: "The Mad Designer's {idea} scored low on Feasibility. Make it buildable without killing it."
+  - Rotate Driver/Challenger assignments
+6. Vǫlundr reads Round 2, posts Round 3 tasks — **Convergence**:
+  - Driver selects 1-2 winning directions (must justify, must maintain boldness)
+  - Challenger stress-tests the selection
+  - Other voices align or dissent with reasoning
+7. Vǫlundr posts Final Round task — **The Bet**:
+  - Each voice declares: what to ship, why it wins, biggest risk, unfair advantage, what kills it
+  - Include forced shipping constraint: "If we had to ship in 7 days, what survives?"
+8. Volundr synthesizes, revises blueprint, writes `VLDR_HOME/projects/{id}/reports/chaos-engine-review.md`
+9. Shut down all voices, delete team
+
+**System balance target:** 30% Vision, 30% Design, 20% Grounding, 20% Critique.
+
+**Success metric:** Ideas become MORE ambitious AND more grounded over rounds. If ideas get safer or collapse under criticism, the system has failed — Vǫlundr should note this in the report.
+
+---
+
+#### Shared Error Handling (both lineups)
+
 - Voice doesn't respond within 5 minutes → proceed with available positions
 - Voice crashes → note missing perspective, continue
-- Token budget: ~50k per voice per round. If roundtable exceeds 500k total → end debate, synthesize
+- Token budget: ~50k per voice per round. If debate exceeds 500k total → end, synthesize
 - Fewer than 3 voices post in Round 1 → abort, Vǫlundr reviews alone
 
 **Skip conditions:** Skip if project has ≤5 cards or developer explicitly opts out.

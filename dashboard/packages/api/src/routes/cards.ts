@@ -203,6 +203,50 @@ router.patch('/cards/:id', (req, res) => {
     };
   };
 
+  if (status != null && status !== existing.status) {
+    // Gate 1: deps must be done before in_progress
+    if (status === 'in_progress') {
+      const depsArr: string[] = existing.deps ? JSON.parse(existing.deps) : [];
+      if (depsArr.length > 0) {
+        const depCards = db.select({ id: schema.cards.id, status: schema.cards.status })
+          .from(schema.cards)
+          .all()
+          .filter(c => depsArr.includes(c.id));
+        const notDone = depCards.filter(c => c.status !== 'done');
+        if (notDone.length > 0) {
+          return res.status(409).json({
+            error: 'Unresolved dependencies',
+            detail: `Card ${req.params.id} cannot move to in_progress: ${notDone.length} dep(s) not done`,
+            unresolved: notDone.map(c => c.id),
+          });
+        }
+      }
+    }
+
+    // Gate 2: ISC criteria required before leaving backlog
+    if (existing.status === 'backlog') {
+      const isc2 = existing.isc ? (() => { try { return JSON.parse(existing.isc!); } catch { return []; } })() : [];
+      if (isc2.length === 0) {
+        throw new ApiError(400, `Card ${req.params.id} cannot leave backlog: ISC criteria are required before starting work`);
+      }
+    }
+
+    // Gate 4: CARD-000 must be done before any other card starts
+    if (status === 'in_progress' && !req.params.id.includes('000')) {
+      const card000 = db.select({ id: schema.cards.id, status: schema.cards.status })
+        .from(schema.cards)
+        .where(eq(schema.cards.projectId, existing.projectId))
+        .all()
+        .find(c => c.id.includes('000') || c.id.endsWith('-000'));
+      if (card000 && card000.status !== 'done') {
+        return res.status(409).json({
+          error: 'Setup card not done',
+          detail: `Card ${card000.id} (setup/CARD-000) must be done before starting other cards. Current status: ${card000.status}`,
+        });
+      }
+    }
+  }
+
   // Enforce quality scoring when marking a card as done
   if (status === 'done' && existing.status !== 'done') {
     if (!quality) {

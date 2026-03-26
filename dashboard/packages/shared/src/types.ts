@@ -2,6 +2,8 @@ import type {
   ProjectStatus, ProjectPhase, CardStatus, CardSize, CardPriority,
   AgentType, AgentStatus, EventType, ImplementationType, JournalEntryType,
   TeamStatus, TeamMemberStatus, TeamTaskStatus,
+  PersonaStatus, PersonaRole, HistorySection,
+  RoutingConfidence, DirectiveSource, DirectiveStatus,
 } from './enums.js';
 
 // --- Entity types (match DB schema / API responses exactly) ---
@@ -13,6 +15,7 @@ export interface Project {
   status: ProjectStatus;
   phase: ProjectPhase;
   reviewGateLevel: number;
+  economyMode: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -42,6 +45,9 @@ export interface Card {
   filesModified: string[];
   branch: string;
   isc: Array<{ criterion: string; evidence: string | null; passed: boolean | null }> | null;
+  assignedPersonaId: string | null;
+  routingConfidence: string | null;
+  routingReason: string | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -116,6 +122,7 @@ export interface UpdateProjectInput {
   status?: ProjectStatus;
   phase?: ProjectPhase;
   reviewGateLevel?: number;
+  economyMode?: boolean;
 }
 
 export interface CreateEpicInput {
@@ -401,3 +408,206 @@ export interface TeamWithMembers extends Team {
 export type DisplayMessage =
   | { kind: 'chat'; data: TeamMessage }
   | { kind: 'system'; event: string; detail: string; timestamp: string; teamId: string };
+
+// --- Skills ---
+
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  domain: string;
+  confidence: 'low' | 'medium' | 'high';
+  source: string;
+  version: number;
+  validatedAt: string;
+  reviewByDate: string;
+  triggers: string[];
+  roles: string[];
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSkillInput {
+  id: string;
+  name: string;
+  description: string;
+  domain: string;
+  confidence?: 'low' | 'medium' | 'high';
+  source?: string;
+  version?: number;
+  validatedAt?: string;
+  reviewByDate?: string;
+  triggers?: string[];
+  roles?: string[];
+  body?: string;
+}
+
+export interface UpdateSkillInput {
+  name?: string;
+  description?: string;
+  domain?: string;
+  confidence?: 'low' | 'medium' | 'high';
+  version?: number;
+  validatedAt?: string;
+  reviewByDate?: string;
+  triggers?: string[];
+  roles?: string[];
+  body?: string;
+}
+
+export interface SkillMatchResult {
+  skill: Skill;
+  score: number;
+  matchedTriggers: string[];
+}
+
+// --- Personas ---
+
+export interface Persona {
+  id: string;
+  name: string;
+  role: PersonaRole;
+  expertise: string | null;   // JSON array string
+  modelPreference: string | null;
+  style: string | null;
+  status: PersonaStatus;
+  cardsCompleted: number;
+  qualityAverage: number;
+  totalTokens: number;
+  totalCost: number;
+  createdAt: string;
+  lastActiveAt: string | null;
+  charterPath: string | null;
+  historyPath: string | null;
+}
+
+export interface PersonaHistoryEntry {
+  id: number;
+  personaId: string;
+  projectId: string | null;
+  section: HistorySection;
+  content: string;
+  stackTags: string | null;   // JSON array string
+  confidence: number | null;
+  createdAt: string;
+  archivedAt: string | null;
+}
+
+export interface PersonaSkill {
+  personaId: string;
+  skillId: string;
+  confidence: string | null;
+  acquiredAt: string;
+  lastUsedAt: string | null;
+  usageCount: number | null;
+  projectId: string | null;
+}
+
+export interface ReviewerLockout {
+  cardId: string;
+  personaId: string;
+  lockedAt: string;
+  reason: string | null;
+}
+
+export interface CreatePersonaInput {
+  id: string;
+  name: string;
+  role: PersonaRole;
+  expertise?: string[];
+  style?: string;
+  modelPreference?: string;
+  status?: PersonaStatus;
+  charterPath?: string;
+  historyPath?: string;
+}
+
+export interface UpdatePersonaInput {
+  name?: string;
+  role?: PersonaRole;
+  expertise?: string[];
+  style?: string;
+  modelPreference?: string;
+  status?: PersonaStatus;
+  cardsCompleted?: number;
+  qualityAverage?: number;
+  totalTokens?: number;
+  totalCost?: number;
+  lastActiveAt?: string;
+  charterPath?: string;
+  historyPath?: string;
+}
+
+export interface CreatePersonaHistoryEntryInput {
+  projectId?: string;
+  section: HistorySection;
+  content: string;
+  stackTags?: string[];
+  confidence?: number;
+}
+
+// --- Routing Rules (RT-001) ---
+
+export interface RoutingRule {
+  id: number;
+  workType: string;
+  personaId: string;
+  examples: string | null; // JSON array
+  confidence: RoutingConfidence;
+  modulePattern: string | null;
+  priority: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateRoutingRuleInput {
+  workType: string;
+  personaId: string;
+  examples?: string[];
+  confidence?: RoutingConfidence;
+  modulePattern?: string;
+  priority?: number;
+  isActive?: boolean;
+}
+
+export interface UpdateRoutingRuleInput {
+  workType?: string;
+  personaId?: string;
+  examples?: string[];
+  confidence?: RoutingConfidence;
+  modulePattern?: string;
+  priority?: number;
+  isActive?: boolean;
+}
+
+// --- Directives (GV-001) ---
+
+export interface Directive {
+  id: number;
+  projectId: string | null;
+  content: string;
+  source: DirectiveSource;
+  status: DirectiveStatus;
+  priority: number;
+  createdAt: string;
+  updatedAt: string | null;
+  supersededBy: number | null;
+}
+
+export interface CreateDirectiveInput {
+  projectId?: string;
+  content: string;
+  source: DirectiveSource;
+  status?: DirectiveStatus;
+  priority?: number;
+}
+
+export interface UpdateDirectiveInput {
+  content?: string;
+  source?: DirectiveSource;
+  status?: DirectiveStatus;
+  priority?: number;
+  supersededBy?: number;
+}

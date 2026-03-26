@@ -8,6 +8,7 @@ export const projects = sqliteTable('projects', {
   status: text('status').notNull().default('active'),
   phase: text('phase').notNull().default('discovery'),
   reviewGateLevel: integer('review_gate_level').notNull().default(1),
+  economyMode: integer('economy_mode', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });
@@ -37,6 +38,9 @@ export const cards = sqliteTable('cards', {
   filesModified: text('files_modified'),
   branch: text('branch'),
   isc: text('isc'),  // JSON array: [{ criterion, evidence, passed }]
+  assignedPersonaId: text('assigned_persona_id'),
+  routingConfidence: text('routing_confidence'),
+  routingReason: text('routing_reason'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
   completedAt: text('completed_at'),
@@ -157,3 +161,98 @@ export const sessionSummaries = sqliteTable('session_summaries', {
 });
 
 export { teams, teamMembers, teamMessages, teamTasks } from './team-schema.js';
+
+// --- Skills ---
+
+export const skills = sqliteTable('skills', {
+  id: text('id').primaryKey(), // kebab-case slug, e.g. "git-workflow-agents"
+  name: text('name').notNull(),
+  description: text('description').notNull(),
+  domain: text('domain').notNull(),
+  confidence: text('confidence').notNull().default('medium'), // low | medium | high
+  source: text('source').notNull().default('seed'), // seed | earned | extracted | imported
+  version: integer('version').notNull().default(1),
+  validatedAt: text('validated_at').notNull().default(sql`(date('now'))`),
+  reviewByDate: text('review_by_date').notNull(),
+  triggers: text('triggers').notNull().default('[]'), // JSON string[]
+  roles: text('roles').notNull().default('[]'),       // JSON string[]
+  body: text('body').notNull().default(''),           // full markdown body
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+});
+
+// --- Routing Rules (RT-001) ---
+export const routingRules = sqliteTable('routing_rules', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  workType: text('work_type').notNull(),
+  personaId: text('persona_id').notNull(),
+  examples: text('examples'), // JSON array of example phrases
+  confidence: text('confidence').notNull().default('medium'), // low|medium|high
+  modulePattern: text('module_pattern'), // path glob pattern
+  priority: integer('priority').notNull().default(0),
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+});
+
+// --- Personas ---
+
+export const personas = sqliteTable('personas', {
+  id: text('id').primaryKey(),           // kebab-case: 'fullstack-web'
+  name: text('name').notNull(),
+  role: text('role').notNull(),           // developer|architect|qa-engineer|etc
+  expertise: text('expertise'),           // JSON array
+  modelPreference: text('model_preference').default('auto'),
+  style: text('style'),
+  status: text('status').notNull().default('active'), // active|inactive|retired
+  cardsCompleted: integer('cards_completed').notNull().default(0),
+  qualityAverage: real('quality_average').notNull().default(0),
+  totalTokens: integer('total_tokens').notNull().default(0),
+  totalCost: real('total_cost').notNull().default(0),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  lastActiveAt: text('last_active_at'),
+  charterPath: text('charter_path'),
+  historyPath: text('history_path'),
+});
+
+export const personaHistoryEntries = sqliteTable('persona_history_entries', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  personaId: text('persona_id').notNull().references(() => personas.id),
+  projectId: text('project_id'),
+  section: text('section').notNull(),    // 'learnings'|'decisions'|'patterns'
+  content: text('content').notNull(),
+  stackTags: text('stack_tags'),         // JSON array
+  confidence: real('confidence').default(1.0),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  archivedAt: text('archived_at'),
+});
+
+export const personaSkills = sqliteTable('persona_skills', {
+  personaId: text('persona_id').notNull().references(() => personas.id),
+  skillId: text('skill_id').notNull(),
+  confidence: text('confidence').default('low'),
+  acquiredAt: text('acquired_at').notNull().default(sql`(datetime('now'))`),
+  lastUsedAt: text('last_used_at'),
+  usageCount: integer('usage_count').default(0),
+  projectId: text('project_id'),
+});
+
+export const reviewerLockouts = sqliteTable('reviewer_lockouts', {
+  cardId: text('card_id').notNull(),
+  personaId: text('persona_id').notNull(),
+  lockedAt: text('locked_at').notNull().default(sql`(datetime('now'))`),
+  reason: text('reason'),
+});
+
+// --- Directives (GV-001) ---
+export const directives = sqliteTable('directives', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }), // NULL = global
+  content: text('content').notNull(),
+  source: text('source').notNull(), // confirmed|manual|imported
+  status: text('status').notNull().default('active'), // active|suppressed|superseded
+  priority: integer('priority').notNull().default(0),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at'),
+  supersededBy: integer('superseded_by'),
+});

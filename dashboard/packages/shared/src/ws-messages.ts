@@ -1,6 +1,7 @@
 import type {
   Agent, Card, Epic, Event, Project, MetricsResponse, LogEntry,
   JournalEntry, SessionSummary, Team, TeamMember, TeamMessage, TeamTask,
+  Persona, PersonaHistoryEntry,
 } from './types.js';
 
 // Server → All Clients
@@ -27,7 +28,11 @@ export type ServerMessage =
   | { type: 'team:member_left'; data: TeamMember }
   | { type: 'team:message'; data: TeamMessage }
   | { type: 'team:task_created'; data: TeamTask }
-  | { type: 'team:task_updated'; data: Partial<TeamTask> & { id: number } };
+  | { type: 'team:task_updated'; data: Partial<TeamTask> & { id: number } }
+  // Personas
+  | { type: 'persona:created'; data: Persona }
+  | { type: 'persona:updated'; data: Persona }
+  | { type: 'persona:history_entry'; data: PersonaHistoryEntry };
 
 // Browser → Server (Dashboard Commands)
 export type DashboardCommand =
