@@ -1,1 +1,1 @@
-{"name":"roundtable","version":"1.0.0","description":"Blueprint review voices","alwaysLoad":false,"agentTypes":["roundtable"],"signals":[]}
+{"name":"roundtable","version":"2.0.0","description":"Blueprint review voices and Chaos Engine","alwaysLoad":false,"agentTypes":["roundtable","chaos-engine"],"signals":[]}

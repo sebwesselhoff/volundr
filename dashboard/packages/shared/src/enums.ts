@@ -53,6 +53,7 @@ export const AgentType = {
   'devops-engineer': 'devops-engineer',
   designer: 'designer',
   'roundtable-voice': 'roundtable-voice',
+  'chaos-engine-voice': 'chaos-engine-voice',
   tester: 'tester',
   content: 'content',
   review: 'review',

@@ -19,6 +19,7 @@ function inferAgentType(name) {
   if (lower.includes('qa-eng') || lower.includes('qa_eng')) return 'qa-engineer';
   if (lower.includes('devops') || lower.includes('infra')) return 'devops-engineer';
   if (lower.includes('design')) return 'designer';
+  if (lower.includes('chaos-engine') || lower.includes('chaos_engine')) return 'chaos-engine-voice';
   if (lower.includes('roundtable') || lower.includes('voice-')) return 'roundtable-voice';
   // Legacy types
   if (lower.includes('orchestrat') || lower.includes('suborc')) return 'developer';
