@@ -23,6 +23,9 @@ import logsRouter from './routes/logs.js';
 import journalRouter from './routes/journal.js';
 import sessionSummariesRouter from './routes/session-summaries.js';
 import teamsRouter from './routes/teams.js';
+import routingRulesRouter from './routes/routing-rules.js';
+import directivesRouter from './routes/directives.js';
+import economyRouter from './routes/economy.js';
 
 const app = express();
 const server = createServer(app);
@@ -64,6 +67,9 @@ app.use('/api', logsRouter);
 app.use('/api', journalRouter);
 app.use('/api', sessionSummariesRouter);
 app.use('/api', teamsRouter);
+app.use('/api', routingRulesRouter);
+app.use('/api', directivesRouter);
+app.use('/api', economyRouter);
 
 // Error handler (must be after routes)
 app.use(errorHandler);
