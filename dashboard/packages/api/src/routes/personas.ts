@@ -59,18 +59,19 @@ router.get('/personas/:id', (req, res) => {
 
 // POST /personas — create or upsert a persona
 router.post('/personas', (req, res) => {
-  const { id, name, role, expertise, style, modelPreference, source } = req.body as {
+  const { id, name, role, expertise: rawExpertise, style, modelPreference, source } = req.body as {
     id?: string;
     name?: string;
     role?: string;
-    expertise?: string;
+    expertise?: string | string[];
     style?: string;
     modelPreference?: string;
     source?: string;
   };
-  if (!id || !name || !role || !expertise) {
+  if (!id || !name || !role || !rawExpertise) {
     throw new ApiError(400, 'id, name, role, and expertise are required');
   }
+  const expertise = Array.isArray(rawExpertise) ? rawExpertise.join(', ') : rawExpertise;
 
   const db = getDb();
   const now = new Date().toISOString();
