@@ -10,16 +10,70 @@ interface CardRowProps {
   index?: number;
 }
 
-// Derive a domain label from the card ID.
-// IDs like "CARD-BE-003" → "backend", "CARD-FE-001" → "frontend", etc.
-function deriveDomain(id: string): string | null {
-  const upper = id.toUpperCase();
-  if (upper.includes('-BE-') || upper.includes('-API-')) return 'backend';
-  if (upper.includes('-FE-') || upper.includes('-UI-')) return 'frontend';
-  if (upper.includes('-DB-') || upper.includes('-DATA-')) return 'database';
-  if (upper.includes('-INF-') || upper.includes('-OPS-') || upper.includes('-DO-')) return 'devops';
-  if (upper.includes('-QA-') || upper.includes('-TEST-')) return 'qa';
-  return null;
+// Map routing confidence to a colour token.
+const CONFIDENCE_COLORS: Record<string, string> = {
+  high:   '#22c55e', // green
+  medium: '#e8a838', // gold
+  low:    '#d4581a', // ember
+};
+
+function ConfidencePip({ confidence }: { confidence: string | null }) {
+  if (!confidence) return null;
+  const color = CONFIDENCE_COLORS[confidence] ?? '#8899b3';
+  return (
+    <span
+      title={`routing confidence: ${confidence}`}
+      style={{
+        display: 'inline-block',
+        width: 5,
+        height: 5,
+        borderRadius: '50%',
+        backgroundColor: color,
+        flexShrink: 0,
+        marginLeft: 3,
+      }}
+    />
+  );
+}
+
+function PersonaBadge({ personaId, confidence }: { personaId: string | null; confidence: string | null }) {
+  if (!personaId) return null;
+
+  // Shorten long persona IDs for display: "fullstack-web" → "fullstack-web"
+  const label = personaId.length > 18 ? personaId.slice(0, 17) + '…' : personaId;
+
+  return (
+    <span
+      className="flex-shrink-0 flex items-center gap-1 hidden sm:flex"
+      style={{
+        fontFamily: 'var(--font-outfit), Outfit, sans-serif',
+        fontSize: '0.72rem',
+        fontWeight: 300,
+        color: '#8899b3',
+        minWidth: '9rem',
+        justifyContent: 'flex-end',
+      }}
+      title={`persona: ${personaId} · routing confidence: ${confidence ?? 'n/a'}`}
+    >
+      <span
+        style={{
+          display: 'inline-block',
+          padding: '1px 5px',
+          borderRadius: 3,
+          background: 'rgba(36,48,68,0.55)',
+          border: '1px solid rgba(59,130,246,0.2)',
+          color: '#8caed4',
+          fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+          fontSize: '0.68rem',
+          letterSpacing: '0.01em',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {label}
+      </span>
+      <ConfidencePip confidence={confidence} />
+    </span>
+  );
 }
 
 function StatusDot({ status, variant }: { status: Card['status']; variant: 'active' | 'queue' | 'done' }) {
@@ -55,14 +109,13 @@ function StatusDot({ status, variant }: { status: Card['status']; variant: 'acti
   );
 }
 
-const EXPAND_SECTIONS = ['criteria', 'isc', 'deps', 'quality'] as const;
-
 function ExpandedDetail({ card }: { card: Card }) {
   const hasCriteria = Boolean(card.criteria);
   const hasIsc = card.isc && card.isc.length > 0;
   const hasDeps = card.deps && card.deps.length > 0;
+  const hasRouting = Boolean(card.assignedPersonaId);
 
-  if (!hasCriteria && !hasIsc && !hasDeps) {
+  if (!hasCriteria && !hasIsc && !hasDeps && !hasRouting) {
     return (
       <div className="pt-2 pb-1 text-[0.72rem] text-[#8899b3] font-outfit">
         No additional details.
@@ -72,6 +125,53 @@ function ExpandedDetail({ card }: { card: Card }) {
 
   return (
     <div className="pt-2 pb-1 space-y-3">
+      {hasRouting && (
+        <div>
+          <p
+            className="text-[0.65rem] uppercase tracking-[0.1em] text-[#8899b3] mb-1"
+            style={{ fontFamily: 'var(--font-outfit), Outfit, sans-serif', fontWeight: 500 }}
+          >
+            Persona Assignment
+          </p>
+          <div className="flex items-center gap-2">
+            <span
+              style={{
+                display: 'inline-block',
+                padding: '1px 6px',
+                borderRadius: 3,
+                background: 'rgba(36,48,68,0.55)',
+                border: '1px solid rgba(59,130,246,0.2)',
+                color: '#8caed4',
+                fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+                fontSize: '0.72rem',
+              }}
+            >
+              {card.assignedPersonaId}
+            </span>
+            {card.routingConfidence && (
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  color: CONFIDENCE_COLORS[card.routingConfidence] ?? '#8899b3',
+                  fontFamily: 'var(--font-outfit), Outfit, sans-serif',
+                  fontWeight: 300,
+                }}
+              >
+                {card.routingConfidence} confidence
+              </span>
+            )}
+          </div>
+          {card.routingReason && (
+            <p
+              className="mt-1 text-[0.68rem] text-[#8899b3] leading-relaxed"
+              style={{ fontFamily: 'var(--font-outfit), Outfit, sans-serif', fontWeight: 300 }}
+            >
+              {card.routingReason}
+            </p>
+          )}
+        </div>
+      )}
+
       {hasCriteria && (
         <div>
           <p
@@ -152,12 +252,9 @@ export function CardRow({ card, variant, index = 0 }: CardRowProps) {
   const [expanded, setExpanded] = useState(false);
 
   const isActive = variant === 'active';
-  const isMuted = variant === 'queue' || variant === 'done';
 
   const idColor = isActive ? '#e8a838' : '#8899b3';
   const titleColor = isActive ? '#c5d0e6' : '#8899b3';
-
-  const domain = deriveDomain(card.id);
 
   // Stagger: cap at 5 to reuse existing .kindle-1 … .kindle-5 classes
   const kindleDelay = index < 5 ? `kindle-${index + 1}` : '';
@@ -199,20 +296,11 @@ export function CardRow({ card, variant, index = 0 }: CardRowProps) {
             {card.title}
           </span>
 
-          {/* Assignee (domain derived from card ID) */}
-          {domain && (
-            <span
-              className="flex-shrink-0 text-[0.75rem] text-right hidden sm:block"
-              style={{
-                fontFamily: 'var(--font-outfit), Outfit, sans-serif',
-                fontWeight: 300,
-                color: '#8899b3',
-                minWidth: '8rem',
-              }}
-            >
-              domain-dev ({domain})
-            </span>
-          )}
+          {/* Persona badge + routing confidence pip */}
+          <PersonaBadge
+            personaId={card.assignedPersonaId ?? null}
+            confidence={card.routingConfidence ?? null}
+          />
 
           {/* Status dot */}
           <span className="flex-shrink-0 flex items-center">
