@@ -63,6 +63,17 @@ export const TIER_DEFINITIONS: Record<ResponseTier, TierDefinition> = {
   },
 };
 
+// --- Load level ---
+
+/**
+ * Current system load level.
+ *
+ * - normal  — no restrictions; tier selected purely by card signals
+ * - high    — one tier lower than selected (ceremony stays ceremony)
+ * - critical — two tiers lower than selected (ceremony stays ceremony)
+ */
+export type LoadLevel = 'normal' | 'high' | 'critical';
+
 // --- Selection input ---
 
 export interface TierSelectionInput {
@@ -78,9 +89,34 @@ export interface TierSelectionInput {
   isAuditOrRetro: boolean;
   /** True when the card explicitly requires structured section output. */
   forceStructured?: boolean;
+  /**
+   * Current system load level.  When high or critical, the selected tier
+   * is downgraded to reduce output verbosity.  Defaults to 'normal'.
+   * Ceremony tier is never downgraded regardless of load.
+   */
+  loadLevel?: LoadLevel;
 }
 
 // --- Selection logic ---
+
+// Ordered from lowest to highest so index arithmetic works for downgrade.
+const TIER_ORDER: ResponseTier[] = ['minimal', 'standard', 'detailed', 'ceremony'];
+
+/**
+ * Apply load-based tier downgrade.
+ *
+ * - ceremony is never downgraded.
+ * - high load:     tier drops by 1 step (detailed -> standard, standard -> minimal).
+ * - critical load: tier drops by 2 steps (detailed -> minimal, standard -> minimal).
+ * - minimal is the floor; it cannot go lower.
+ */
+export function applyLoadDowngrade(tier: ResponseTier, loadLevel: LoadLevel): ResponseTier {
+  if (tier === 'ceremony' || loadLevel === 'normal') return tier;
+  const steps = loadLevel === 'critical' ? 2 : 1;
+  const idx = TIER_ORDER.indexOf(tier);
+  const newIdx = Math.max(0, idx - steps);
+  return TIER_ORDER[newIdx];
+}
 
 /**
  * Select the appropriate response tier for a given work item.
@@ -91,12 +127,19 @@ export interface TierSelectionInput {
  * 2. minimal   — XS card AND domainCount == 1 AND estimatedFileCount <= 1
  * 3. detailed  — domainCount > 1 OR estimatedFileCount > 5 OR size is L/XL OR forceStructured
  * 4. standard  — everything else
+ *
+ * After initial selection, load-based downgrade is applied when loadLevel is
+ * 'high' or 'critical' (see applyLoadDowngrade).
  */
 export function selectTier(input: TierSelectionInput): TierDefinition {
-  // 1. Ceremony events always get the ceremony tier
+  const load = input.loadLevel ?? 'normal';
+
+  // 1. Ceremony events always get the ceremony tier (never downgraded)
   if (input.isCeremonyEvent || input.isAuditOrRetro) {
     return TIER_DEFINITIONS.ceremony;
   }
+
+  let base: ResponseTier;
 
   // 2. Minimal: tiny scoped work
   if (
@@ -104,22 +147,23 @@ export function selectTier(input: TierSelectionInput): TierDefinition {
     input.domainCount === 1 &&
     input.estimatedFileCount <= 1
   ) {
-    return TIER_DEFINITIONS.minimal;
-  }
-
+    base = 'minimal';
   // 3. Detailed: large or cross-domain work
-  if (
+  } else if (
     input.domainCount > 1 ||
     input.estimatedFileCount > 5 ||
     input.cardSize === 'L' ||
     input.cardSize === 'XL' ||
     input.forceStructured === true
   ) {
-    return TIER_DEFINITIONS.detailed;
+    base = 'detailed';
+  } else {
+    // 4. Standard: everything else
+    base = 'standard';
   }
 
-  // 4. Standard: everything else
-  return TIER_DEFINITIONS.standard;
+  // 5. Apply load-based downgrade
+  return TIER_DEFINITIONS[applyLoadDowngrade(base, load)];
 }
 
 // --- Convenience helpers ---
