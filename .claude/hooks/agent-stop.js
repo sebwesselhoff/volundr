@@ -90,10 +90,10 @@ async function main() {
     }
   }
 
+  let existing = null;
   if (dashboardAgentId) {
     // Fetch existing agent to accumulate tokens across idle/wake cycles
     // Use project agents list and filter - single-agent GET may not be available yet
-    let existing = null;
     if (PROJECT_ID) {
       const allAgents = await apiGet(`/api/projects/${PROJECT_ID}/agents`);
       if (allAgents) existing = allAgents.find(a => a.id === dashboardAgentId);

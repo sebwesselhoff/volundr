@@ -171,7 +171,7 @@ router.patch('/cards/:id/isc', (req, res) => {
   }
 
   if (req.body.index !== undefined) {
-    const isc: any[] = card.isc ? JSON.parse(card.isc) : [];
+    const isc: any[] = card.isc ? (() => { try { return JSON.parse(card.isc!); } catch { return []; } })() : [];
     const idx = req.body.index;
     if (idx < 0 || idx >= isc.length) {
       return res.status(400).json({ error: `Index ${idx} out of range (0-${isc.length - 1})` });
@@ -286,7 +286,7 @@ router.patch('/cards/:id', (req, res) => {
 
   // Enforce ISC gate when marking a card as done
   if (status === 'done' && existing.status !== 'done') {
-    const isc = existing.isc ? JSON.parse(existing.isc) : [];
+    const isc = existing.isc ? (() => { try { return JSON.parse(existing.isc!); } catch { return []; } })() : [];
     if (isc.length > 0) {
       const unverified = isc.filter((c: any) => c.passed === null);
       if (unverified.length > 0) {
