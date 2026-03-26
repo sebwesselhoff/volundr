@@ -25,6 +25,9 @@ import sessionSummariesRouter from './routes/session-summaries.js';
 import teamsRouter from './routes/teams.js';
 import personasRouter from './routes/personas.js';
 import skillsRouter from './routes/skills.js';
+import routingRulesRouter from './routes/routing-rules.js';
+import directivesRouter from './routes/directives.js';
+import economyRouter from './routes/economy.js';
 
 const app = express();
 const server = createServer(app);
@@ -68,6 +71,9 @@ app.use('/api', sessionSummariesRouter);
 app.use('/api', teamsRouter);
 app.use('/api', personasRouter);
 app.use('/api', skillsRouter);
+app.use('/api', routingRulesRouter);
+app.use('/api', directivesRouter);
+app.use('/api', economyRouter);
 
 // Error handler (must be after routes)
 app.use(errorHandler);

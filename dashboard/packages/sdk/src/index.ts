@@ -12,6 +12,8 @@ import { MetricsResource } from './resources/metrics.js';
 import { LessonsResource } from './resources/lessons.js';
 import { PersonasResource } from './resources/personas.js';
 import { SkillsResource } from './resources/skills.js';
+import { RoutingRulesResource } from './resources/routing-rules.js';
+import { DirectivesResource } from './resources/directives.js';
 
 export type { CardFilters } from './resources/cards.js';
 export type { AgentFilters } from './resources/agents.js';
@@ -21,6 +23,8 @@ export type { PersonaFilters, PersonaHistoryFilters } from './resources/personas
 export type { SkillFilters, SkillMatchInput } from './resources/skills.js';
 export type { TimeRange } from './resources/metrics.js';
 export type { HeartbeatState } from './ws.js';
+export type { RoutingRuleTestInput } from './resources/routing-rules.js';
+export type { DirectiveFilters } from './resources/directives.js';
 
 export { HttpClient } from './http.js';
 export { WsClient } from './ws.js';
@@ -34,6 +38,8 @@ export { MetricsResource } from './resources/metrics.js';
 export { LessonsResource } from './resources/lessons.js';
 export { PersonasResource } from './resources/personas.js';
 export { SkillsResource } from './resources/skills.js';
+export { RoutingRulesResource } from './resources/routing-rules.js';
+export { DirectivesResource } from './resources/directives.js';
 
 export interface VolundrClientConfig {
   apiUrl?: string;
@@ -55,6 +61,8 @@ export class VolundrClient {
   public readonly lessons: LessonsResource;
   public readonly personas: PersonasResource;
   public readonly skills: SkillsResource;
+  public readonly routingRules: RoutingRulesResource;
+  public readonly directives: DirectivesResource;
 
   constructor(config: VolundrClientConfig) {
     const apiUrl = config.apiUrl ?? `http://localhost:${API_PORT}`;
@@ -73,6 +81,8 @@ export class VolundrClient {
     this.lessons = new LessonsResource(this.http, config.projectId);
     this.personas = new PersonasResource(this.http);
     this.skills = new SkillsResource(this.http);
+    this.routingRules = new RoutingRulesResource(this.http);
+    this.directives = new DirectivesResource(this.http, config.projectId);
 
     // Forward commands to registered handlers
     this.ws.on('command', (msg: ServerMessage) => {

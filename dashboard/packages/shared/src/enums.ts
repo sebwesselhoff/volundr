@@ -154,3 +154,14 @@ export const HistorySection = {
   patterns: 'patterns',
 } as const;
 export type HistorySection = (typeof HistorySection)[keyof typeof HistorySection];
+
+// --- Sprint 2 additions ---
+
+export const RoutingConfidence = { low: 'low', medium: 'medium', high: 'high' } as const;
+export type RoutingConfidence = (typeof RoutingConfidence)[keyof typeof RoutingConfidence];
+
+export const DirectiveSource = { confirmed: 'confirmed', manual: 'manual', imported: 'imported' } as const;
+export type DirectiveSource = (typeof DirectiveSource)[keyof typeof DirectiveSource];
+
+export const DirectiveStatus = { active: 'active', suppressed: 'suppressed', superseded: 'superseded' } as const;
+export type DirectiveStatus = (typeof DirectiveStatus)[keyof typeof DirectiveStatus];

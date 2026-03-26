@@ -8,6 +8,7 @@ export const projects = sqliteTable('projects', {
   status: text('status').notNull().default('active'),
   phase: text('phase').notNull().default('discovery'),
   reviewGateLevel: integer('review_gate_level').notNull().default(1),
+  economyMode: integer('economy_mode', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });
@@ -180,6 +181,20 @@ export const skills = sqliteTable('skills', {
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });
 
+// --- Routing Rules (RT-001) ---
+export const routingRules = sqliteTable('routing_rules', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  workType: text('work_type').notNull(),
+  personaId: text('persona_id').notNull(),
+  examples: text('examples'), // JSON array of example phrases
+  confidence: text('confidence').notNull().default('medium'), // low|medium|high
+  modulePattern: text('module_pattern'), // path glob pattern
+  priority: integer('priority').notNull().default(0),
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+});
+
 // --- Personas ---
 
 export const personas = sqliteTable('personas', {
@@ -227,4 +242,17 @@ export const reviewerLockouts = sqliteTable('reviewer_lockouts', {
   personaId: text('persona_id').notNull(),
   lockedAt: text('locked_at').notNull().default(sql`(datetime('now'))`),
   reason: text('reason'),
+});
+
+// --- Directives (GV-001) ---
+export const directives = sqliteTable('directives', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }), // NULL = global
+  content: text('content').notNull(),
+  source: text('source').notNull(), // confirmed|manual|imported
+  status: text('status').notNull().default('active'), // active|suppressed|superseded
+  priority: integer('priority').notNull().default(0),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at'),
+  supersededBy: integer('superseded_by'),
 });

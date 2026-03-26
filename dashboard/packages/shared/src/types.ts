@@ -3,6 +3,7 @@ import type {
   AgentType, AgentStatus, EventType, ImplementationType, JournalEntryType,
   TeamStatus, TeamMemberStatus, TeamTaskStatus,
   PersonaStatus, PersonaRole, HistorySection,
+  RoutingConfidence, DirectiveSource, DirectiveStatus,
 } from './enums.js';
 
 // --- Entity types (match DB schema / API responses exactly) ---
@@ -14,6 +15,7 @@ export interface Project {
   status: ProjectStatus;
   phase: ProjectPhase;
   reviewGateLevel: number;
+  economyMode: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -120,6 +122,7 @@ export interface UpdateProjectInput {
   status?: ProjectStatus;
   phase?: ProjectPhase;
   reviewGateLevel?: number;
+  economyMode?: boolean;
 }
 
 export interface CreateEpicInput {
@@ -510,6 +513,21 @@ export interface Skill {
   updatedAt: string;
 }
 
+// --- Routing Rules (RT-001) ---
+
+export interface RoutingRule {
+  id: number;
+  workType: string;
+  personaId: string;
+  examples: string | null; // JSON array
+  confidence: RoutingConfidence;
+  modulePattern: string | null;
+  priority: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CreateSkillInput {
   id: string;
   name: string;
@@ -542,4 +560,54 @@ export interface SkillMatchResult {
   skill: Skill;
   score: number;
   matchedTriggers: string[];
+}
+
+export interface CreateRoutingRuleInput {
+  workType: string;
+  personaId: string;
+  examples?: string[];
+  confidence?: RoutingConfidence;
+  modulePattern?: string;
+  priority?: number;
+  isActive?: boolean;
+}
+
+export interface UpdateRoutingRuleInput {
+  workType?: string;
+  personaId?: string;
+  examples?: string[];
+  confidence?: RoutingConfidence;
+  modulePattern?: string;
+  priority?: number;
+  isActive?: boolean;
+}
+
+// --- Directives (GV-001) ---
+
+export interface Directive {
+  id: number;
+  projectId: string | null;
+  content: string;
+  source: DirectiveSource;
+  status: DirectiveStatus;
+  priority: number;
+  createdAt: string;
+  updatedAt: string | null;
+  supersededBy: number | null;
+}
+
+export interface CreateDirectiveInput {
+  projectId?: string;
+  content: string;
+  source: DirectiveSource;
+  status?: DirectiveStatus;
+  priority?: number;
+}
+
+export interface UpdateDirectiveInput {
+  content?: string;
+  source?: DirectiveSource;
+  status?: DirectiveStatus;
+  priority?: number;
+  supersededBy?: number;
 }
