@@ -17,7 +17,7 @@ export type { CardFilters } from './resources/cards.js';
 export type { AgentFilters } from './resources/agents.js';
 export type { EventFilters } from './resources/events.js';
 export type { LessonFilters } from './resources/lessons.js';
-export type { PersonaHistoryFilters } from './resources/personas.js';
+export type { PersonaFilters, PersonaHistoryFilters } from './resources/personas.js';
 export type { SkillFilters, SkillMatchInput } from './resources/skills.js';
 export type { TimeRange } from './resources/metrics.js';
 export type { HeartbeatState } from './ws.js';

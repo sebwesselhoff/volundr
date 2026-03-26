@@ -2,6 +2,7 @@ import type {
   ProjectStatus, ProjectPhase, CardStatus, CardSize, CardPriority,
   AgentType, AgentStatus, EventType, ImplementationType, JournalEntryType,
   TeamStatus, TeamMemberStatus, TeamTaskStatus,
+  PersonaStatus, PersonaRole, HistorySection,
 } from './enums.js';
 
 // --- Entity types (match DB schema / API responses exactly) ---
@@ -42,6 +43,9 @@ export interface Card {
   filesModified: string[];
   branch: string;
   isc: Array<{ criterion: string; evidence: string | null; passed: boolean | null }> | null;
+  assignedPersonaId: string | null;
+  routingConfidence: string | null;
+  routingReason: string | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -311,72 +315,84 @@ export interface CreateSessionSummaryInput {
 export interface Persona {
   id: string;
   name: string;
-  role: string;
-  expertise: string;
-  style: string;
-  modelPreference: string;
-  charterContent: string;
-  historyContent: string;
-  source: string;
+  role: PersonaRole;
+  expertise: string | null;   // JSON array string
+  modelPreference: string | null;
+  style: string | null;
+  status: PersonaStatus;
+  cardsCompleted: number;
+  qualityAverage: number;
+  totalTokens: number;
+  totalCost: number;
   createdAt: string;
-  updatedAt: string;
+  lastActiveAt: string | null;
+  charterPath: string | null;
+  historyPath: string | null;
 }
 
 export interface PersonaHistoryEntry {
   id: number;
   personaId: string;
   projectId: string | null;
-  entryType: string; // learning|decision|pattern
+  section: HistorySection;
   content: string;
-  stackTag: string | null;
-  projectName: string | null;
+  stackTags: string | null;   // JSON array string
+  confidence: number | null;
   createdAt: string;
+  archivedAt: string | null;
 }
 
 export interface PersonaSkill {
-  id: number;
   personaId: string;
   skillId: string;
-  addedAt: string;
+  confidence: string | null;
+  acquiredAt: string;
+  lastUsedAt: string | null;
+  usageCount: number | null;
+  projectId: string | null;
 }
 
-export interface PersonaStats {
+export interface ReviewerLockout {
+  cardId: string;
   personaId: string;
-  projectCount: number;
-  cardCount: number;
-  qualityAvg: number | null;
-  updatedAt: string;
+  lockedAt: string;
+  reason: string | null;
 }
 
 export interface CreatePersonaInput {
   id: string;
   name: string;
-  role: string;
-  expertise?: string;
+  role: PersonaRole;
+  expertise?: string[];
   style?: string;
   modelPreference?: string;
-  charterContent?: string;
-  historyContent?: string;
-  source?: string;
+  status?: PersonaStatus;
+  charterPath?: string;
+  historyPath?: string;
 }
 
 export interface UpdatePersonaInput {
   name?: string;
-  role?: string;
-  expertise?: string;
+  role?: PersonaRole;
+  expertise?: string[];
   style?: string;
   modelPreference?: string;
-  charterContent?: string;
-  historyContent?: string;
+  status?: PersonaStatus;
+  cardsCompleted?: number;
+  qualityAverage?: number;
+  totalTokens?: number;
+  totalCost?: number;
+  lastActiveAt?: string;
+  charterPath?: string;
+  historyPath?: string;
 }
 
 export interface CreatePersonaHistoryEntryInput {
-  personaId: string;
   projectId?: string;
-  entryType: string;
+  section: HistorySection;
   content: string;
-  stackTag?: string;
-  projectName?: string;
+  stackTags?: string[];
+  confidence?: number;
 }
 
 // --- Health ---

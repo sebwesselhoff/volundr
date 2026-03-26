@@ -37,6 +37,9 @@ export const cards = sqliteTable('cards', {
   filesModified: text('files_modified'),
   branch: text('branch'),
   isc: text('isc'),  // JSON array: [{ criterion, evidence, passed }]
+  assignedPersonaId: text('assigned_persona_id'),
+  routingConfidence: text('routing_confidence'),
+  routingReason: text('routing_reason'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
   completedAt: text('completed_at'),
@@ -180,41 +183,48 @@ export const skills = sqliteTable('skills', {
 // --- Personas ---
 
 export const personas = sqliteTable('personas', {
-  id: text('id').primaryKey(), // kebab-case, e.g. "fullstack-web"
+  id: text('id').primaryKey(),           // kebab-case: 'fullstack-web'
   name: text('name').notNull(),
-  role: text('role').notNull(), // developer|architect|qa-engineer|devops-engineer|designer|reviewer|guardian|researcher
-  expertise: text('expertise').notNull().default(''), // comma-separated
-  style: text('style').notNull().default(''),
-  modelPreference: text('model_preference').notNull().default('auto'), // auto|sonnet|opus|haiku
-  charterContent: text('charter_content').notNull().default(''),
-  historyContent: text('history_content').notNull().default(''),
-  source: text('source').notNull().default('seed'), // seed|user
+  role: text('role').notNull(),           // developer|architect|qa-engineer|etc
+  expertise: text('expertise'),           // JSON array
+  modelPreference: text('model_preference').default('auto'),
+  style: text('style'),
+  status: text('status').notNull().default('active'), // active|inactive|retired
+  cardsCompleted: integer('cards_completed').notNull().default(0),
+  qualityAverage: real('quality_average').notNull().default(0),
+  totalTokens: integer('total_tokens').notNull().default(0),
+  totalCost: real('total_cost').notNull().default(0),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
-  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+  lastActiveAt: text('last_active_at'),
+  charterPath: text('charter_path'),
+  historyPath: text('history_path'),
 });
 
 export const personaHistoryEntries = sqliteTable('persona_history_entries', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  personaId: text('persona_id').notNull().references(() => personas.id, { onDelete: 'cascade' }),
-  projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
-  entryType: text('entry_type').notNull(), // learning|decision|pattern
+  personaId: text('persona_id').notNull().references(() => personas.id),
+  projectId: text('project_id'),
+  section: text('section').notNull(),    // 'learnings'|'decisions'|'patterns'
   content: text('content').notNull(),
-  stackTag: text('stack_tag'),
-  projectName: text('project_name'),
+  stackTags: text('stack_tags'),         // JSON array
+  confidence: real('confidence').default(1.0),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  archivedAt: text('archived_at'),
 });
 
 export const personaSkills = sqliteTable('persona_skills', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  personaId: text('persona_id').notNull().references(() => personas.id, { onDelete: 'cascade' }),
+  personaId: text('persona_id').notNull().references(() => personas.id),
   skillId: text('skill_id').notNull(),
-  addedAt: text('added_at').notNull().default(sql`(datetime('now'))`),
+  confidence: text('confidence').default('low'),
+  acquiredAt: text('acquired_at').notNull().default(sql`(datetime('now'))`),
+  lastUsedAt: text('last_used_at'),
+  usageCount: integer('usage_count').default(0),
+  projectId: text('project_id'),
 });
 
-export const personaStats = sqliteTable('persona_stats', {
-  personaId: text('persona_id').primaryKey().references(() => personas.id, { onDelete: 'cascade' }),
-  projectCount: integer('project_count').notNull().default(0),
-  cardCount: integer('card_count').notNull().default(0),
-  qualityAvg: real('quality_avg'),
-  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+export const reviewerLockouts = sqliteTable('reviewer_lockouts', {
+  cardId: text('card_id').notNull(),
+  personaId: text('persona_id').notNull(),
+  lockedAt: text('locked_at').notNull().default(sql`(datetime('now'))`),
+  reason: text('reason'),
 });

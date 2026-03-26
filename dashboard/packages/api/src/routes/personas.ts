@@ -3,40 +3,53 @@ import { getDb, schema } from '@vldr/db';
 import { eq, desc } from 'drizzle-orm';
 import { ApiError } from '../middleware/error-handler.js';
 import { broadcastToAll } from '../ws/broadcast.js';
-import type { Persona, PersonaHistoryEntry, PersonaStats } from '@vldr/shared';
+import type { Persona, PersonaHistoryEntry } from '@vldr/shared';
 
 const router = Router();
 
-// GET /personas — list all personas
-router.get('/personas', (_req, res) => {
+function tryParseJson(raw: string): unknown {
+  try { return JSON.parse(raw); } catch { return raw; }
+}
+
+function parsePersonaJsonFields(row: typeof schema.personas.$inferSelect) {
+  return {
+    ...row,
+    expertise: row.expertise ? tryParseJson(row.expertise) : null,
+  };
+}
+
+// GET /personas — list all personas (optional ?status filter)
+router.get('/personas', (req, res) => {
   const db = getDb();
   const rows = db.select().from(schema.personas).all();
-  res.json(rows);
+  const { status } = req.query as { status?: string };
+  const filtered = status ? rows.filter(p => p.status === status) : rows;
+  res.json(filtered.map(parsePersonaJsonFields));
 });
 
-// GET /personas/:id — get single persona
+// GET /personas/:id — single persona
 router.get('/personas/:id', (req, res) => {
   const db = getDb();
   const [persona] = db.select().from(schema.personas).where(eq(schema.personas.id, req.params.id)).all();
   if (!persona) throw new ApiError(404, `Persona ${req.params.id} not found`);
-  res.json(persona);
+  res.json(parsePersonaJsonFields(persona));
 });
 
 // POST /personas — create persona
 router.post('/personas', (req, res) => {
   const {
     id, name, role, expertise, style, modelPreference,
-    charterContent, historyContent, source,
+    status, charterPath, historyPath,
   } = req.body as {
     id?: string;
     name?: string;
     role?: string;
-    expertise?: string;
+    expertise?: string[];
     style?: string;
     modelPreference?: string;
-    charterContent?: string;
-    historyContent?: string;
-    source?: string;
+    status?: string;
+    charterPath?: string;
+    historyPath?: string;
   };
 
   if (!id || !name || !role) {
@@ -48,20 +61,18 @@ router.post('/personas', (req, res) => {
     id,
     name,
     role,
-    expertise: expertise ?? '',
-    style: style ?? '',
-    modelPreference: modelPreference ?? 'auto',
-    charterContent: charterContent ?? '',
-    historyContent: historyContent ?? '',
-    source: source ?? 'user',
+    ...(expertise != null ? { expertise: JSON.stringify(expertise) } : {}),
+    ...(style != null ? { style } : {}),
+    ...(modelPreference != null ? { modelPreference } : {}),
+    ...(status != null ? { status } : {}),
+    ...(charterPath != null ? { charterPath } : {}),
+    ...(historyPath != null ? { historyPath } : {}),
   }).run();
 
-  // Init stats row
-  db.insert(schema.personaStats).values({ personaId: id }).run();
-
   const [created] = db.select().from(schema.personas).where(eq(schema.personas.id, id)).all();
-  broadcastToAll({ type: 'persona:created', data: created as Persona });
-  res.status(201).json(created);
+  const parsed = parsePersonaJsonFields(created);
+  broadcastToAll({ type: 'persona:created', data: parsed as unknown as Persona });
+  res.status(201).json(parsed);
 });
 
 // PATCH /personas/:id — update persona
@@ -71,33 +82,46 @@ router.patch('/personas/:id', (req, res) => {
   if (!existing) throw new ApiError(404, `Persona ${req.params.id} not found`);
 
   const {
-    name, role, expertise, style, modelPreference,
-    charterContent, historyContent,
+    name, role, expertise, style, modelPreference, status,
+    cardsCompleted, qualityAverage, totalTokens, totalCost,
+    lastActiveAt, charterPath, historyPath,
   } = req.body as {
     name?: string;
     role?: string;
-    expertise?: string;
+    expertise?: string[];
     style?: string;
     modelPreference?: string;
-    charterContent?: string;
-    historyContent?: string;
+    status?: string;
+    cardsCompleted?: number;
+    qualityAverage?: number;
+    totalTokens?: number;
+    totalCost?: number;
+    lastActiveAt?: string;
+    charterPath?: string;
+    historyPath?: string;
   };
 
-  const now = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
-  const updates: Record<string, unknown> = { updatedAt: now };
+  const updates: Record<string, unknown> = {};
   if (name != null) updates.name = name;
   if (role != null) updates.role = role;
-  if (expertise != null) updates.expertise = expertise;
+  if (expertise != null) updates.expertise = JSON.stringify(expertise);
   if (style != null) updates.style = style;
   if (modelPreference != null) updates.modelPreference = modelPreference;
-  if (charterContent != null) updates.charterContent = charterContent;
-  if (historyContent != null) updates.historyContent = historyContent;
+  if (status != null) updates.status = status;
+  if (cardsCompleted != null) updates.cardsCompleted = cardsCompleted;
+  if (qualityAverage != null) updates.qualityAverage = qualityAverage;
+  if (totalTokens != null) updates.totalTokens = totalTokens;
+  if (totalCost != null) updates.totalCost = totalCost;
+  if (lastActiveAt != null) updates.lastActiveAt = lastActiveAt;
+  if (charterPath != null) updates.charterPath = charterPath;
+  if (historyPath != null) updates.historyPath = historyPath;
 
   db.update(schema.personas).set(updates).where(eq(schema.personas.id, req.params.id)).run();
 
   const [updated] = db.select().from(schema.personas).where(eq(schema.personas.id, req.params.id)).all();
-  broadcastToAll({ type: 'persona:updated', data: updated as Persona });
-  res.json(updated);
+  const parsed = parsePersonaJsonFields(updated);
+  broadcastToAll({ type: 'persona:updated', data: parsed as unknown as Persona });
+  res.json(parsed);
 });
 
 // DELETE /personas/:id — delete persona
@@ -105,12 +129,11 @@ router.delete('/personas/:id', (req, res) => {
   const db = getDb();
   const [existing] = db.select().from(schema.personas).where(eq(schema.personas.id, req.params.id)).all();
   if (!existing) throw new ApiError(404, `Persona ${req.params.id} not found`);
-  if (existing.source === 'seed') throw new ApiError(400, 'Cannot delete seed personas');
   db.delete(schema.personas).where(eq(schema.personas.id, req.params.id)).run();
   res.status(204).send();
 });
 
-// GET /personas/:id/history — list history entries for a persona
+// GET /personas/:id/history — list history entries (optional ?section filter)
 router.get('/personas/:id/history', (req, res) => {
   const db = getDb();
   const [persona] = db.select().from(schema.personas).where(eq(schema.personas.id, req.params.id)).all();
@@ -121,10 +144,13 @@ router.get('/personas/:id/history', (req, res) => {
     .orderBy(desc(schema.personaHistoryEntries.createdAt))
     .all();
 
-  const { entryType } = req.query as { entryType?: string };
-  const filtered = entryType ? rows.filter(e => e.entryType === entryType) : rows;
+  const { section } = req.query as { section?: string };
+  const filtered = section ? rows.filter(e => e.section === section) : rows;
 
-  res.json(filtered);
+  res.json(filtered.map(e => ({
+    ...e,
+    stackTags: e.stackTags ? tryParseJson(e.stackTags) : null,
+  })));
 });
 
 // POST /personas/:id/history — add history entry
@@ -133,117 +159,34 @@ router.post('/personas/:id/history', (req, res) => {
   const [persona] = db.select().from(schema.personas).where(eq(schema.personas.id, req.params.id)).all();
   if (!persona) throw new ApiError(404, `Persona ${req.params.id} not found`);
 
-  const { entryType, content, projectId, stackTag, projectName } = req.body as {
-    entryType?: string;
+  const { section, content, projectId, stackTags, confidence } = req.body as {
+    section?: string;
     content?: string;
     projectId?: string;
-    stackTag?: string;
-    projectName?: string;
+    stackTags?: string[];
+    confidence?: number;
   };
 
-  if (!entryType || !content) {
-    throw new ApiError(400, 'entryType and content are required');
+  if (!section || !content) {
+    throw new ApiError(400, 'section and content are required');
   }
 
   const result = db.insert(schema.personaHistoryEntries).values({
     personaId: req.params.id,
-    entryType,
+    section,
     content,
     ...(projectId != null ? { projectId } : {}),
-    ...(stackTag != null ? { stackTag } : {}),
-    ...(projectName != null ? { projectName } : {}),
+    ...(stackTags != null ? { stackTags: JSON.stringify(stackTags) } : {}),
+    ...(confidence != null ? { confidence } : {}),
   }).run();
 
   const [created] = db.select().from(schema.personaHistoryEntries)
     .where(eq(schema.personaHistoryEntries.id, Number(result.lastInsertRowid)))
     .all();
 
-  broadcastToAll({ type: 'persona:history_entry', data: created as PersonaHistoryEntry });
-  res.status(201).json(created);
-});
-
-// GET /personas/:id/skills — list skills assigned to persona
-router.get('/personas/:id/skills', (req, res) => {
-  const db = getDb();
-  const [persona] = db.select().from(schema.personas).where(eq(schema.personas.id, req.params.id)).all();
-  if (!persona) throw new ApiError(404, `Persona ${req.params.id} not found`);
-
-  const rows = db.select().from(schema.personaSkills)
-    .where(eq(schema.personaSkills.personaId, req.params.id))
-    .all();
-  res.json(rows);
-});
-
-// POST /personas/:id/skills — assign skill to persona
-router.post('/personas/:id/skills', (req, res) => {
-  const db = getDb();
-  const [persona] = db.select().from(schema.personas).where(eq(schema.personas.id, req.params.id)).all();
-  if (!persona) throw new ApiError(404, `Persona ${req.params.id} not found`);
-
-  const { skillId } = req.body as { skillId?: string };
-  if (!skillId) throw new ApiError(400, 'skillId is required');
-
-  const result = db.insert(schema.personaSkills).values({
-    personaId: req.params.id,
-    skillId,
-  }).run();
-
-  const [created] = db.select().from(schema.personaSkills)
-    .where(eq(schema.personaSkills.id, Number(result.lastInsertRowid)))
-    .all();
-  res.status(201).json(created);
-});
-
-// DELETE /personas/:id/skills/:skillId — remove skill from persona
-router.delete('/personas/:id/skills/:skillId', (req, res) => {
-  const db = getDb();
-  const rows = db.select().from(schema.personaSkills)
-    .where(eq(schema.personaSkills.personaId, req.params.id))
-    .all();
-  const match = rows.find(s => s.skillId === req.params.skillId);
-  if (!match) throw new ApiError(404, `Skill ${req.params.skillId} not assigned to persona ${req.params.id}`);
-  db.delete(schema.personaSkills).where(eq(schema.personaSkills.id, match.id)).run();
-  res.status(204).send();
-});
-
-// GET /personas/:id/stats — persona statistics
-router.get('/personas/:id/stats', (req, res) => {
-  const db = getDb();
-  const [stats] = db.select().from(schema.personaStats)
-    .where(eq(schema.personaStats.personaId, req.params.id))
-    .all();
-  if (!stats) throw new ApiError(404, `Stats for persona ${req.params.id} not found`);
-  res.json(stats as PersonaStats);
-});
-
-// PATCH /personas/:id/stats — update persona statistics
-router.patch('/personas/:id/stats', (req, res) => {
-  const db = getDb();
-  const [existing] = db.select().from(schema.personaStats)
-    .where(eq(schema.personaStats.personaId, req.params.id))
-    .all();
-  if (!existing) throw new ApiError(404, `Stats for persona ${req.params.id} not found`);
-
-  const { projectCount, cardCount, qualityAvg } = req.body as {
-    projectCount?: number;
-    cardCount?: number;
-    qualityAvg?: number | null;
-  };
-
-  const now = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
-  const updates: Record<string, unknown> = { updatedAt: now };
-  if (projectCount != null) updates.projectCount = projectCount;
-  if (cardCount != null) updates.cardCount = cardCount;
-  if (qualityAvg !== undefined) updates.qualityAvg = qualityAvg;
-
-  db.update(schema.personaStats).set(updates)
-    .where(eq(schema.personaStats.personaId, req.params.id))
-    .run();
-
-  const [updated] = db.select().from(schema.personaStats)
-    .where(eq(schema.personaStats.personaId, req.params.id))
-    .all();
-  res.json(updated as PersonaStats);
+  const parsed = { ...created, stackTags: created.stackTags ? tryParseJson(created.stackTags) : null };
+  broadcastToAll({ type: 'persona:history_entry', data: parsed as unknown as PersonaHistoryEntry });
+  res.status(201).json(parsed);
 });
 
 export default router;

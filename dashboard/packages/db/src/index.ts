@@ -184,37 +184,44 @@ export function getDb() {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         role TEXT NOT NULL,
-        expertise TEXT NOT NULL DEFAULT '',
-        style TEXT NOT NULL DEFAULT '',
-        model_preference TEXT NOT NULL DEFAULT 'auto',
-        charter_content TEXT NOT NULL DEFAULT '',
-        history_content TEXT NOT NULL DEFAULT '',
-        source TEXT NOT NULL DEFAULT 'seed',
+        expertise TEXT,
+        model_preference TEXT DEFAULT 'auto',
+        style TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        cards_completed INTEGER NOT NULL DEFAULT 0,
+        quality_average REAL NOT NULL DEFAULT 0,
+        total_tokens INTEGER NOT NULL DEFAULT 0,
+        total_cost REAL NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        last_active_at TEXT,
+        charter_path TEXT,
+        history_path TEXT
       );
       CREATE TABLE IF NOT EXISTS persona_history_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        persona_id TEXT NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
-        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
-        entry_type TEXT NOT NULL,
+        persona_id TEXT NOT NULL REFERENCES personas(id),
+        project_id TEXT,
+        section TEXT NOT NULL,
         content TEXT NOT NULL,
-        stack_tag TEXT,
-        project_name TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        stack_tags TEXT,
+        confidence REAL DEFAULT 1.0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        archived_at TEXT
       );
       CREATE TABLE IF NOT EXISTS persona_skills (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        persona_id TEXT NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
+        persona_id TEXT NOT NULL REFERENCES personas(id),
         skill_id TEXT NOT NULL,
-        added_at TEXT NOT NULL DEFAULT (datetime('now'))
+        confidence TEXT DEFAULT 'low',
+        acquired_at TEXT NOT NULL DEFAULT (datetime('now')),
+        last_used_at TEXT,
+        usage_count INTEGER DEFAULT 0,
+        project_id TEXT
       );
-      CREATE TABLE IF NOT EXISTS persona_stats (
-        persona_id TEXT PRIMARY KEY REFERENCES personas(id) ON DELETE CASCADE,
-        project_count INTEGER NOT NULL DEFAULT 0,
-        card_count INTEGER NOT NULL DEFAULT 0,
-        quality_avg REAL,
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      CREATE TABLE IF NOT EXISTS reviewer_lockouts (
+        card_id TEXT NOT NULL,
+        persona_id TEXT NOT NULL,
+        locked_at TEXT NOT NULL DEFAULT (datetime('now')),
+        reason TEXT
       );
       CREATE TABLE IF NOT EXISTS skills (
         id TEXT PRIMARY KEY,
@@ -245,6 +252,18 @@ export function getDb() {
 
     // ISC column migration for existing DBs
     try { sqlite.exec('ALTER TABLE cards ADD COLUMN isc TEXT'); } catch {}
+
+    // Persona routing columns on cards (migration 004)
+    const cardCols = sqlite.prepare("PRAGMA table_info(cards)").all().map((r: any) => r.name);
+    if (!cardCols.includes('assigned_persona_id')) {
+      sqlite.exec('ALTER TABLE cards ADD COLUMN assigned_persona_id TEXT');
+    }
+    if (!cardCols.includes('routing_confidence')) {
+      sqlite.exec('ALTER TABLE cards ADD COLUMN routing_confidence TEXT');
+    }
+    if (!cardCols.includes('routing_reason')) {
+      sqlite.exec('ALTER TABLE cards ADD COLUMN routing_reason TEXT');
+    }
 
     _db = drizzle(sqlite, { schema });
   }

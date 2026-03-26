@@ -1,18 +1,25 @@
 import type {
-  Persona, PersonaHistoryEntry, PersonaSkill, PersonaStats,
+  Persona, PersonaHistoryEntry,
   CreatePersonaInput, UpdatePersonaInput, CreatePersonaHistoryEntryInput,
 } from '@vldr/shared';
 import type { HttpClient } from '../http.js';
 
+export interface PersonaFilters {
+  status?: string;
+}
+
 export interface PersonaHistoryFilters {
-  entryType?: string;
+  section?: string;
 }
 
 export class PersonasResource {
   constructor(private http: HttpClient) {}
 
-  list(): Promise<Persona[]> {
-    return this.http.get<Persona[]>('/api/personas');
+  list(filters?: PersonaFilters): Promise<Persona[]> {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set('status', filters.status);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return this.http.get<Persona[]>(`/api/personas${qs}`);
   }
 
   get(personaId: string): Promise<Persona> {
@@ -33,32 +40,12 @@ export class PersonasResource {
 
   listHistory(personaId: string, filters?: PersonaHistoryFilters): Promise<PersonaHistoryEntry[]> {
     const params = new URLSearchParams();
-    if (filters?.entryType) params.set('entryType', filters.entryType);
+    if (filters?.section) params.set('section', filters.section);
     const qs = params.toString() ? `?${params.toString()}` : '';
     return this.http.get<PersonaHistoryEntry[]>(`/api/personas/${personaId}/history${qs}`);
   }
 
-  addHistoryEntry(personaId: string, data: Omit<CreatePersonaHistoryEntryInput, 'personaId'>): Promise<PersonaHistoryEntry> {
+  addHistoryEntry(personaId: string, data: CreatePersonaHistoryEntryInput): Promise<PersonaHistoryEntry> {
     return this.http.post<PersonaHistoryEntry>(`/api/personas/${personaId}/history`, data);
-  }
-
-  listSkills(personaId: string): Promise<PersonaSkill[]> {
-    return this.http.get<PersonaSkill[]>(`/api/personas/${personaId}/skills`);
-  }
-
-  addSkill(personaId: string, skillId: string): Promise<PersonaSkill> {
-    return this.http.post<PersonaSkill>(`/api/personas/${personaId}/skills`, { skillId });
-  }
-
-  removeSkill(personaId: string, skillId: string): Promise<void> {
-    return this.http.delete<void>(`/api/personas/${personaId}/skills/${skillId}`);
-  }
-
-  getStats(personaId: string): Promise<PersonaStats> {
-    return this.http.get<PersonaStats>(`/api/personas/${personaId}/stats`);
-  }
-
-  updateStats(personaId: string, data: { projectCount?: number; cardCount?: number; qualityAvg?: number | null }): Promise<PersonaStats> {
-    return this.http.patch<PersonaStats>(`/api/personas/${personaId}/stats`, data);
   }
 }

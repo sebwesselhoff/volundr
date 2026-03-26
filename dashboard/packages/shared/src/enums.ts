@@ -125,3 +125,32 @@ export type TeamMemberStatus = (typeof TeamMemberStatus)[keyof typeof TeamMember
 
 export const TeamTaskStatus = { pending: 'pending', in_progress: 'in_progress', completed: 'completed' } as const;
 export type TeamTaskStatus = (typeof TeamTaskStatus)[keyof typeof TeamTaskStatus];
+
+// --- Personas ---
+
+export const PersonaStatus = {
+  active: 'active',
+  inactive: 'inactive',
+  retired: 'retired',
+} as const;
+export type PersonaStatus = (typeof PersonaStatus)[keyof typeof PersonaStatus];
+
+export const PersonaRole = {
+  developer: 'developer',
+  architect: 'architect',
+  'qa-engineer': 'qa-engineer',
+  'devops-engineer': 'devops-engineer',
+  designer: 'designer',
+  reviewer: 'reviewer',
+  guardian: 'guardian',
+  researcher: 'researcher',
+  content: 'content',
+} as const;
+export type PersonaRole = (typeof PersonaRole)[keyof typeof PersonaRole];
+
+export const HistorySection = {
+  learnings: 'learnings',
+  decisions: 'decisions',
+  patterns: 'patterns',
+} as const;
+export type HistorySection = (typeof HistorySection)[keyof typeof HistorySection];
