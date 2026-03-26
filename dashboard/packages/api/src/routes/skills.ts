@@ -118,7 +118,12 @@ router.delete('/skills/:id', (req, res) => {
   res.status(204).send();
 });
 
+// Confidence weight multiplier — high-confidence skills rank above low ones at equal keyword score
+const CONFIDENCE_WEIGHT: Record<string, number> = { high: 1.5, medium: 1.0, low: 0.6 };
+
 // POST /skills/match — find relevant skills for a given query/context
+// Scoring: trigger match = +2 per term (2× weight), name/description match = +1 per term.
+// Raw score is multiplied by confidence weight (high=1.5, medium=1.0, low=0.6).
 router.post('/skills/match', (req, res) => {
   const { query, domain, roles, limit } = req.body as {
     query?: string;
@@ -142,28 +147,33 @@ router.post('/skills/match', (req, res) => {
       // Filter by domain if specified
       if (domain && row.domain !== domain) return null;
 
-      // Filter by roles if specified (empty roles = available to all)
+      // Filter by roles if specified (empty skill.roles = available to all)
       if (roles && roles.length > 0 && skillRoles.length > 0) {
         const hasRole = roles.some((r) => skillRoles.includes(r));
         if (!hasRole) return null;
       }
 
       // Score: trigger matches weighted 2x, name/description matches 1x
-      let score = 0;
+      let rawScore = 0;
       const matchedTriggers: string[] = [];
 
       for (const term of queryTerms) {
         for (const trigger of triggers) {
-          if (trigger.toLowerCase().includes(term) || term.includes(trigger.toLowerCase())) {
-            score += 2;
+          const triggerLower = trigger.toLowerCase();
+          if (triggerLower.includes(term) || term.includes(triggerLower)) {
+            rawScore += 2;
             if (!matchedTriggers.includes(trigger)) matchedTriggers.push(trigger);
           }
         }
-        if (row.name.toLowerCase().includes(term)) score += 1;
-        if (row.description.toLowerCase().includes(term)) score += 1;
+        if (row.name.toLowerCase().includes(term)) rawScore += 1;
+        if (row.description.toLowerCase().includes(term)) rawScore += 1;
       }
 
-      if (score === 0) return null;
+      if (rawScore === 0) return null;
+
+      // Apply confidence multiplier so high-confidence skills surface first
+      const weight = CONFIDENCE_WEIGHT[row.confidence] ?? 1.0;
+      const score = rawScore * weight;
 
       return { skill: toSkill(row), score, matchedTriggers };
     })
