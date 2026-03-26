@@ -118,6 +118,125 @@ router.delete('/skills/:id', (req, res) => {
   res.status(204).send();
 });
 
+// Lifecycle helpers (mirrors framework/skills/confidence-lifecycle.ts — no cross-package import)
+
+type ConfidenceLevel = 'low' | 'medium' | 'high';
+const CONFIDENCE_PROMOTE: Record<ConfidenceLevel, ConfidenceLevel> = { low: 'medium', medium: 'high', high: 'high' };
+const CONFIDENCE_DEMOTE: Record<ConfidenceLevel, ConfidenceLevel> = { low: 'low', medium: 'low', high: 'medium' };
+
+function lifecycleDaysBetween(earlier: string, later: string): number {
+  return Math.floor((new Date(later).getTime() - new Date(earlier).getTime()) / 86400000);
+}
+
+function computeLifecycle(
+  current: ConfidenceLevel,
+  usageCount: number,
+  lastSuccessDate: string | null,
+  validatedAt: string,
+  reviewByDate: string,
+  consecutiveFailures: number,
+  totalBuilds: number,
+  failedBuilds: number,
+  today: string,
+): { newConfidence: ConfidenceLevel; changed: boolean; isStale: boolean; daysOverdue: number; reasons: string[] } {
+  let confidence = current;
+  const reasons: string[] = [];
+
+  // Build failure correlation
+  const failureRate = totalBuilds >= 5 ? failedBuilds / totalBuilds : 0;
+  const consecutiveProblem = consecutiveFailures >= 3;
+  const highRate = failureRate >= 0.5;
+  let failureDemoted = false;
+  if (consecutiveProblem || highRate) {
+    const prev = confidence;
+    confidence = (consecutiveProblem && highRate)
+      ? CONFIDENCE_DEMOTE[CONFIDENCE_DEMOTE[confidence]]
+      : CONFIDENCE_DEMOTE[confidence];
+    if (confidence !== prev) failureDemoted = true;
+    const parts: string[] = [];
+    if (consecutiveProblem) parts.push(`${consecutiveFailures} consecutive failures`);
+    if (highRate) parts.push(`${Math.round(failureRate * 100)}% failure rate`);
+    reasons.push(`build-failure: ${parts.join(' + ')}`);
+  }
+
+  // Staleness
+  const daysOverdue = Math.max(0, lifecycleDaysBetween(reviewByDate, today));
+  let isStale = daysOverdue > 0;
+  if (daysOverdue > 90) {
+    if (confidence !== 'low') { confidence = 'low'; reasons.push(`staleness: severely stale (${daysOverdue}d overdue) — demoted to low`); }
+  } else if (daysOverdue > 30) {
+    const prev = confidence;
+    confidence = CONFIDENCE_DEMOTE[confidence];
+    if (confidence !== prev) reasons.push(`staleness: stale (${daysOverdue}d overdue) — demoted one level`);
+  }
+
+  // Auto-promotion (skipped if build failures caused a demotion)
+  if (!failureDemoted && confidence !== 'high') {
+    const recentSuccess = lastSuccessDate !== null && lifecycleDaysBetween(lastSuccessDate, today) <= 90;
+    if (usageCount >= 10 && recentSuccess) {
+      const prev = confidence;
+      confidence = CONFIDENCE_PROMOTE[confidence];
+      if (confidence !== prev) reasons.push(`promotion: promoted after ${usageCount} uses with recent success`);
+    } else if (usageCount >= 3 && recentSuccess && confidence === 'low') {
+      confidence = 'medium';
+      reasons.push(`promotion: promoted low→medium after ${usageCount} uses with recent success`);
+    }
+  }
+
+  return { newConfidence: confidence, changed: confidence !== current, isStale, daysOverdue, reasons };
+}
+
+// POST /skills/:id/lifecycle — evaluate and apply confidence lifecycle changes
+// Aggregates personaSkills usage; caller may pass consecutiveFailures/totalBuilds/failedBuilds overrides.
+router.post('/skills/:id/lifecycle', (req, res) => {
+  const db = getDb();
+  const [skill] = db.select().from(schema.skills).where(eq(schema.skills.id, req.params.id)).all();
+  if (!skill) throw new ApiError(404, `Skill '${req.params.id}' not found`);
+
+  const body = req.body as {
+    consecutiveFailures?: number;
+    totalBuilds?: number;
+    failedBuilds?: number;
+    today?: string;
+  };
+
+  // Aggregate persona_skills usage for this skill
+  const personaSkillRows = db
+    .select()
+    .from(schema.personaSkills)
+    .where(eq(schema.personaSkills.skillId, req.params.id))
+    .all();
+
+  const usageCount = personaSkillRows.reduce((sum, r) => sum + (r.usageCount ?? 0), 0);
+  const lastUsedDates = personaSkillRows
+    .map((r) => r.lastUsedAt)
+    .filter((d): d is string => d !== null && d !== undefined);
+  const lastSuccessDate = lastUsedDates.length > 0 ? lastUsedDates.sort().at(-1)! : null;
+  const today = body.today ?? new Date().toISOString().slice(0, 10);
+
+  const result = computeLifecycle(
+    skill.confidence as ConfidenceLevel,
+    usageCount,
+    lastSuccessDate,
+    skill.validatedAt,
+    skill.reviewByDate,
+    body.consecutiveFailures ?? 0,
+    body.totalBuilds ?? 0,
+    body.failedBuilds ?? 0,
+    today,
+  );
+
+  if (result.changed) {
+    db.update(schema.skills)
+      .set({ confidence: result.newConfidence, updatedAt: new Date().toISOString() })
+      .where(eq(schema.skills.id, req.params.id))
+      .run();
+  }
+
+  const [updated] = db.select().from(schema.skills).where(eq(schema.skills.id, req.params.id)).all();
+  res.json({ ...result, skill: toSkill(updated) });
+});
+
 // Confidence weight multiplier — high-confidence skills rank above low ones at equal keyword score
 const CONFIDENCE_WEIGHT: Record<string, number> = { high: 1.5, medium: 1.0, low: 0.6 };
 
