@@ -1,7 +1,10 @@
 import express from 'express';
 import { createServer } from 'http';
+import { copyFileSync, existsSync, statSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { API_PORT } from '@vldr/shared';
-import { getDb, schema } from '@vldr/db';
+import { initDb, getDb, getRawSqlite, getSchemaVersion, schema } from '@vldr/db';
 import { eq, and, lt, ne } from 'drizzle-orm';
 import { cors } from './middleware/cors.js';
 import { errorHandler } from './middleware/error-handler.js';
@@ -24,10 +27,10 @@ import journalRouter from './routes/journal.js';
 import sessionSummariesRouter from './routes/session-summaries.js';
 import teamsRouter from './routes/teams.js';
 import personasRouter from './routes/personas.js';
-import skillsRouter from './routes/skills.js';
-import routingRulesRouter from './routes/routing-rules.js';
-import directivesRouter from './routes/directives.js';
-import economyRouter from './routes/economy.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+// Matches the DB path used by the db package (dashboard/data/the-forge.db)
+const DB_PATH = process.env.VLDR_DB_PATH || resolve(__dirname, '..', '..', '..', 'data', 'the-forge.db');
 
 const app = express();
 const server = createServer(app);
@@ -55,6 +58,33 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// DB status — reports schema version, file sizes (for vldr-doctor)
+app.get('/api/db/status', (_req, res) => {
+  try {
+    const sqlite = getRawSqlite();
+    const schemaVersion = getSchemaVersion();
+    const dbSize = existsSync(DB_PATH) ? statSync(DB_PATH).size : 0;
+    const walSize = existsSync(`${DB_PATH}-wal`) ? statSync(`${DB_PATH}-wal`).size : 0;
+    res.json({ schemaVersion, dbSize, walSize, journalMode: 'wal' });
+  } catch (err) {
+    res.status(503).json({ error: 'Database not ready', detail: (err as Error).message });
+  }
+});
+
+// DB backup — checkpoint WAL then copy DB file
+app.post('/api/db/backup', (_req, res) => {
+  try {
+    const sqlite = getRawSqlite();
+    sqlite.pragma('wal_checkpoint(TRUNCATE)');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupPath = `${DB_PATH}.backup-${ts}`;
+    copyFileSync(DB_PATH, backupPath);
+    res.json({ backup: backupPath, size: statSync(backupPath).size });
+  } catch (err) {
+    res.status(500).json({ error: 'Backup failed', detail: (err as Error).message });
+  }
+});
+
 // REST routes
 app.use('/api/projects', projectsRouter);
 app.use('/api', epicsRouter);
@@ -70,18 +100,22 @@ app.use('/api', journalRouter);
 app.use('/api', sessionSummariesRouter);
 app.use('/api', teamsRouter);
 app.use('/api', personasRouter);
-app.use('/api', skillsRouter);
-app.use('/api', routingRulesRouter);
-app.use('/api', directivesRouter);
-app.use('/api', economyRouter);
 
 // Error handler (must be after routes)
 app.use(errorHandler);
 
 let teamSync: TeamSyncService | null = null;
 
-// Graceful shutdown — release port before tsx restarts us
+function flushWal(): void {
+  try {
+    const sqlite = getRawSqlite();
+    sqlite.pragma('wal_checkpoint(TRUNCATE)');
+  } catch { /* db may not be initialized yet */ }
+}
+
+// Graceful shutdown — flush WAL, release port before tsx restarts us
 async function shutdown() {
+  flushWal();
   if (teamSync) await teamSync.stop();
   server.close(() => process.exit(0));
   // Force exit after 2s if close hangs
@@ -92,6 +126,7 @@ process.on('SIGINT', shutdown);
 
 // tsx watch sends SIGUSR2 before restart — release port immediately
 process.on('SIGUSR2', async () => {
+  flushWal();
   if (teamSync) await teamSync.stop();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 1000);
@@ -153,20 +188,25 @@ function runAgentTtlCleanup() {
 server.listen(API_PORT, () => {
   retryCount = 0;
   console.log(`MC Dashboard API running on http://localhost:${API_PORT}`);
-  // Seed community lessons from framework seed file
-  seedCommunityLessons();
-  // Start TeamSyncService with graceful degradation
-  const db = getDb();
-  teamSync = new TeamSyncService(db, broadcastToBrowsers);
-  teamSync.start().then(() => {
-    console.log('[API] TeamSyncService started — watching for Agent Teams');
+  // Initialize DB (runs migrations) then start services
+  initDb().then((db) => {
+    // Seed community lessons from framework seed file
+    seedCommunityLessons();
+    // Start TeamSyncService with graceful degradation
+    teamSync = new TeamSyncService(db, broadcastToBrowsers);
+    teamSync.start().then(() => {
+      console.log('[API] TeamSyncService started — watching for Agent Teams');
+    }).catch((err: Error) => {
+      console.warn('[API] TeamSyncService failed to start:', err.message);
+      teamSync = null;
+    });
+    // Start agent TTL cleanup interval
+    setInterval(runAgentTtlCleanup, AGENT_TTL_CHECK_INTERVAL_MS);
+    runAgentTtlCleanup(); // Run once on boot
   }).catch((err: Error) => {
-    console.warn('[API] TeamSyncService failed to start:', err.message);
-    teamSync = null;
+    console.error('[API] Failed to initialize database:', err.message);
+    process.exit(1);
   });
-  // Start agent TTL cleanup interval
-  setInterval(runAgentTtlCleanup, AGENT_TTL_CHECK_INTERVAL_MS);
-  runAgentTtlCleanup(); // Run once on boot
 });
 
 export { app, server };

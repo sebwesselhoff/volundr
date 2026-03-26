@@ -3,320 +3,50 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from './schema.js';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { mkdirSync } from 'fs';
+import { runMigrations, getCurrentSchemaVersion } from './migrate.js';
 
 // Always store DB in dashboard/data/ regardless of cwd
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = resolve(__dirname, '..', '..', '..', 'data');
 const DB_PATH = process.env.VLDR_DB_PATH || resolve(DATA_DIR, 'the-forge.db');
 
-import { mkdirSync } from 'fs';
-
 let _db: ReturnType<typeof drizzle> | null = null;
+let _sqlite: Database.Database | null = null;
 
-export function getDb() {
+export async function initDb(): Promise<ReturnType<typeof drizzle>> {
+  if (_db) return _db;
+
+  mkdirSync(dirname(DB_PATH), { recursive: true });
+  const sqlite = new Database(DB_PATH);
+  sqlite.pragma('journal_mode = WAL');
+  sqlite.pragma('foreign_keys = ON');
+
+  await runMigrations(sqlite, DB_PATH);
+
+  _sqlite = sqlite;
+  _db = drizzle(sqlite, { schema });
+  return _db;
+}
+
+export function getDb(): ReturnType<typeof drizzle> {
   if (!_db) {
-    mkdirSync(dirname(DB_PATH), { recursive: true });
-    const sqlite = new Database(DB_PATH);
-    sqlite.pragma('journal_mode = WAL');
-    sqlite.pragma('foreign_keys = ON');
-
-    // Auto-create tables if they don't exist (first run)
-    sqlite.exec(`
-      CREATE TABLE IF NOT EXISTS projects (
-        id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'active', phase TEXT NOT NULL DEFAULT 'discovery',
-        review_gate_level INTEGER NOT NULL DEFAULT 2,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      CREATE TABLE IF NOT EXISTS epics (
-        id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-        name TEXT NOT NULL, domain TEXT NOT NULL, color TEXT NOT NULL,
-        sort_order INTEGER NOT NULL DEFAULT 0
-      );
-      CREATE TABLE IF NOT EXISTS cards (
-        id TEXT PRIMARY KEY, epic_id TEXT NOT NULL REFERENCES epics(id) ON DELETE CASCADE,
-        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-        title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', size TEXT NOT NULL,
-        priority TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'backlog',
-        deps TEXT NOT NULL DEFAULT '[]', criteria TEXT NOT NULL DEFAULT '',
-        technical_notes TEXT NOT NULL DEFAULT '', files_created TEXT NOT NULL DEFAULT '[]',
-        files_modified TEXT NOT NULL DEFAULT '[]', branch TEXT NOT NULL DEFAULT '',
-        isc TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now')), completed_at TEXT
-      );
-      CREATE TABLE IF NOT EXISTS agents (
-        id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-        card_id TEXT REFERENCES cards(id) ON DELETE SET NULL,
-        parent_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
-        type TEXT NOT NULL, model TEXT NOT NULL DEFAULT '',
-        status TEXT NOT NULL DEFAULT 'running',
-        prompt_tokens INTEGER NOT NULL DEFAULT 0, completion_tokens INTEGER NOT NULL DEFAULT 0,
-        cache_creation_tokens INTEGER NOT NULL DEFAULT 0, cache_read_tokens INTEGER NOT NULL DEFAULT 0,
-        estimated_cost REAL NOT NULL DEFAULT 0,
-        started_at TEXT NOT NULL DEFAULT (datetime('now')), completed_at TEXT,
-        detail TEXT NOT NULL DEFAULT ''
-      );
-      DROP INDEX IF EXISTS idx_volundr_per_project;
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_volundr_per_project ON agents(project_id) WHERE type = 'volundr' AND status = 'running';
-      CREATE TABLE IF NOT EXISTS events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-        card_id TEXT, agent_id TEXT, type TEXT NOT NULL,
-        detail TEXT NOT NULL DEFAULT '', cost_estimate REAL,
-        timestamp TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      CREATE TABLE IF NOT EXISTS quality_scores (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        card_id TEXT NOT NULL UNIQUE REFERENCES cards(id) ON DELETE CASCADE,
-        completeness INTEGER NOT NULL, code_quality INTEGER NOT NULL,
-        format_compliance INTEGER NOT NULL, independence INTEGER NOT NULL,
-        weighted_score REAL NOT NULL, implementation_type TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      CREATE TABLE IF NOT EXISTS commands (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-        type TEXT NOT NULL,
-        payload TEXT,
-        status TEXT NOT NULL DEFAULT 'pending',
-        card_id TEXT,
-        detail TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        acknowledged_at TEXT
-      );
-      CREATE TABLE IF NOT EXISTS hook_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id TEXT,
-        timestamp TEXT NOT NULL DEFAULT (datetime('now')),
-        level TEXT NOT NULL,
-        source TEXT NOT NULL,
-        event TEXT NOT NULL,
-        detail TEXT,
-        agent_id TEXT,
-        card_id TEXT,
-        error TEXT
-      );
-      CREATE TABLE IF NOT EXISTS lessons (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
-        title TEXT NOT NULL, content TEXT NOT NULL,
-        stack TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT '',
-        is_global INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      CREATE TABLE IF NOT EXISTS journal (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id TEXT NOT NULL,
-        timestamp TEXT NOT NULL DEFAULT (datetime('now')),
-        entry TEXT NOT NULL,
-        entry_type TEXT NOT NULL,
-        card_id TEXT,
-        session_tag TEXT
-      );
-      CREATE TABLE IF NOT EXISTS session_summaries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id TEXT NOT NULL,
-        started_at TEXT NOT NULL,
-        ended_at TEXT NOT NULL DEFAULT (datetime('now')),
-        summary TEXT NOT NULL,
-        key_decisions TEXT,
-        blockers TEXT,
-        next_steps TEXT,
-        developer_feedback TEXT,
-        phase_at_start TEXT,
-        phase_at_end TEXT,
-        cards_completed TEXT,
-        cards_started TEXT
-      );
-      CREATE TABLE IF NOT EXISTS teams (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        lead_agent_id TEXT NOT NULL,
-        lead_session_id TEXT,
-        status TEXT NOT NULL DEFAULT 'active',
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        ended_at TEXT
-      );
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_name ON teams(name);
-      CREATE TABLE IF NOT EXISTS team_members (
-        id TEXT PRIMARY KEY,
-        team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-        agent_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        agent_type TEXT NOT NULL,
-        model TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'active',
-        joined_at TEXT NOT NULL,
-        left_at TEXT,
-        cwd TEXT
-      );
-      CREATE TABLE IF NOT EXISTS team_messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-        from_agent TEXT NOT NULL,
-        to_agent TEXT,
-        text TEXT NOT NULL,
-        summary TEXT,
-        timestamp TEXT NOT NULL,
-        read INTEGER NOT NULL DEFAULT 0,
-        content_hash TEXT NOT NULL
-      );
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_team_messages_dedup ON team_messages(team_id, content_hash);
-      CREATE TABLE IF NOT EXISTS team_tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-        task_id TEXT NOT NULL,
-        subject TEXT NOT NULL,
-        description TEXT,
-        status TEXT NOT NULL DEFAULT 'pending',
-        owner TEXT,
-        blocks TEXT,
-        blocked_by TEXT,
-        claimed_at TEXT,
-        completed_at TEXT
-      );
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_team_tasks_dedup ON team_tasks(team_id, task_id);
-      CREATE TABLE IF NOT EXISTS personas (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        role TEXT NOT NULL,
-        expertise TEXT,
-        model_preference TEXT DEFAULT 'auto',
-        style TEXT,
-        status TEXT NOT NULL DEFAULT 'active',
-        cards_completed INTEGER NOT NULL DEFAULT 0,
-        quality_average REAL NOT NULL DEFAULT 0,
-        total_tokens INTEGER NOT NULL DEFAULT 0,
-        total_cost REAL NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        last_active_at TEXT,
-        charter_path TEXT,
-        history_path TEXT
-      );
-      CREATE TABLE IF NOT EXISTS persona_history_entries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        persona_id TEXT NOT NULL REFERENCES personas(id),
-        project_id TEXT,
-        section TEXT NOT NULL,
-        content TEXT NOT NULL,
-        stack_tags TEXT,
-        confidence REAL DEFAULT 1.0,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        archived_at TEXT
-      );
-      CREATE TABLE IF NOT EXISTS persona_skills (
-        persona_id TEXT NOT NULL REFERENCES personas(id),
-        skill_id TEXT NOT NULL,
-        confidence TEXT DEFAULT 'low',
-        acquired_at TEXT NOT NULL DEFAULT (datetime('now')),
-        last_used_at TEXT,
-        usage_count INTEGER DEFAULT 0,
-        project_id TEXT
-      );
-      CREATE TABLE IF NOT EXISTS reviewer_lockouts (
-        card_id TEXT NOT NULL,
-        persona_id TEXT NOT NULL,
-        locked_at TEXT NOT NULL DEFAULT (datetime('now')),
-        reason TEXT
-      );
-      CREATE TABLE IF NOT EXISTS skills (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT NOT NULL,
-        domain TEXT NOT NULL,
-        confidence TEXT NOT NULL DEFAULT 'medium',
-        source TEXT NOT NULL DEFAULT 'seed',
-        version INTEGER NOT NULL DEFAULT 1,
-        validated_at TEXT NOT NULL DEFAULT (date('now')),
-        review_by_date TEXT NOT NULL DEFAULT (date('now', '+6 months')),
-        triggers TEXT NOT NULL DEFAULT '[]',
-        roles TEXT NOT NULL DEFAULT '[]',
-        body TEXT NOT NULL DEFAULT '',
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      CREATE TABLE IF NOT EXISTS routing_rules (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        work_type TEXT NOT NULL,
-        persona_id TEXT NOT NULL,
-        examples TEXT,
-        confidence TEXT NOT NULL DEFAULT 'medium',
-        module_pattern TEXT,
-        priority INTEGER NOT NULL DEFAULT 0,
-        is_active INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      CREATE TABLE IF NOT EXISTS directives (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
-        content TEXT NOT NULL,
-        source TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'active',
-        priority INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT,
-        superseded_by INTEGER
-      );
-    `);
-
-    // Idempotent migrations for existing DBs
-    const cols = sqlite.prepare("PRAGMA table_info(agents)").all().map((r: any) => r.name);
-    if (!cols.includes('cache_creation_tokens')) {
-      sqlite.exec("ALTER TABLE agents ADD COLUMN cache_creation_tokens INTEGER NOT NULL DEFAULT 0");
-    }
-    if (!cols.includes('cache_read_tokens')) {
-      sqlite.exec("ALTER TABLE agents ADD COLUMN cache_read_tokens INTEGER NOT NULL DEFAULT 0");
-    }
-
-    // ISC column migration for existing DBs
-    try { sqlite.exec('ALTER TABLE cards ADD COLUMN isc TEXT'); } catch {}
-
-    // Persona routing columns on cards (migration 004)
-    const cardCols = sqlite.prepare("PRAGMA table_info(cards)").all().map((r: any) => r.name);
-    if (!cardCols.includes('assigned_persona_id')) {
-      sqlite.exec('ALTER TABLE cards ADD COLUMN assigned_persona_id TEXT');
-    }
-    if (!cardCols.includes('routing_confidence')) {
-      sqlite.exec('ALTER TABLE cards ADD COLUMN routing_confidence TEXT');
-    }
-    if (!cardCols.includes('routing_reason')) {
-      sqlite.exec('ALTER TABLE cards ADD COLUMN routing_reason TEXT');
-    }
-
-    // Migration 008: economy_mode column on projects
-    const projCols = sqlite.prepare("PRAGMA table_info(projects)").all().map((r: any) => r.name);
-    if (!projCols.includes('economy_mode')) {
-      sqlite.exec("ALTER TABLE projects ADD COLUMN economy_mode INTEGER NOT NULL DEFAULT 0");
-    }
-
-    // Seed default routing rules if table is empty (11 rules covering common work types)
-    const ruleCount = (sqlite.prepare("SELECT COUNT(*) as c FROM routing_rules").get() as any).c;
-    if (ruleCount === 0) {
-      sqlite.exec(`
-        INSERT INTO routing_rules (work_type, persona_id, examples, confidence, priority) VALUES
-          ('TypeScript/JavaScript implementation', 'fullstack-web', '["ts","tsx","js","jsx","node"]', 'high', 10),
-          ('SQL and database design', 'backend-api', '["sql","migration","schema","drizzle","postgres"]', 'high', 9),
-          ('Azure infrastructure', 'devops-engineer', '["azure","bicep","arm","terraform","aks"]', 'high', 9),
-          ('Authentication and authorization', 'security-specialist', '["auth","oauth","jwt","rbac","permissions"]', 'high', 8),
-          ('Testing and QA', 'qa-engineer', '["test","spec","jest","vitest","playwright","cypress"]', 'high', 8),
-          ('Security review', 'security-specialist', '["security","vulnerability","cve","pentest","owasp"]', 'high', 8),
-          ('CI/CD pipelines', 'devops-engineer', '["pipeline","github-actions","ci","cd","deploy"]', 'medium', 7),
-          ('Architecture and design', 'architect', '["architecture","design","adr","system","diagram"]', 'high', 7),
-          ('Database migrations', 'backend-api', '["migration","alter","add column","drop","create table"]', 'medium', 6),
-          ('Performance optimization', 'fullstack-web', '["perf","performance","latency","throughput","optimize"]', 'medium', 5),
-          ('Documentation', 'researcher', '["docs","readme","guide","markdown","wiki"]', 'low', 1);
-      `);
-    }
-
-    _db = drizzle(sqlite, { schema });
+    throw new Error('Database not initialized. Call initDb() first.');
   }
   return _db;
 }
 
+export function getRawSqlite(): Database.Database {
+  if (!_sqlite) {
+    throw new Error('Database not initialized. Call initDb() first.');
+  }
+  return _sqlite;
+}
+
+export function getSchemaVersion(): number {
+  if (!_sqlite) return 0;
+  return getCurrentSchemaVersion(_sqlite);
+}
+
 export { schema };
-export type Db = ReturnType<typeof getDb>;
+export type Db = ReturnType<typeof drizzle>;

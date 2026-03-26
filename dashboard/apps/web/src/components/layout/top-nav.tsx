@@ -11,6 +11,9 @@ const NAV_ITEMS = [
   { href: '/board', label: 'Board' },
   { href: '/events', label: 'Events' },
   { href: '/insights', label: 'Insights' },
+  { href: '/personas', label: 'Personas' },
+  { href: '/skills', label: 'Skills' },
+  { href: '/compliance', label: 'Compliance' },
   { href: '/thing', label: 'The Þing' },
 ];
 
