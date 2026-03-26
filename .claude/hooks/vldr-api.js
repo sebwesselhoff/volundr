@@ -74,4 +74,18 @@ function readStdin() {
   }
 }
 
-module.exports = { apiPost, apiPatch, apiGet, readStdin, API_URL, PROJECT_ID, VLDR_HOME };
+// Auto-heartbeat: debounced 5s, fires on any hook activity
+let lastHeartbeat = 0;
+function touchHeartbeat() {
+  const now = Date.now();
+  if (now - lastHeartbeat < 5000) return; // debounce 5s
+  lastHeartbeat = now;
+  if (!PROJECT_ID) return;
+  // Fire and forget - non-blocking
+  apiPatch(`/api/agents/volundr-${PROJECT_ID}`, { detail: `heartbeat:${new Date().toISOString()}` }).catch(() => {});
+}
+
+// Auto-touch on module load (every hook import triggers this)
+touchHeartbeat();
+
+module.exports = { apiPost, apiPatch, apiGet, readStdin, touchHeartbeat, API_URL, PROJECT_ID, VLDR_HOME };

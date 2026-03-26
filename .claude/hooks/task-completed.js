@@ -19,12 +19,44 @@ async function main() {
   if (cardMatch) {
     const cardId = cardMatch[1];
 
+    // Dep check: verify all card deps are done before allowing completion
+    const card = await apiGet(`/api/cards/${cardId}`);
+    if (card && card.deps && card.deps.length > 0) {
+      const allCards = await apiGet(`/api/projects/${PROJECT_ID}/cards`);
+      const undone = card.deps.filter(depId => {
+        const dep = allCards && allCards.find(c => c.id === depId);
+        return !dep || dep.status !== 'done';
+      });
+      if (undone.length > 0) {
+        process.stderr.write(`Deps incomplete for ${cardId}: ${undone.join(', ')} not done.\n`);
+        process.exit(2);
+      }
+    }
+
+    // Build gate check: verify a recent build_gate_passed event exists (project-wide, not per-card)
+    // Per-card build gate events aren't always available — teammate-idle hook logs them without cardId
+    const events = await apiGet(`/api/projects/${PROJECT_ID}/events?type=build_gate_passed&limit=1`);
+    if (!events || events.length === 0) {
+      process.stderr.write(`Build gate: No build_gate_passed event found for project. Run build gate first.\n`);
+      process.exit(2);
+    }
+
     // Quality gate: check BEFORE patching card to done
     // If gate fails, card stays in_progress and task completion is blocked
     const qualityRows = await apiGet(`/api/projects/${PROJECT_ID}/quality`);
     if (Array.isArray(qualityRows)) {
       const match = qualityRows.find(r => r.cardId === cardId);
-      if (match && typeof match.weightedScore === 'number' && match.weightedScore < 2.5) {
+      if (!match) {
+        await apiPost('/api/events', {
+          projectId: PROJECT_ID,
+          type: 'quality_gate_failed',
+          cardId,
+          detail: `Quality gate blocked ${cardId}: no quality score exists`,
+        });
+        process.stderr.write(`Quality gate: ${cardId} has no quality score. Score the card before completing.\n`);
+        process.exit(2);
+      }
+      if (typeof match.weightedScore === 'number' && match.weightedScore < 2.5) {
         await apiPost('/api/events', {
           projectId: PROJECT_ID,
           type: 'quality_gate_failed',
@@ -37,13 +69,20 @@ async function main() {
         );
         process.exit(2); // Block completion - card stays in_progress
       }
-      // No score yet or score >= 2.5 - allow completion
     }
 
-    // Gate passed - patch card to done
+    // Gate passed - patch card to done (include quality scores for API gate)
+    const qualityObj = match ? {
+      completeness: match.completeness,
+      codeQuality: match.codeQuality,
+      formatCompliance: match.formatCompliance,
+      independence: match.independence,
+      implementationType: match.implementationType || 'agent',
+    } : undefined;
     const patchResult = await apiPatch(`/api/cards/${cardId}`, {
       status: 'done',
       completedAt: new Date().toISOString(),
+      ...(qualityObj && { quality: qualityObj }),
     });
     if (!patchResult) {
       // Check if the failure was due to ISC gate rejection
