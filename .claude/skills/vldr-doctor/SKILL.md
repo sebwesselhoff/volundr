@@ -32,21 +32,14 @@ fi
 
 **3. Project registry valid**
 ```bash
-VLDR_HOME="${VLDR_HOME:-$HOME/.volundr}"
-reg="$VLDR_HOME/projects/registry.json"
-if [ -f "$reg" ]; then
-  result=$(node -e "const r=JSON.parse(require('fs').readFileSync('$reg','utf8'));const count=Object.keys(r.projects||{}).length;console.log('PASS: '+count+' projects, active='+(r.activeProject||'none'))" 2>/dev/null)
-  echo "${result:-FAIL: could not parse registry.json}"
-else
-  echo "FAIL: registry.json not found at $reg"
-fi
+node -e "const p=require('path'),f=require('fs');const h=process.env.VLDR_HOME||(require('os').homedir()+'/.volundr');const reg=p.join(h,'projects','registry.json');if(!f.existsSync(reg)){console.log('FAIL: registry.json not found at '+reg);process.exit(0);}try{const r=JSON.parse(f.readFileSync(reg,'utf8'));const count=Object.keys(r.projects||{}).length;console.log('PASS: '+count+' projects, active='+(r.activeProject||'none'))}catch(e){console.log('FAIL: could not parse registry.json')}"
 ```
 
 **4. DB status**
 ```bash
 result=$(curl -s --max-time 5 http://localhost:3141/api/db/status 2>/dev/null)
 if [ -n "$result" ]; then
-  node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8'));console.log('PASS: schema v'+d.schemaVersion+', size='+d.sizeKb+'KB')" <<< "$result" 2>/dev/null || echo "SKIP: /api/db/status not available"
+  echo "$result" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);console.log('PASS: schema v'+j.schemaVersion+', size='+(j.dbSize/1024).toFixed(0)+'KB')}catch{console.log('SKIP: could not parse db/status')}})" 2>/dev/null || echo "SKIP: /api/db/status not available"
 else
   echo "SKIP: /api/db/status endpoint not available"
 fi
@@ -121,16 +114,7 @@ fi
 
 **11. Active project**
 ```bash
-VLDR_HOME="${VLDR_HOME:-$HOME/.volundr}"
-reg="$VLDR_HOME/projects/registry.json"
-if [ -f "$reg" ]; then
-  node -e "
-    const r=JSON.parse(require('fs').readFileSync('$reg','utf8'));
-    const id=r.activeProject;
-    if(id){const p=r.projects&&r.projects[id];console.log('Active: '+id+(p?' ('+p.name+')':''));}
-    else{console.log('No active project');}
-  " 2>/dev/null
-fi
+node -e "const p=require('path'),f=require('fs');const h=process.env.VLDR_HOME||(require('os').homedir()+'/.volundr');const reg=p.join(h,'projects','registry.json');if(!f.existsSync(reg)){console.log('No registry');process.exit(0);}const r=JSON.parse(f.readFileSync(reg,'utf8'));const id=r.activeProject;if(id){const proj=r.projects&&r.projects[id];console.log('Active: '+id+(proj?' ('+proj.name+')':''))}else{console.log('No active project')}"
 ```
 
 ## Output Format
