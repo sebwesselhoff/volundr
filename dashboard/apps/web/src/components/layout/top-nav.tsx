@@ -14,6 +14,8 @@ const NAV_ITEMS = [
   { href: '/personas', label: 'Personas' },
   { href: '/skills', label: 'Skills' },
   { href: '/compliance', label: 'Compliance' },
+  { href: '/routing', label: 'Routing' },
+  { href: '/directives', label: 'Directives' },
   { href: '/thing', label: 'The Þing' },
 ];
 
