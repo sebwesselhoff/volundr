@@ -13,6 +13,29 @@ export interface SkillMatchInput {
   limit?: number;
 }
 
+export interface CorrelateBuildInput {
+  skillIds: string[];
+  outcome: 'pass' | 'fail';
+  projectId?: string;
+  cardId?: string;
+  detail?: string;
+}
+
+export interface CorrelateBuildResult {
+  outcome: string;
+  processed: number;
+  results: Array<{ skillId: string; before: string; after: string; changed: boolean }>;
+}
+
+export interface SkillBuildHistory {
+  skillId: string;
+  buildFailureCount: number;
+  buildPassCount: number;
+  lastBuildOutcome: string | null;
+  version: number;
+  events: unknown[];
+}
+
 export class SkillsResource {
   constructor(private http: HttpClient) {}
 
@@ -42,5 +65,13 @@ export class SkillsResource {
 
   match(input: SkillMatchInput): Promise<SkillMatchResult[]> {
     return this.http.post<SkillMatchResult[]>('/api/skills/match', input);
+  }
+
+  correlateBuild(input: CorrelateBuildInput): Promise<CorrelateBuildResult> {
+    return this.http.post<CorrelateBuildResult>('/api/skills/correlate-build', input);
+  }
+
+  getBuildHistory(skillId: string): Promise<SkillBuildHistory> {
+    return this.http.get<SkillBuildHistory>(`/api/skills/${skillId}/build-history`);
   }
 }

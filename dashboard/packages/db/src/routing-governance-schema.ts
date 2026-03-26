@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, primaryKey, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { projects } from './schema.js';
 
@@ -49,9 +49,24 @@ export const skills = sqliteTable('skills', {
   acquiredAt: text('acquired_at').notNull().default(sql`(datetime('now'))`),
   lastUsedAt: text('last_used_at'),
   usageCount: integer('usage_count').notNull().default(0),
+  buildFailureCount: integer('build_failure_count').notNull().default(0),
+  buildPassCount: integer('build_pass_count').notNull().default(0),
+  lastBuildOutcome: text('last_build_outcome'),         // 'pass' | 'fail' | null
   projectId: text('project_id'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+});
+
+// --- Skill Build Events (SK-007) ---
+
+export const skillBuildEvents = sqliteTable('skill_build_events', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  skillId: text('skill_id').notNull().references(() => skills.id, { onDelete: 'cascade' }),
+  projectId: text('project_id'),
+  cardId: text('card_id'),
+  outcome: text('outcome').notNull(), // 'pass' | 'fail'
+  detail: text('detail'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 });
 
 // --- Reviewer Lockouts (GV-004) ---

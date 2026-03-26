@@ -58,6 +58,7 @@ export interface Agent {
   projectId: string;
   cardId: string | null;
   parentAgentId: string | null;
+  personaId: string | null;
   type: AgentType;
   model: string;
   status: AgentStatus;
@@ -167,6 +168,7 @@ export interface SpawnAgentInput {
   model: string;
   cardId?: string;
   parentAgentId?: string;
+  personaId?: string;
   detail?: string;
 }
 

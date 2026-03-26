@@ -11,6 +11,9 @@ export const personas = sqliteTable('personas', {
   style: text('style').notNull().default(''),
   modelPreference: text('model_preference').notNull().default('auto'),
   source: text('source').notNull().default('seed'), // seed | user
+  status: text('status').notNull().default('active'), // active | inactive | retired
+  retiredAt: text('retired_at'),                  // ISO timestamp when retired
+  alumniSummary: text('alumni_summary'),          // text summary of persona's career/contributions
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });

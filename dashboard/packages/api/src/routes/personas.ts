@@ -10,15 +10,31 @@ import {
   shouldArchive,
   type HistoryEntryType,
 } from '../lib/persona-history.js';
+import { compileCharter } from '../lib/compile-charter.js';
+import { discoverPersonas, PERSONA_SEEDS } from '../lib/discover-personas.js';
+import { extractSkillsFromHistory } from '../lib/extract-skills.js';
 
 const router = Router();
 
 // ---- Personas -----------------------------------------------------------------
 
-// GET /personas — list all personas
-router.get('/personas', (_req, res) => {
+// GET /personas — list all personas (optional ?status= filter)
+router.get('/personas', (req, res) => {
   const db = getDb();
-  const rows = db.select().from(schema.personas).all();
+  const { status } = req.query as { status?: string };
+  let rows = db.select().from(schema.personas).all();
+  if (status) rows = rows.filter((p) => p.status === status);
+  res.json(rows);
+});
+
+// GET /personas/alumni — list retired personas (must be before /:id)
+router.get('/personas/alumni', (_req, res) => {
+  const db = getDb();
+  const rows = db
+    .select()
+    .from(schema.personas)
+    .where(eq(schema.personas.status, 'retired'))
+    .all();
   res.json(rows);
 });
 
@@ -88,6 +104,161 @@ router.post('/personas', (req, res) => {
     .where(eq(schema.personas.id, id))
     .all();
   res.status(201).json(created);
+});
+
+// ---- Persona Retirement Lifecycle --------------------------------------------
+
+/**
+ * POST /personas/:id/retire
+ *
+ * Retire a persona.  Sets status = 'retired', records retiredAt timestamp,
+ * and stores an alumni summary computed from their stats and top history entries.
+ *
+ * Body:
+ *   reason — string (optional) retirement reason appended to summary
+ */
+router.post('/personas/:id/retire', (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  const [persona] = db
+    .select()
+    .from(schema.personas)
+    .where(eq(schema.personas.id, id))
+    .all();
+  if (!persona) throw new ApiError(404, 'Persona not found');
+  if (persona.status === 'retired') throw new ApiError(409, 'Persona is already retired');
+
+  const { reason } = req.body as { reason?: string };
+
+  // Build alumni summary from stats + top history entries
+  const [stats] = db
+    .select()
+    .from(schema.personaStats)
+    .where(eq(schema.personaStats.personaId, id))
+    .all();
+
+  const topEntries = db
+    .select()
+    .from(schema.personaHistory)
+    .where(
+      and(
+        eq(schema.personaHistory.personaId, id),
+        eq(schema.personaHistory.archived, false),
+      ),
+    )
+    .orderBy(desc(schema.personaHistory.confidence))
+    .all()
+    .slice(0, 5);
+
+  const qualityStr = stats?.qualityAvg != null ? stats.qualityAvg.toFixed(1) : '—';
+  const cardsStr = stats?.cardsCount ?? 0;
+  const projectsStr = stats?.projectsCount ?? 0;
+
+  const summaryLines = [
+    `${persona.name} (${persona.role}) — retired ${new Date().toISOString().slice(0, 10)}`,
+    `Projects: ${projectsStr} | Cards completed: ${cardsStr} | Avg quality: ${qualityStr}`,
+    '',
+    'Top learnings:',
+    ...topEntries.map((e) => `- ${e.content.slice(0, 120)}`),
+    ...(reason ? [`\nRetirement reason: ${reason}`] : []),
+  ];
+
+  const alumniSummary = summaryLines.join('\n');
+  const now = new Date().toISOString();
+
+  db.update(schema.personas)
+    .set({ status: 'retired', retiredAt: now, alumniSummary, updatedAt: now })
+    .where(eq(schema.personas.id, id))
+    .run();
+
+  const [updated] = db
+    .select()
+    .from(schema.personas)
+    .where(eq(schema.personas.id, id))
+    .all();
+
+  res.json(updated);
+});
+
+/**
+ * POST /personas/:id/reactivate
+ *
+ * Bring a retired persona back to active status.
+ * Clears retiredAt; alumniSummary is preserved as historical record.
+ */
+router.post('/personas/:id/reactivate', (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  const [persona] = db
+    .select()
+    .from(schema.personas)
+    .where(eq(schema.personas.id, id))
+    .all();
+  if (!persona) throw new ApiError(404, 'Persona not found');
+  if (persona.status !== 'retired') throw new ApiError(409, 'Only retired personas can be reactivated');
+
+  const now = new Date().toISOString();
+
+  db.update(schema.personas)
+    .set({ status: 'active', retiredAt: null, updatedAt: now })
+    .where(eq(schema.personas.id, id))
+    .run();
+
+  const [updated] = db
+    .select()
+    .from(schema.personas)
+    .where(eq(schema.personas.id, id))
+    .all();
+
+  res.json(updated);
+});
+
+// ---- Persona Discovery --------------------------------------------------------
+
+/**
+ * POST /personas/discover
+ *
+ * Score all persona seeds against a list of tech stack signals and return
+ * ranked recommendations.  Does NOT create any DB records — caller decides
+ * which personas to activate based on the results.
+ *
+ * Body:
+ *   stackSignals  — string[]  (required) tech stack terms e.g. ["typescript", "docker"]
+ *   limit         — number    (optional, default 5)
+ *   roleFilter    — string    (optional) filter by persona role
+ */
+router.post('/personas/discover', (req, res) => {
+  const { stackSignals, limit, roleFilter } = req.body as {
+    stackSignals?: string[];
+    limit?: number;
+    roleFilter?: string;
+  };
+
+  if (!Array.isArray(stackSignals) || stackSignals.length === 0) {
+    throw new ApiError(400, 'stackSignals must be a non-empty string array');
+  }
+
+  // Merge with any custom personas in the DB (personas with source = 'user')
+  const db = getDb();
+  const dbPersonas = db.select().from(schema.personas).all();
+  const customSeeds = dbPersonas
+    .filter((p) => p.source === 'user')
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      role: p.role,
+      expertiseKeywords: p.expertise
+        ? p.expertise.split(',').map((e: string) => e.trim().toLowerCase())
+        : [],
+    }));
+
+  const allSeeds = [...PERSONA_SEEDS, ...customSeeds];
+
+  const results = discoverPersonas({ stackSignals, limit, roleFilter }, allSeeds);
+
+  res.json({ stackSignals, results });
 });
 
 // ---- Persona History ----------------------------------------------------------
@@ -284,6 +455,258 @@ router.put('/personas/:id/stats', (req, res) => {
     .all();
 
   res.json(updated);
+});
+
+// ---- Learning Extraction (History → Skills Pipeline) -------------------------
+
+/**
+ * POST /personas/:id/extract-skills
+ *
+ * Runs the history-to-skills extraction pipeline for a persona.
+ * Eligible high-confidence learning/pattern entries are grouped by stack tag
+ * and promoted into skill records in the DB.
+ *
+ * Body:
+ *   confidenceThreshold — number (optional, default 0.5)
+ *   limit               — number (optional, default 10 per run)
+ *   dryRun              — boolean (optional, default false) — if true, returns
+ *                         what would be created without writing to DB
+ */
+router.post('/personas/:id/extract-skills', (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  const [persona] = db
+    .select()
+    .from(schema.personas)
+    .where(eq(schema.personas.id, id))
+    .all();
+  if (!persona) throw new ApiError(404, 'Persona not found');
+
+  const { confidenceThreshold, limit, dryRun = false } = req.body as {
+    confidenceThreshold?: number;
+    limit?: number;
+    dryRun?: boolean;
+  };
+
+  // Load active history entries
+  const historyRows = db
+    .select()
+    .from(schema.personaHistory)
+    .where(
+      and(
+        eq(schema.personaHistory.personaId, id),
+        eq(schema.personaHistory.archived, false),
+      ),
+    )
+    .all();
+
+  const entries = historyRows.map((r) => ({
+    id: r.id,
+    personaId: r.personaId,
+    entryType: r.entryType,
+    content: r.content,
+    projectId: r.projectId ?? null,
+    projectName: r.projectName ?? null,
+    stackTags: parseStackTags(r.stackTags),
+    confidence: decayedConfidence(r.confidence ?? 1.0, r.lastReinforcedAt),
+    createdAt: r.createdAt,
+  }));
+
+  const { skills, includedEntryIds } = extractSkillsFromHistory({
+    personaId: id,
+    personaRole: persona.role,
+    entries,
+    confidenceThreshold,
+    limit,
+  });
+
+  if (dryRun) {
+    return res.json({ dryRun: true, skills, includedEntryCount: includedEntryIds.length });
+  }
+
+  // Upsert extracted skills into DB
+  const now = new Date().toISOString();
+  const upserted: string[] = [];
+  const updated: string[] = [];
+
+  for (const skill of skills) {
+    // Check if skill already exists
+    const [existing] = db
+      .select()
+      .from(schema.skills)
+      .where(eq(schema.skills.id, skill.id))
+      .all();
+
+    if (existing) {
+      // Update version and body
+      db.update(schema.skills)
+        .set({
+          body: skill.body ?? '',
+          version: (existing.version ?? 1) + 1,
+          confidence: skill.confidence ?? 'medium',
+          updatedAt: now,
+        })
+        .where(eq(schema.skills.id, skill.id))
+        .run();
+      updated.push(skill.id);
+    } else {
+      db.insert(schema.skills)
+        .values({
+          id: skill.id,
+          name: skill.name,
+          description: skill.description,
+          domain: skill.domain,
+          confidence: skill.confidence ?? 'medium',
+          source: 'extracted',
+          version: 1,
+          validatedAt: skill.validatedAt ?? now.slice(0, 10),
+          reviewByDate: skill.reviewByDate ?? now.slice(0, 10),
+          triggers: JSON.stringify(skill.triggers ?? []),
+          roles: JSON.stringify(skill.roles ?? []),
+          body: skill.body ?? '',
+          updatedAt: now,
+        })
+        .run();
+      upserted.push(skill.id);
+    }
+  }
+
+  res.json({
+    personaId: id,
+    created: upserted,
+    updated,
+    includedEntryCount: includedEntryIds.length,
+    totalSkillsProcessed: skills.length,
+  });
+});
+
+// ---- Charter Compile ----------------------------------------------------------
+
+/**
+ * POST /personas/:id/compile
+ *
+ * Runs the 8-layer charter compiler for a persona and returns the compiled
+ * system prompt.  Called at spawn time to build the agent's initial context.
+ *
+ * Body (all optional):
+ *   charterMd     — override the persona's charter text (defaults to persona.charterPath content or '')
+ *   constraintsMd — project constraints.md text
+ *   cardContext   — current card spec text
+ *   traits        — string[] of trait names to inject
+ *   cardStackTags — string[] of stack tags for relevance sorting
+ *   projectId     — project id for scoped directive + history lookup
+ */
+router.post('/personas/:id/compile', (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  const [persona] = db
+    .select()
+    .from(schema.personas)
+    .where(eq(schema.personas.id, id))
+    .all();
+  if (!persona) throw new ApiError(404, 'Persona not found');
+
+  const {
+    charterMd,
+    constraintsMd = '',
+    cardContext = '',
+    traits = [],
+    cardStackTags,
+    projectId,
+  } = req.body as {
+    charterMd?: string;
+    constraintsMd?: string;
+    cardContext?: string;
+    traits?: string[];
+    cardStackTags?: string[];
+    projectId?: string;
+  };
+
+  // Load active history for this persona
+  const historyRows = db
+    .select()
+    .from(schema.personaHistory)
+    .where(
+      and(
+        eq(schema.personaHistory.personaId, id),
+        eq(schema.personaHistory.archived, false),
+      ),
+    )
+    .orderBy(desc(schema.personaHistory.createdAt))
+    .all();
+
+  const historyEntries = historyRows.map((r) => ({
+    id: r.id,
+    entryType: r.entryType,
+    content: r.content,
+    projectId: r.projectId ?? null,
+    projectName: r.projectName ?? null,
+    stackTags: parseStackTags(r.stackTags),
+    confidence: decayedConfidence(r.confidence ?? 1.0, r.lastReinforcedAt),
+    createdAt: r.createdAt,
+  }));
+
+  // Load stats
+  const [statsRow] = db
+    .select()
+    .from(schema.personaStats)
+    .where(eq(schema.personaStats.personaId, id))
+    .all();
+
+  const stats = {
+    projectsCount: statsRow?.projectsCount ?? 0,
+    cardsCount: statsRow?.cardsCount ?? 0,
+    qualityAvg: statsRow?.qualityAvg ?? null,
+  };
+
+  // Load active directives — global + project-scoped (if projectId given)
+  const allDirectives = db
+    .select()
+    .from(schema.directives)
+    .where(eq(schema.directives.status, 'active'))
+    .all();
+
+  const directives = allDirectives
+    .filter((d) => d.projectId == null || d.projectId === (projectId ?? null))
+    .map((d) => ({
+      id: d.id,
+      content: d.content,
+      projectId: d.projectId ?? null,
+      priority: d.priority,
+    }));
+
+  // Load skills assigned to this persona via persona_skills join or all skills filtered by role
+  // Skills table doesn't have a persona_id yet — use all skills with matching role filter
+  const allSkills = db.select().from(schema.skills).all();
+  const roleSkills = allSkills
+    .filter((s) => {
+      const roles: string[] = JSON.parse(s.roles ?? '[]');
+      return roles.length === 0 || roles.includes(persona.role);
+    })
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      description: s.description,
+      domain: s.domain,
+      confidence: (s.confidence ?? 'medium') as 'low' | 'medium' | 'high',
+      body: s.body ?? '',
+    }));
+
+  const compiled = compileCharter({
+    charterMd: charterMd ?? '',
+    constraintsMd,
+    directives,
+    skills: roleSkills,
+    historyEntries,
+    stats,
+    cardContext,
+    traits,
+    cardStackTags,
+  });
+
+  res.json({ personaId: id, compiled, layerStats: { historyEntries: historyEntries.length, skills: roleSkills.length, directives: directives.length } });
 });
 
 export default router;

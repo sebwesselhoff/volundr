@@ -302,6 +302,7 @@ After scoring each card via `vldr.quality.score()`, if score < 2.5:
 | Events (audit log) | `vldr.events.log()` | After every meaningful action |
 | Quality scores | `vldr.quality.score()` | After every card completes |
 | Lessons | `vldr.lessons.create()` | After optimization cycles, new insights |
+| Skill extraction | `vldr.personas.extractSkills(personaId)` | After each card completes (for assigned persona) |
 | Epics | `vldr.epics.create()` | During card breakdown |
 
 ### Journal Protocol
@@ -759,7 +760,14 @@ ISC is enforced by the API - cards cannot transition to `done` without all crite
 
 **Before starting execution, assess the hierarchy level:**
 
-0. **Assess hierarchy level and build agent roster (registry-driven):**
+0. **Auto-discover personas from tech stack (if not already assigned):**
+  - Extract stack signals from `constraints.md` (language, framework, infra keywords) or card technical notes
+  - Call `vldr.personas.discover({ stackSignals })` to get ranked persona recommendations
+  - For each recommended persona in the top results: activate it via `vldr.personas.create()` if not already in DB
+  - Assign top-scoring persona to each card domain via `vldr.cards.update(cardId, { assignedPersonaId })`
+  - Log: `vldr.events.log({ type: 'optimization_cycle', detail: 'Persona auto-discovery: N personas activated' })`
+
+**Assess hierarchy level and build agent roster (registry-driven):**
   - Read `framework/agents/registry.ts` for agent types, routing rules, model tiers, and default traits
   - Read `framework/hierarchy-config.ts` for thresholds and MODEL_TIERS
   - Consult registry for ALL spawn decisions - registry is the single source of truth
@@ -804,8 +812,12 @@ For each round of execution:
      e. Deduplicate traits (max 5), inject into `### Traits` subsection
      f. Check customization paths: `VLDR_HOME/customizations/{type}/` → `VLDR_HOME/projects/{id}/customizations/{type}/`
      g. Append overrides from customization `override.md` files to `## Constraints`
-     h. Spawn with selected model
-     i. Log event: `type: 'agent_spawned'`, detail includes trait names and model
+     h. If a persona is assigned to the card (`card.assignedPersonaId`):
+        - Call `vldr.personas.compile(personaId, { charterMd, constraintsMd, cardContext, traits, cardStackTags, projectId })`
+        - Prepend the compiled charter string to the teammate's system prompt (before Identity section)
+        - Pass `personaId` to `vldr.agents.spawn({ ..., personaId })` so the DB links agent → persona
+     i. Spawn with selected model
+     j. Log event: `type: 'agent_spawned'`, detail includes trait names, model, and personaId if set
   - Multiple teammates spawn in parallel
   - Each Developer claims tasks matching their domain prefix
 7. **Optionally spawn Reviewer teammate** (if cross-domain deps > 5 or total cards > 15):
@@ -823,6 +835,7 @@ For each round of execution:
     - `npx tsc --noEmit` (final build gate on main)
     - `git tag card-{ID}-done`
   - `vldr.quality.score(...)` for each completed card
+  - If card had an assigned persona: `vldr.personas.extractSkills(card.assignedPersonaId)` — promotes high-confidence history entries into reusable skills
   - `vldr.events.log({ type: 'branch_merged', cardId, detail })` for each
 10. **Re-assess hierarchy:**
    - Build updated ProjectSnapshot (remaining cards, cost, active agents)

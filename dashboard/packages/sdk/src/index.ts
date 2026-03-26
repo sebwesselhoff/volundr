@@ -14,13 +14,14 @@ import { PersonasResource } from './resources/personas.js';
 import { SkillsResource } from './resources/skills.js';
 import { RoutingRulesResource } from './resources/routing-rules.js';
 import { DirectivesResource } from './resources/directives.js';
+import { PacksResource } from './resources/packs.js';
 
 export type { CardFilters } from './resources/cards.js';
 export type { AgentFilters } from './resources/agents.js';
 export type { EventFilters } from './resources/events.js';
 export type { LessonFilters } from './resources/lessons.js';
-export type { PersonaFilters, PersonaHistoryFilters } from './resources/personas.js';
-export type { SkillFilters, SkillMatchInput } from './resources/skills.js';
+export type { PersonaFilters, PersonaHistoryFilters, CompileCharterInput, CompileCharterResult, ExtractSkillsInput, ExtractSkillsResult, DiscoverPersonasInput, PersonaDiscoveryResult, DiscoverPersonasResult } from './resources/personas.js';
+export type { SkillFilters, SkillMatchInput, CorrelateBuildInput, CorrelateBuildResult, SkillBuildHistory } from './resources/skills.js';
 export type { TimeRange } from './resources/metrics.js';
 export type { HeartbeatState } from './ws.js';
 export type { RoutingRuleTestInput } from './resources/routing-rules.js';
@@ -40,6 +41,8 @@ export { PersonasResource } from './resources/personas.js';
 export { SkillsResource } from './resources/skills.js';
 export { RoutingRulesResource } from './resources/routing-rules.js';
 export { DirectivesResource } from './resources/directives.js';
+export { PacksResource } from './resources/packs.js';
+export type { PackManifest, PackPersonaSeed, InstallPackInput, InstallPackResult, InstalledPack } from './resources/packs.js';
 
 export interface VolundrClientConfig {
   apiUrl?: string;
@@ -63,6 +66,7 @@ export class VolundrClient {
   public readonly skills: SkillsResource;
   public readonly routingRules: RoutingRulesResource;
   public readonly directives: DirectivesResource;
+  public readonly packs: PacksResource;
 
   constructor(config: VolundrClientConfig) {
     const apiUrl = config.apiUrl ?? `http://localhost:${API_PORT}`;
@@ -83,6 +87,7 @@ export class VolundrClient {
     this.skills = new SkillsResource(this.http);
     this.routingRules = new RoutingRulesResource(this.http);
     this.directives = new DirectivesResource(this.http, config.projectId);
+    this.packs = new PacksResource(this.http);
 
     // Forward commands to registered handlers
     this.ws.on('command', (msg: ServerMessage) => {

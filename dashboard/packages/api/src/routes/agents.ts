@@ -100,12 +100,13 @@ router.get('/agents/:id', (req, res) => {
 // POST /agents — register agent spawn
 router.post('/agents', (req, res) => {
   try {
-    const { projectId, type, model, cardId, parentAgentId, detail } = req.body as {
+    const { projectId, type, model, cardId, parentAgentId, personaId, detail } = req.body as {
       projectId?: string;
       type?: string;
       model?: string;
       cardId?: string;
       parentAgentId?: string;
+      personaId?: string;
       detail?: string;
     };
     if (!projectId || !type || !model) throw new ApiError(400, 'projectId, type, and model are required');
@@ -121,6 +122,7 @@ router.post('/agents', (req, res) => {
       status: 'running',
       ...(cardId != null ? { cardId } : {}),
       ...(parentAgentId != null ? { parentAgentId } : {}),
+      ...(personaId != null ? { personaId } : {}),
       ...(detail != null ? { detail } : {}),
     }).run();
 

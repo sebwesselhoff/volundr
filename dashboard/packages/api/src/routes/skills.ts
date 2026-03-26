@@ -303,4 +303,152 @@ router.post('/skills/match', (req, res) => {
   res.json(scored);
 });
 
+// ---- Build Failure Correlation (SK-007) -------------------------------------
+
+/**
+ * POST /skills/correlate-build
+ *
+ * Record a build gate outcome against a set of recently used skill IDs.
+ *
+ * On 'fail':
+ *   - Increments buildFailureCount for each skill.
+ *   - If buildFailureCount crosses threshold (3), downgrades confidence:
+ *       high → medium, medium → low
+ *   - Also bumps version to signal the skill body may need review.
+ *
+ * On 'pass':
+ *   - Increments buildPassCount for each skill.
+ *   - If buildPassCount crosses threshold (5) and confidence is low,
+ *     upgrades to medium.
+ *   - Resets buildFailureCount to 0 (clean slate after sustained passes).
+ *
+ * Body:
+ *   skillIds  — string[]   (required) IDs of skills used for the build
+ *   outcome   — 'pass' | 'fail'  (required)
+ *   projectId — string     (optional)
+ *   cardId    — string     (optional)
+ *   detail    — string     (optional) build error message or summary
+ */
+const DOWNGRADE_FAILURE_THRESHOLD = 3;
+const UPGRADE_PASS_THRESHOLD = 5;
+
+const CONFIDENCE_DOWN: Record<string, string> = { high: 'medium', medium: 'low', low: 'low' };
+const CONFIDENCE_UP: Record<string, string> = { low: 'medium', medium: 'medium', high: 'high' };
+
+router.post('/skills/correlate-build', (req, res) => {
+  const { skillIds, outcome, projectId, cardId, detail } = req.body as {
+    skillIds?: string[];
+    outcome?: string;
+    projectId?: string;
+    cardId?: string;
+    detail?: string;
+  };
+
+  if (!Array.isArray(skillIds) || skillIds.length === 0) {
+    throw new ApiError(400, 'skillIds must be a non-empty string array');
+  }
+  if (outcome !== 'pass' && outcome !== 'fail') {
+    throw new ApiError(400, "outcome must be 'pass' or 'fail'");
+  }
+
+  const db = getDb();
+  const now = new Date().toISOString();
+  const results: Array<{ skillId: string; before: string; after: string; changed: boolean }> = [];
+
+  for (const skillId of skillIds) {
+    const [skill] = db
+      .select()
+      .from(schema.skills)
+      .where(eq(schema.skills.id, skillId))
+      .all();
+
+    if (!skill) continue;
+
+    const updates: Record<string, unknown> = {
+      lastBuildOutcome: outcome,
+      updatedAt: now,
+    };
+
+    const beforeConfidence = skill.confidence ?? 'medium';
+    let afterConfidence = beforeConfidence;
+
+    if (outcome === 'fail') {
+      const newFailCount = (skill.buildFailureCount ?? 0) + 1;
+      updates.buildFailureCount = newFailCount;
+
+      if (newFailCount >= DOWNGRADE_FAILURE_THRESHOLD) {
+        afterConfidence = CONFIDENCE_DOWN[beforeConfidence] ?? beforeConfidence;
+        updates.confidence = afterConfidence;
+        // Bump version to signal skill needs review
+        updates.version = (skill.version ?? 1) + 1;
+        // Reset failure counter after downgrade
+        updates.buildFailureCount = 0;
+      }
+    } else {
+      // pass
+      const newPassCount = (skill.buildPassCount ?? 0) + 1;
+      const newFailCount = 0; // reset on pass
+      updates.buildPassCount = newPassCount;
+      updates.buildFailureCount = newFailCount;
+
+      if (newPassCount >= UPGRADE_PASS_THRESHOLD && beforeConfidence === 'low') {
+        afterConfidence = CONFIDENCE_UP[beforeConfidence] ?? beforeConfidence;
+        updates.confidence = afterConfidence;
+        updates.buildPassCount = 0;
+      }
+    }
+
+    db.update(schema.skills)
+      .set(updates)
+      .where(eq(schema.skills.id, skillId))
+      .run();
+
+    // Log the build event
+    db.insert(schema.skillBuildEvents)
+      .values({
+        skillId,
+        projectId: projectId ?? null,
+        cardId: cardId ?? null,
+        outcome,
+        detail: detail ?? null,
+      })
+      .run();
+
+    results.push({
+      skillId,
+      before: beforeConfidence,
+      after: afterConfidence,
+      changed: afterConfidence !== beforeConfidence,
+    });
+  }
+
+  res.json({ outcome, processed: results.length, results });
+});
+
+/**
+ * GET /skills/:id/build-history — recent build events for a skill
+ */
+router.get('/skills/:id/build-history', (req, res) => {
+  const db = getDb();
+  const [skill] = db.select().from(schema.skills).where(eq(schema.skills.id, req.params.id)).all();
+  if (!skill) throw new ApiError(404, `Skill '${req.params.id}' not found`);
+
+  const events = db
+    .select()
+    .from(schema.skillBuildEvents)
+    .where(eq(schema.skillBuildEvents.skillId, req.params.id))
+    .all()
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 50);
+
+  res.json({
+    skillId: req.params.id,
+    buildFailureCount: skill.buildFailureCount ?? 0,
+    buildPassCount: skill.buildPassCount ?? 0,
+    lastBuildOutcome: skill.lastBuildOutcome ?? null,
+    version: skill.version ?? 1,
+    events,
+  });
+});
+
 export default router;
