@@ -315,6 +315,62 @@ export interface CreateSessionSummaryInput {
   cardsStarted?: string;
 }
 
+// --- Commands ---
+
+export interface Command {
+  id: string;
+  projectId: string;
+  type: string;
+  payload: string | null;
+  status: string;
+  cardId: string | null;
+  detail: string | null;
+  createdAt: string;
+  acknowledgedAt: string | null;
+}
+
+export interface CreateCommandInput {
+  projectId: string;
+  type: string;
+  cardId?: string;
+  detail?: string;
+  payload?: unknown;
+}
+
+// --- Economy ---
+
+export interface EconomyStatus {
+  projectId: string;
+  economyMode: boolean;
+}
+
+// --- Ceremonies ---
+
+export interface CeremonyTrigger {
+  type: string;
+  reason: string;
+  severity: 'info' | 'warning' | 'critical';
+  blocksExecution: boolean;
+  context: Record<string, unknown>;
+}
+
+export interface CeremonyEvaluationResult {
+  snapshot: Record<string, unknown>;
+  triggers: CeremonyTrigger[];
+  commandsCreated: Command[];
+}
+
+export interface CeremonyEvaluateInput {
+  previousPhase?: string | null;
+  sprintSize?: number;
+  qualityAuditThreshold?: number;
+  optimizationCycleInterval?: number;
+  budgetCeiling?: number | null;
+  costWarningThreshold?: number;
+  cardsSinceLastSprint?: number;
+  cardsSinceLastOptimization?: number;
+}
+
 // --- Health ---
 
 export interface HealthResponse {
