@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import { getDb, schema } from '@vldr/db';
+import { getDb, getRawSqlite, schema } from '@vldr/db';
 import { eq } from 'drizzle-orm';
 import type { Card } from '@vldr/shared';
 import { ApiError } from '../middleware/error-handler.js';
 import { broadcastToAll } from '../ws/broadcast.js';
 import { validateDeps } from '../lib/dep-validation.js';
+import { autoRouteCard, buildRoutingDescription } from '../lib/auto-routing.js';
 
 const router = Router();
 
@@ -15,6 +16,9 @@ function parseCardJsonFields(card: typeof schema.cards.$inferSelect) {
     filesCreated: card.filesCreated ? JSON.parse(card.filesCreated) : [],
     filesModified: card.filesModified ? JSON.parse(card.filesModified) : [],
     isc: parseIsc(card.isc),
+    assignedPersonaId: card.assignedPersonaId ?? null,
+    routingConfidence: card.routingConfidence ?? null,
+    routingReason: card.routingReason ?? null,
   };
 }
 
@@ -72,6 +76,21 @@ router.post('/projects/:projectId/cards', (req, res) => {
   const depsArr = deps ?? [];
   validateDeps(req.params.projectId, id, depsArr);
 
+  // Auto-route: assign persona from routing rules
+  let assignedPersonaId: string | null = null;
+  let routingConfidence: string | null = null;
+  let routingReason: string | null = null;
+  try {
+    const routingResult = autoRouteCard(getRawSqlite(), {
+      description: buildRoutingDescription(title, description ?? ''),
+    });
+    assignedPersonaId = routingResult.personaId;
+    routingConfidence = routingResult.confidence;
+    routingReason = routingResult.reason;
+  } catch {
+    // Non-fatal: proceed without routing assignment
+  }
+
   const db = getDb();
   db.insert(schema.cards).values({
     id,
@@ -89,6 +108,9 @@ router.post('/projects/:projectId/cards', (req, res) => {
     filesModified: JSON.stringify(filesModified ?? []),
     branch: branch ?? '',
     ...(isc ? { isc: JSON.stringify(isc) } : {}),
+    assignedPersonaId,
+    routingConfidence,
+    routingReason,
   }).run();
 
   const [card] = db.select().from(schema.cards).where(eq(schema.cards.id, id)).all();
@@ -324,6 +346,30 @@ router.patch('/cards/:id', (req, res) => {
       }).run();
     }
   }
+
+  const [updated] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
+  const parsed = parseCardJsonFields(updated);
+  broadcastToAll({ type: 'card:updated', data: parsed as Card });
+  res.json(parsed);
+});
+
+// POST /cards/:id/route — re-run auto-routing for an existing card
+router.post('/cards/:id/route', (req, res) => {
+  const db = getDb();
+  const [card] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
+  if (!card) throw new ApiError(404, `Card ${req.params.id} not found`);
+
+  const routingResult = autoRouteCard(getRawSqlite(), {
+    description: buildRoutingDescription(card.title, card.description ?? ''),
+  });
+
+  const now = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+  db.update(schema.cards).set({
+    assignedPersonaId: routingResult.personaId,
+    routingConfidence: routingResult.confidence,
+    routingReason: routingResult.reason,
+    updatedAt: now,
+  }).where(eq(schema.cards.id, req.params.id)).run();
 
   const [updated] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
   const parsed = parseCardJsonFields(updated);

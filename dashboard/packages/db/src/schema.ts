@@ -37,6 +37,9 @@ export const cards = sqliteTable('cards', {
   filesModified: text('files_modified'),
   branch: text('branch'),
   isc: text('isc'),  // JSON array: [{ criterion, evidence, passed }]
+  assignedPersonaId: text('assigned_persona_id'),
+  routingConfidence: text('routing_confidence'),  // low|medium|high
+  routingReason: text('routing_reason'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
   completedAt: text('completed_at'),
@@ -49,6 +52,7 @@ export const agents = sqliteTable(
     projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
     cardId: text('card_id').references(() => cards.id, { onDelete: 'cascade' }),
     parentAgentId: text('parent_agent_id').references((): any => agents.id, { onDelete: 'cascade' }),
+    personaId: text('persona_id'),
     type: text('type').notNull(),
     model: text('model').notNull(),
     status: text('status').notNull().default('running'),
@@ -165,4 +169,4 @@ export const schemaVersion = sqliteTable('schema_version', {
 
 export { teams, teamMembers, teamMessages, teamTasks } from './team-schema.js';
 export { personas, personaHistory, personaStats } from './persona-schema.js';
-export { routingRules, directives, skills, reviewerLockouts } from './routing-governance-schema.js';
+export { routingRules, directives, skills, reviewerLockouts, skillBuildEvents } from './routing-governance-schema.js';
