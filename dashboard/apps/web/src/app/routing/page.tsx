@@ -1,15 +1,65 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import type { RoutingRule } from '@vldr/shared';
 import { useApiQuery } from '@/hooks/use-api';
 import { apiFetch } from '@/lib/api-client';
+
+// Extended with optional stats fields that may come from the API
+type RoutingRuleWithStats = RoutingRule & {
+  hitCount?: number;
+  accuracy?: number;
+};
 
 const CONFIDENCE_COLORS: Record<string, string> = {
   high: '#22c55e',
   medium: '#e8a838',
   low: '#ef4444',
 };
+
+// Animated accuracy bar
+function AccuracyBar({ pct, color }: { pct: number; color: string }) {
+  const [width, setWidth] = useState(0);
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      requestAnimationFrame(() => setWidth(pct));
+    }
+  }, [pct]);
+  return (
+    <div style={{ height: 4, background: '#1a2336', borderRadius: 2, overflow: 'hidden' }}>
+      <div
+        style={{
+          height: '100%',
+          width: `${width}%`,
+          background: color,
+          borderRadius: 2,
+          transition: 'width 600ms cubic-bezier(0.4,0,0.2,1)',
+        }}
+      />
+    </div>
+  );
+}
+
+// Hit counter badge
+function HitBadge({ hits }: { hits: number }) {
+  return (
+    <span
+      style={{
+        fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+        fontSize: '0.6rem',
+        background: hits > 0 ? 'rgba(59,130,246,0.12)' : 'rgba(36,48,68,0.4)',
+        color: hits > 0 ? '#3b82f6' : '#6b7280',
+        border: `1px solid ${hits > 0 ? 'rgba(59,130,246,0.3)' : 'rgba(36,48,68,0.5)'}`,
+        borderRadius: 3,
+        padding: '1px 6px',
+      }}
+    >
+      {hits} hit{hits !== 1 ? 's' : ''}
+    </span>
+  );
+}
 
 function formatDate(iso: string): string {
   try {
@@ -39,7 +89,7 @@ function RuleCard({
   selected,
   onSelect,
 }: {
-  rule: RoutingRule;
+  rule: RoutingRuleWithStats;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -100,20 +150,37 @@ function RuleCard({
         </div>
       </div>
 
-      {/* Persona */}
+      {/* Persona + hit badge */}
       <div
+        className="flex items-center justify-between gap-2"
         style={{
-          fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
-          fontSize: '0.68rem',
-          color: '#8899b3',
-          marginBottom: examples.length > 0 ? '0.5rem' : 0,
+          marginBottom: examples.length > 0 ? '0.5rem' : '0.5rem',
         }}
       >
-        {rule.personaId}
-        {rule.modulePattern && (
-          <span style={{ color: '#6b7280' }}> · {rule.modulePattern}</span>
-        )}
+        <div
+          style={{
+            fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+            fontSize: '0.68rem',
+            color: '#8899b3',
+          }}
+        >
+          {rule.personaId}
+          {rule.modulePattern && (
+            <span style={{ color: '#6b7280' }}> · {rule.modulePattern}</span>
+          )}
+        </div>
+        <HitBadge hits={rule.hitCount ?? 0} />
       </div>
+
+      {/* Accuracy bar */}
+      {(rule.accuracy ?? 0) > 0 && (
+        <div className="mb-2">
+          <AccuracyBar
+            pct={Math.round((rule.accuracy ?? 0) * 100)}
+            color={confColor}
+          />
+        </div>
+      )}
 
       {/* Example tags */}
       {examples.length > 0 && (
@@ -149,7 +216,7 @@ function RuleCard({
   );
 }
 
-function RuleDetail({ rule }: { rule: RoutingRule }) {
+function RuleDetail({ rule }: { rule: RoutingRuleWithStats }) {
   const confColor = CONFIDENCE_COLORS[rule.confidence] ?? '#8899b3';
   const examples: string[] = (() => {
     try {
@@ -239,6 +306,50 @@ function RuleDetail({ rule }: { rule: RoutingRule }) {
             </p>
           </div>
         ))}
+      </div>
+
+      {/* Accuracy stats */}
+      <div
+        className="mb-5"
+        style={{
+          background: 'rgba(26,35,54,0.4)',
+          border: '1px solid rgba(36,48,68,0.5)',
+          borderRadius: 6,
+          padding: '0.75rem 0.875rem',
+        }}
+      >
+        <div
+          className="flex items-center justify-between mb-2"
+          style={{
+            fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+            fontSize: '0.65rem',
+            color: '#8899b3',
+          }}
+        >
+          <span>Accuracy</span>
+          <div className="flex items-center gap-3">
+            <HitBadge hits={rule.hitCount ?? 0} />
+            <span style={{ color: confColor }}>
+              {rule.accuracy != null ? `${Math.round(rule.accuracy * 100)}%` : '—'}
+            </span>
+          </div>
+        </div>
+        <AccuracyBar
+          pct={rule.accuracy != null ? Math.round(rule.accuracy * 100) : 0}
+          color={confColor}
+        />
+        {rule.accuracy != null && (
+          <p
+            style={{
+              fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+              fontSize: '0.6rem',
+              color: '#6b7280',
+              margin: '0.5rem 0 0',
+            }}
+          >
+            {rule.hitCount ?? 0} total matches · {Math.round((rule.accuracy ?? 0) * 100)}% accepted
+          </p>
+        )}
       </div>
 
       {/* Examples */}
@@ -587,13 +698,13 @@ function TestPanel() {
 }
 
 export default function RoutingPage() {
-  const { data: rules, loading } = useApiQuery<RoutingRule[]>('/routing-rules');
+  const { data: rules, loading } = useApiQuery<RoutingRuleWithStats[]>('/routing-rules');
   const [search, setSearch] = useState('');
   const [confFilter, setConfFilter] = useState<string>('all');
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const filtered = useMemo(() => {
-    if (!rules) return [];
+    if (!rules) return [] as RoutingRuleWithStats[];
     let list = rules;
     if (confFilter !== 'all') {
       list = list.filter(r => r.confidence === confFilter);
@@ -613,7 +724,7 @@ export default function RoutingPage() {
   const selectedRule = useMemo(
     () => rules?.find(r => r.id === selectedId) ?? null,
     [rules, selectedId]
-  );
+  ) as RoutingRuleWithStats | null;
 
   const firstFiltered = filtered[0];
   const effectiveSelected = selectedRule ?? firstFiltered ?? null;
