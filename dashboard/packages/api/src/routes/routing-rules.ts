@@ -28,29 +28,98 @@ router.get('/routing-rules/:id', (req, res) => {
   res.json(parseExamples(rule) as RoutingRule);
 });
 
-// POST /routing-rules/test — stub: keyword match on description (before /:id to avoid conflict)
+// Route compiler helpers (mirrors framework/routing/route-compiler.ts — inline to avoid cross-package import)
+
+type RuleConfidence = 'low' | 'medium' | 'high';
+const ROUTE_CONFIDENCE_WEIGHT: Record<RuleConfidence, number> = { high: 3, medium: 2, low: 1 };
+
+function globToRegex(pattern: string): RegExp {
+  let regexStr = '';
+  let i = 0;
+  while (i < pattern.length) {
+    const ch = pattern[i];
+    if (ch === '*' && pattern[i + 1] === '*') {
+      regexStr += '.*';
+      i += 2;
+      if (pattern[i] === '/') i++;
+    } else if (ch === '*') {
+      regexStr += '[^/]*';
+      i++;
+    } else if (ch === '?') {
+      regexStr += '[^/]';
+      i++;
+    } else {
+      regexStr += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+      i++;
+    }
+  }
+  return new RegExp(`^${regexStr}$`, 'i');
+}
+
+interface ScoredRule {
+  rule: ReturnType<typeof parseExamples>;
+  score: number;
+  matchedOn: string[];
+}
+
+function scoreRoutingRule(
+  rule: typeof schema.routingRules.$inferSelect,
+  descLower: string,
+  modulePath: string | undefined,
+  conjunctive: boolean,
+): ScoredRule | null {
+  const examples = rule.examples
+    ? (() => { try { return JSON.parse(rule.examples) as string[]; } catch { return [] as string[]; } })()
+    : [] as string[];
+
+  const confidenceWeight = ROUTE_CONFIDENCE_WEIGHT[(rule.confidence as RuleConfidence)] ?? 2;
+  const matchedOn: string[] = [];
+  let rawScore = 0;
+
+  const workTypeMatch = descLower.includes(rule.workType.toLowerCase());
+  if (conjunctive && !workTypeMatch) return null;
+  if (workTypeMatch) { rawScore += 10; matchedOn.push(`workType:${rule.workType}`); }
+
+  for (const ex of examples) {
+    const exMatch = descLower.includes(ex.toLowerCase());
+    if (conjunctive && !exMatch) return null;
+    if (exMatch) { rawScore += 5; matchedOn.push(`example:${ex}`); }
+  }
+
+  const moduleRegex = rule.modulePattern ? globToRegex(rule.modulePattern) : null;
+  if (moduleRegex && modulePath) {
+    const modMatch = moduleRegex.test(modulePath);
+    if (conjunctive && !modMatch) return null;
+    if (modMatch) { rawScore += 3; matchedOn.push(`modulePattern:${rule.modulePattern}`); }
+  }
+
+  if (rawScore === 0) return null;
+
+  const score = rawScore * confidenceWeight + rule.priority;
+  return { rule: parseExamples(rule), score, matchedOn };
+}
+
+// POST /routing-rules/test — conjunctive/disjunctive matching with priority scoring
 router.post('/routing-rules/test', (req, res) => {
-  const { description } = req.body as { description?: string };
+  const { description, modulePath, conjunctive } = req.body as {
+    description?: string;
+    modulePath?: string;
+    conjunctive?: boolean;
+  };
   if (!description) throw new ApiError(400, 'description is required');
 
   const db = getDb();
-  const allRules = db.select().from(schema.routingRules).all()
-    .filter(r => r.isActive);
-
+  const allRules = db.select().from(schema.routingRules).all().filter(r => r.isActive);
   const descLower = description.toLowerCase();
-  const matched = allRules.filter(rule => {
-    if (descLower.includes(rule.workType.toLowerCase())) return true;
-    if (rule.examples) {
-      try {
-        const ex: string[] = JSON.parse(rule.examples);
-        return ex.some(e => descLower.includes(e.toLowerCase()));
-      } catch { /* ignore */ }
-    }
-    return false;
-  });
 
-  matched.sort((a, b) => b.priority - a.priority);
-  res.json({ description, matched: matched.map(parseExamples) });
+  const scored: ScoredRule[] = [];
+  for (const rule of allRules) {
+    const result = scoreRoutingRule(rule, descLower, modulePath, conjunctive ?? false);
+    if (result) scored.push(result);
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  res.json({ description, modulePath: modulePath ?? null, conjunctive: conjunctive ?? false, matched: scored });
 });
 
 // POST /routing-rules — create rule
