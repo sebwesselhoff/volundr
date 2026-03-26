@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, uniqueIndex, primaryKey } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 // --- Personas ---
@@ -48,4 +48,19 @@ export const personaStats = sqliteTable(
     lastActiveAt: text('last_active_at'),
     updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
   },
+);
+
+// --- Persona Skills (tracks per-persona usage of skills) ---
+export const personaSkills = sqliteTable(
+  'persona_skills',
+  {
+    personaId: text('persona_id').notNull().references(() => personas.id, { onDelete: 'cascade' }),
+    skillId: text('skill_id').notNull(),
+    usageCount: integer('usage_count').notNull().default(0),
+    lastUsedAt: text('last_used_at'),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.personaId, table.skillId] }),
+  }),
 );

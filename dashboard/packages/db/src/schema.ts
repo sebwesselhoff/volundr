@@ -8,6 +8,7 @@ export const projects = sqliteTable('projects', {
   status: text('status').notNull().default('active'),
   phase: text('phase').notNull().default('discovery'),
   reviewGateLevel: integer('review_gate_level').notNull().default(1),
+  economyMode: integer('economy_mode', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });
@@ -168,5 +169,5 @@ export const schemaVersion = sqliteTable('schema_version', {
 });
 
 export { teams, teamMembers, teamMessages, teamTasks } from './team-schema.js';
-export { personas, personaHistory, personaStats } from './persona-schema.js';
+export { personas, personaHistory, personaStats, personaSkills } from './persona-schema.js';
 export { routingRules, directives, skills, reviewerLockouts, skillBuildEvents } from './routing-governance-schema.js';

@@ -32,7 +32,9 @@ export type ServerMessage =
   // Personas
   | { type: 'persona:created'; data: Persona }
   | { type: 'persona:updated'; data: Persona }
-  | { type: 'persona:history_entry'; data: PersonaHistoryEntry };
+  | { type: 'persona:history_entry'; data: PersonaHistoryEntry }
+  // Packs
+  | { type: 'pack:installed'; data: { pack: string; version: string; personasRegistered: string[]; personasSkipped: string[]; agentTypesActivated: string[] } };
 
 // Browser → Server (Dashboard Commands)
 export type DashboardCommand =
