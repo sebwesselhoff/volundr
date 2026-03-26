@@ -313,91 +313,6 @@ export interface CreateSessionSummaryInput {
   cardsStarted?: string;
 }
 
-// --- Personas ---
-
-export interface Persona {
-  id: string;
-  name: string;
-  role: PersonaRole;
-  expertise: string | null;   // JSON array string
-  modelPreference: string | null;
-  style: string | null;
-  status: PersonaStatus;
-  cardsCompleted: number;
-  qualityAverage: number;
-  totalTokens: number;
-  totalCost: number;
-  createdAt: string;
-  lastActiveAt: string | null;
-  charterPath: string | null;
-  historyPath: string | null;
-}
-
-export interface PersonaHistoryEntry {
-  id: number;
-  personaId: string;
-  projectId: string | null;
-  section: HistorySection;
-  content: string;
-  stackTags: string | null;   // JSON array string
-  confidence: number | null;
-  createdAt: string;
-  archivedAt: string | null;
-}
-
-export interface PersonaSkill {
-  personaId: string;
-  skillId: string;
-  confidence: string | null;
-  acquiredAt: string;
-  lastUsedAt: string | null;
-  usageCount: number | null;
-  projectId: string | null;
-}
-
-export interface ReviewerLockout {
-  cardId: string;
-  personaId: string;
-  lockedAt: string;
-  reason: string | null;
-}
-
-export interface CreatePersonaInput {
-  id: string;
-  name: string;
-  role: PersonaRole;
-  expertise?: string[];
-  style?: string;
-  modelPreference?: string;
-  status?: PersonaStatus;
-  charterPath?: string;
-  historyPath?: string;
-}
-
-export interface UpdatePersonaInput {
-  name?: string;
-  role?: PersonaRole;
-  expertise?: string[];
-  style?: string;
-  modelPreference?: string;
-  status?: PersonaStatus;
-  cardsCompleted?: number;
-  qualityAverage?: number;
-  totalTokens?: number;
-  totalCost?: number;
-  lastActiveAt?: string;
-  charterPath?: string;
-  historyPath?: string;
-}
-
-export interface CreatePersonaHistoryEntryInput {
-  projectId?: string;
-  section: HistorySection;
-  content: string;
-  stackTags?: string[];
-  confidence?: number;
-}
-
 // --- Health ---
 
 export interface HealthResponse {
@@ -513,21 +428,6 @@ export interface Skill {
   updatedAt: string;
 }
 
-// --- Routing Rules (RT-001) ---
-
-export interface RoutingRule {
-  id: number;
-  workType: string;
-  personaId: string;
-  examples: string | null; // JSON array
-  confidence: RoutingConfidence;
-  modulePattern: string | null;
-  priority: number;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface CreateSkillInput {
   id: string;
   name: string;
@@ -560,6 +460,106 @@ export interface SkillMatchResult {
   skill: Skill;
   score: number;
   matchedTriggers: string[];
+}
+
+// --- Personas ---
+
+export interface Persona {
+  id: string;
+  name: string;
+  role: PersonaRole;
+  expertise: string | null;   // JSON array string
+  modelPreference: string | null;
+  style: string | null;
+  status: PersonaStatus;
+  cardsCompleted: number;
+  qualityAverage: number;
+  totalTokens: number;
+  totalCost: number;
+  createdAt: string;
+  lastActiveAt: string | null;
+  charterPath: string | null;
+  historyPath: string | null;
+}
+
+export interface PersonaHistoryEntry {
+  id: number;
+  personaId: string;
+  projectId: string | null;
+  section: HistorySection;
+  content: string;
+  stackTags: string | null;   // JSON array string
+  confidence: number | null;
+  createdAt: string;
+  archivedAt: string | null;
+}
+
+export interface PersonaSkill {
+  personaId: string;
+  skillId: string;
+  confidence: string | null;
+  acquiredAt: string;
+  lastUsedAt: string | null;
+  usageCount: number | null;
+  projectId: string | null;
+}
+
+export interface ReviewerLockout {
+  cardId: string;
+  personaId: string;
+  lockedAt: string;
+  reason: string | null;
+}
+
+export interface CreatePersonaInput {
+  id: string;
+  name: string;
+  role: PersonaRole;
+  expertise?: string[];
+  style?: string;
+  modelPreference?: string;
+  status?: PersonaStatus;
+  charterPath?: string;
+  historyPath?: string;
+}
+
+export interface UpdatePersonaInput {
+  name?: string;
+  role?: PersonaRole;
+  expertise?: string[];
+  style?: string;
+  modelPreference?: string;
+  status?: PersonaStatus;
+  cardsCompleted?: number;
+  qualityAverage?: number;
+  totalTokens?: number;
+  totalCost?: number;
+  lastActiveAt?: string;
+  charterPath?: string;
+  historyPath?: string;
+}
+
+export interface CreatePersonaHistoryEntryInput {
+  projectId?: string;
+  section: HistorySection;
+  content: string;
+  stackTags?: string[];
+  confidence?: number;
+}
+
+// --- Routing Rules (RT-001) ---
+
+export interface RoutingRule {
+  id: number;
+  workType: string;
+  personaId: string;
+  examples: string | null; // JSON array
+  confidence: RoutingConfidence;
+  modulePattern: string | null;
+  priority: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateRoutingRuleInput {
