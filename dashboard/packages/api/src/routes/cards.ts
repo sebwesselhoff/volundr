@@ -201,7 +201,7 @@ router.patch('/cards/:id', (req, res) => {
     status, branch, priority, completedAt,
     filesCreated, filesModified, deps,
     epicId, title, description, size,
-    criteria, technicalNotes, quality,
+    criteria, technicalNotes, quality, isc,
   } = req.body as {
     status?: string;
     branch?: string;
@@ -216,6 +216,7 @@ router.patch('/cards/:id', (req, res) => {
     size?: string;
     criteria?: string;
     technicalNotes?: string;
+    isc?: Array<{ criterion: string; evidence: string | null; passed: boolean | null }>;
     quality?: {
       completeness: number;
       codeQuality: number;
@@ -319,6 +320,7 @@ router.patch('/cards/:id', (req, res) => {
   if (size != null) updates.size = size;
   if (criteria != null) updates.criteria = criteria;
   if (technicalNotes != null) updates.technicalNotes = technicalNotes;
+  if (isc !== undefined) updates.isc = JSON.stringify(isc);
 
   db.update(schema.cards).set(updates).where(eq(schema.cards.id, req.params.id)).run();
 

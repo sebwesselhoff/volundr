@@ -107,6 +107,43 @@ router.post('/personas', (req, res) => {
   res.status(201).json(created);
 });
 
+// PATCH /personas/:id — partial update of persona fields
+router.patch('/personas/:id', (req, res) => {
+  const db = getDb();
+  const [existing] = db
+    .select()
+    .from(schema.personas)
+    .where(eq(schema.personas.id, req.params.id))
+    .all();
+  if (!existing) throw new ApiError(404, 'Persona not found');
+
+  const { name, role, expertise: rawExpertise, style, modelPreference, status } = req.body as {
+    name?: string;
+    role?: string;
+    expertise?: string | string[];
+    style?: string;
+    modelPreference?: string;
+    status?: string;
+  };
+
+  const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+  if (name != null) updates.name = name;
+  if (role != null) updates.role = role;
+  if (rawExpertise != null) updates.expertise = Array.isArray(rawExpertise) ? rawExpertise.join(', ') : rawExpertise;
+  if (style != null) updates.style = style;
+  if (modelPreference != null) updates.modelPreference = modelPreference;
+  if (status != null) updates.status = status;
+
+  db.update(schema.personas).set(updates).where(eq(schema.personas.id, req.params.id)).run();
+
+  const [updated] = db
+    .select()
+    .from(schema.personas)
+    .where(eq(schema.personas.id, req.params.id))
+    .all();
+  res.json(updated);
+});
+
 // DELETE /personas/:id — delete a persona (persona_history cascade-deleted automatically)
 router.delete('/personas/:id', (req, res) => {
   const db = getDb();
@@ -286,9 +323,10 @@ router.post('/personas/discover', (req, res) => {
 // GET /personas/:id/history — list active history entries (with optional stack filter)
 router.get('/personas/:id/history', (req, res) => {
   const db = getDb();
-  const { stack, includeArchived } = req.query as {
+  const { stack, includeArchived, section } = req.query as {
     stack?: string;
     includeArchived?: string;
+    section?: string; // alias for entryType filter (learning|decision|pattern|core_context)
   };
 
   const showArchived = includeArchived === 'true';
@@ -314,10 +352,15 @@ router.get('/personas/:id/history', (req, res) => {
     confidence: decayedConfidence(r.confidence ?? 1.0, r.lastReinforcedAt),
   }));
 
+  // Filter by entry type if requested (section is an alias for entryType)
+  const byType = section
+    ? parsed.filter((e) => e.entryType === section)
+    : parsed;
+
   // Filter by stack tag if requested
   const filtered = stack
-    ? parsed.filter((e) => e.stackTags.includes(stack.toLowerCase()))
-    : parsed;
+    ? byType.filter((e) => e.stackTags.includes(stack.toLowerCase()))
+    : byType;
 
   res.json(filtered);
 });
