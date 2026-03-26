@@ -107,6 +107,25 @@ router.post('/personas', (req, res) => {
   res.status(201).json(created);
 });
 
+// DELETE /personas/:id — delete a persona (persona_history cascade-deleted automatically)
+router.delete('/personas/:id', (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  const [persona] = db
+    .select()
+    .from(schema.personas)
+    .where(eq(schema.personas.id, id))
+    .all();
+  if (!persona) throw new ApiError(404, 'Persona not found');
+
+  db.delete(schema.personas)
+    .where(eq(schema.personas.id, id))
+    .run();
+
+  res.status(204).send();
+});
+
 // ---- Persona Retirement Lifecycle --------------------------------------------
 
 /**
@@ -484,7 +503,7 @@ router.post('/personas/:id/extract-skills', (req, res) => {
     .all();
   if (!persona) throw new ApiError(404, 'Persona not found');
 
-  const { confidenceThreshold, limit, dryRun = false } = req.body as {
+  const { confidenceThreshold, limit, dryRun = false } = (req.body ?? {}) as {
     confidenceThreshold?: number;
     limit?: number;
     dryRun?: boolean;
