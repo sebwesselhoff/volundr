@@ -400,6 +400,202 @@ function HistoryTimeline({ personaId }: { personaId: string }) {
   );
 }
 
+// ── Radar Chart ───────────────────────────────────────────────────────────────
+
+const RADAR_AXES = [
+  { key: 'quality',   label: 'Quality' },
+  { key: 'velocity',  label: 'Velocity' },
+  { key: 'cost_eff',  label: 'Cost Eff.' },
+  { key: 'expertise', label: 'Expertise' },
+  { key: 'activity',  label: 'Activity' },
+];
+
+function deriveRadarValues(persona: Persona): Record<string, number> {
+  // All values normalized 0–1
+  const quality   = Math.min(1, (persona.qualityAverage ?? 0) / 5);
+  const velocity  = Math.min(1, (persona.cardsCompleted ?? 0) / 20);
+  // cost efficiency: lower cost per card = better; cap at $0.50/card
+  const costPerCard = persona.cardsCompleted > 0
+    ? persona.totalCost / persona.cardsCompleted
+    : 0;
+  const cost_eff  = Math.max(0, 1 - Math.min(1, costPerCard / 0.5));
+  // expertise = number of expertise tags, capped at 8
+  let expertiseArr: string[] = [];
+  try { expertiseArr = persona.expertise ? JSON.parse(persona.expertise) : []; } catch { /* */ }
+  const expertise = Math.min(1, expertiseArr.length / 8);
+  // activity: was active recently (within 30 days)
+  const daysInactive = persona.lastActiveAt
+    ? (Date.now() - new Date(persona.lastActiveAt).getTime()) / 86400000
+    : 9999;
+  const activity = Math.max(0, 1 - Math.min(1, daysInactive / 30));
+
+  return { quality, velocity, cost_eff, expertise, activity };
+}
+
+function PersonaRadar({ persona, roleColor }: { persona: Persona; roleColor: string }) {
+  const values = deriveRadarValues(persona);
+  const SIZE = 140;
+  const cx = SIZE / 2;
+  const cy = SIZE / 2;
+  const R = 52;
+  const n = RADAR_AXES.length;
+
+  function axisPoint(i: number, r: number) {
+    const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+  }
+
+  // Grid rings at 25%, 50%, 75%, 100%
+  const rings = [0.25, 0.5, 0.75, 1.0];
+
+  const ringPath = (frac: number) => {
+    return RADAR_AXES.map((_, i) => {
+      const p = axisPoint(i, R * frac);
+      return `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+    }).join(' ') + ' Z';
+  };
+
+  const dataPath = () => {
+    return RADAR_AXES.map(({ key }, i) => {
+      const v = values[key] ?? 0;
+      const p = axisPoint(i, R * v);
+      return `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+    }).join(' ') + ' Z';
+  };
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+      <svg
+        width={SIZE}
+        height={SIZE}
+        viewBox={`0 0 ${SIZE} ${SIZE}`}
+        style={{ flexShrink: 0 }}
+      >
+        {/* Grid rings */}
+        {rings.map(r => (
+          <path
+            key={r}
+            d={ringPath(r)}
+            fill="none"
+            stroke="rgba(36,48,68,0.7)"
+            strokeWidth={0.75}
+          />
+        ))}
+
+        {/* Axis lines */}
+        {RADAR_AXES.map((_, i) => {
+          const p = axisPoint(i, R);
+          return (
+            <line
+              key={i}
+              x1={cx}
+              y1={cy}
+              x2={p.x.toFixed(2)}
+              y2={p.y.toFixed(2)}
+              stroke="rgba(36,48,68,0.6)"
+              strokeWidth={0.75}
+            />
+          );
+        })}
+
+        {/* Data fill */}
+        <path
+          d={dataPath()}
+          fill={`${roleColor}22`}
+          stroke={roleColor}
+          strokeWidth={1.5}
+          strokeLinejoin="round"
+        />
+
+        {/* Data dots */}
+        {RADAR_AXES.map(({ key }, i) => {
+          const v = values[key] ?? 0;
+          const p = axisPoint(i, R * v);
+          return (
+            <circle
+              key={key}
+              cx={p.x.toFixed(2)}
+              cy={p.y.toFixed(2)}
+              r={3}
+              fill={roleColor}
+              stroke="rgba(10,14,23,0.8)"
+              strokeWidth={1}
+            />
+          );
+        })}
+
+        {/* Axis labels */}
+        {RADAR_AXES.map(({ label }, i) => {
+          const p = axisPoint(i, R + 14);
+          return (
+            <text
+              key={label}
+              x={p.x.toFixed(2)}
+              y={p.y.toFixed(2)}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              style={{
+                fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+                fontSize: 8,
+                fill: '#8899b3',
+              }}
+            >
+              {label}
+            </text>
+          );
+        })}
+      </svg>
+
+      {/* Legend: axis values */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.3rem',
+        }}
+      >
+        {RADAR_AXES.map(({ key, label }) => {
+          const v = values[key] ?? 0;
+          const pct = Math.round(v * 100);
+          return (
+            <div
+              key={key}
+              className="flex items-center gap-2"
+              style={{
+                fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+                fontSize: '0.65rem',
+              }}
+            >
+              <span style={{ color: '#6b7280', minWidth: 58 }}>{label}</span>
+              <div
+                style={{
+                  width: 48,
+                  height: 3,
+                  background: '#1a2336',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: `${pct}%`,
+                    height: '100%',
+                    background: roleColor,
+                    borderRadius: 2,
+                  }}
+                />
+              </div>
+              <span style={{ color: '#8899b3', minWidth: 28 }}>{pct}%</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── PersonaDetail ─────────────────────────────────────────────────────────────
+
 function PersonaDetail({ persona }: { persona: Persona }) {
   const roleColor = ROLE_COLORS[persona.role] ?? '#8899b3';
   const statusColor = STATUS_COLORS[persona.status] ?? '#8899b3';
@@ -460,6 +656,31 @@ function PersonaDetail({ persona }: { persona: Persona }) {
         >
           {persona.id} · last active {lastActive}
         </p>
+      </div>
+
+      {/* Radar chart */}
+      <div
+        className="mb-6"
+        style={{
+          background: 'rgba(26,35,54,0.4)',
+          border: '1px solid rgba(36,48,68,0.5)',
+          borderRadius: 6,
+          padding: '1rem',
+        }}
+      >
+        <p
+          style={{
+            fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+            fontSize: '0.62rem',
+            color: '#6b7280',
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            margin: '0 0 0.75rem',
+          }}
+        >
+          Expertise Profile
+        </p>
+        <PersonaRadar persona={persona} roleColor={roleColor} />
       </div>
 
       {/* Stats grid */}
