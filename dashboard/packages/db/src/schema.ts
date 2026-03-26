@@ -157,3 +157,64 @@ export const sessionSummaries = sqliteTable('session_summaries', {
 });
 
 export { teams, teamMembers, teamMessages, teamTasks } from './team-schema.js';
+
+// --- Skills ---
+
+export const skills = sqliteTable('skills', {
+  id: text('id').primaryKey(), // kebab-case slug, e.g. "git-workflow-agents"
+  name: text('name').notNull(),
+  description: text('description').notNull(),
+  domain: text('domain').notNull(),
+  confidence: text('confidence').notNull().default('medium'), // low | medium | high
+  source: text('source').notNull().default('seed'), // seed | earned | extracted | imported
+  version: integer('version').notNull().default(1),
+  validatedAt: text('validated_at').notNull().default(sql`(date('now'))`),
+  reviewByDate: text('review_by_date').notNull(),
+  triggers: text('triggers').notNull().default('[]'), // JSON string[]
+  roles: text('roles').notNull().default('[]'),       // JSON string[]
+  body: text('body').notNull().default(''),           // full markdown body
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+});
+
+// --- Personas ---
+
+export const personas = sqliteTable('personas', {
+  id: text('id').primaryKey(), // kebab-case, e.g. "fullstack-web"
+  name: text('name').notNull(),
+  role: text('role').notNull(), // developer|architect|qa-engineer|devops-engineer|designer|reviewer|guardian|researcher
+  expertise: text('expertise').notNull().default(''), // comma-separated
+  style: text('style').notNull().default(''),
+  modelPreference: text('model_preference').notNull().default('auto'), // auto|sonnet|opus|haiku
+  charterContent: text('charter_content').notNull().default(''),
+  historyContent: text('history_content').notNull().default(''),
+  source: text('source').notNull().default('seed'), // seed|user
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+});
+
+export const personaHistoryEntries = sqliteTable('persona_history_entries', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  personaId: text('persona_id').notNull().references(() => personas.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
+  entryType: text('entry_type').notNull(), // learning|decision|pattern
+  content: text('content').notNull(),
+  stackTag: text('stack_tag'),
+  projectName: text('project_name'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+});
+
+export const personaSkills = sqliteTable('persona_skills', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  personaId: text('persona_id').notNull().references(() => personas.id, { onDelete: 'cascade' }),
+  skillId: text('skill_id').notNull(),
+  addedAt: text('added_at').notNull().default(sql`(datetime('now'))`),
+});
+
+export const personaStats = sqliteTable('persona_stats', {
+  personaId: text('persona_id').primaryKey().references(() => personas.id, { onDelete: 'cascade' }),
+  projectCount: integer('project_count').notNull().default(0),
+  cardCount: integer('card_count').notNull().default(0),
+  qualityAvg: real('quality_avg'),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+});

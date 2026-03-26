@@ -23,6 +23,8 @@ import logsRouter from './routes/logs.js';
 import journalRouter from './routes/journal.js';
 import sessionSummariesRouter from './routes/session-summaries.js';
 import teamsRouter from './routes/teams.js';
+import personasRouter from './routes/personas.js';
+import skillsRouter from './routes/skills.js';
 
 const app = express();
 const server = createServer(app);
@@ -64,6 +66,8 @@ app.use('/api', logsRouter);
 app.use('/api', journalRouter);
 app.use('/api', sessionSummariesRouter);
 app.use('/api', teamsRouter);
+app.use('/api', personasRouter);
+app.use('/api', skillsRouter);
 
 // Error handler (must be after routes)
 app.use(errorHandler);

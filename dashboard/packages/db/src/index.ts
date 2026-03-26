@@ -180,6 +180,58 @@ export function getDb() {
         completed_at TEXT
       );
       CREATE UNIQUE INDEX IF NOT EXISTS idx_team_tasks_dedup ON team_tasks(team_id, task_id);
+      CREATE TABLE IF NOT EXISTS personas (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL,
+        expertise TEXT NOT NULL DEFAULT '',
+        style TEXT NOT NULL DEFAULT '',
+        model_preference TEXT NOT NULL DEFAULT 'auto',
+        charter_content TEXT NOT NULL DEFAULT '',
+        history_content TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT 'seed',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS persona_history_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        persona_id TEXT NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
+        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+        entry_type TEXT NOT NULL,
+        content TEXT NOT NULL,
+        stack_tag TEXT,
+        project_name TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS persona_skills (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        persona_id TEXT NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
+        skill_id TEXT NOT NULL,
+        added_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS persona_stats (
+        persona_id TEXT PRIMARY KEY REFERENCES personas(id) ON DELETE CASCADE,
+        project_count INTEGER NOT NULL DEFAULT 0,
+        card_count INTEGER NOT NULL DEFAULT 0,
+        quality_avg REAL,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS skills (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        domain TEXT NOT NULL,
+        confidence TEXT NOT NULL DEFAULT 'medium',
+        source TEXT NOT NULL DEFAULT 'seed',
+        version INTEGER NOT NULL DEFAULT 1,
+        validated_at TEXT NOT NULL DEFAULT (date('now')),
+        review_by_date TEXT NOT NULL DEFAULT (date('now', '+6 months')),
+        triggers TEXT NOT NULL DEFAULT '[]',
+        roles TEXT NOT NULL DEFAULT '[]',
+        body TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
     `);
 
     // Idempotent migrations for existing DBs

@@ -306,6 +306,79 @@ export interface CreateSessionSummaryInput {
   cardsStarted?: string;
 }
 
+// --- Personas ---
+
+export interface Persona {
+  id: string;
+  name: string;
+  role: string;
+  expertise: string;
+  style: string;
+  modelPreference: string;
+  charterContent: string;
+  historyContent: string;
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PersonaHistoryEntry {
+  id: number;
+  personaId: string;
+  projectId: string | null;
+  entryType: string; // learning|decision|pattern
+  content: string;
+  stackTag: string | null;
+  projectName: string | null;
+  createdAt: string;
+}
+
+export interface PersonaSkill {
+  id: number;
+  personaId: string;
+  skillId: string;
+  addedAt: string;
+}
+
+export interface PersonaStats {
+  personaId: string;
+  projectCount: number;
+  cardCount: number;
+  qualityAvg: number | null;
+  updatedAt: string;
+}
+
+export interface CreatePersonaInput {
+  id: string;
+  name: string;
+  role: string;
+  expertise?: string;
+  style?: string;
+  modelPreference?: string;
+  charterContent?: string;
+  historyContent?: string;
+  source?: string;
+}
+
+export interface UpdatePersonaInput {
+  name?: string;
+  role?: string;
+  expertise?: string;
+  style?: string;
+  modelPreference?: string;
+  charterContent?: string;
+  historyContent?: string;
+}
+
+export interface CreatePersonaHistoryEntryInput {
+  personaId: string;
+  projectId?: string;
+  entryType: string;
+  content: string;
+  stackTag?: string;
+  projectName?: string;
+}
+
 // --- Health ---
 
 export interface HealthResponse {
@@ -401,3 +474,56 @@ export interface TeamWithMembers extends Team {
 export type DisplayMessage =
   | { kind: 'chat'; data: TeamMessage }
   | { kind: 'system'; event: string; detail: string; timestamp: string; teamId: string };
+
+// --- Skills ---
+
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  domain: string;
+  confidence: 'low' | 'medium' | 'high';
+  source: string;
+  version: number;
+  validatedAt: string;
+  reviewByDate: string;
+  triggers: string[];
+  roles: string[];
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSkillInput {
+  id: string;
+  name: string;
+  description: string;
+  domain: string;
+  confidence?: 'low' | 'medium' | 'high';
+  source?: string;
+  version?: number;
+  validatedAt?: string;
+  reviewByDate?: string;
+  triggers?: string[];
+  roles?: string[];
+  body?: string;
+}
+
+export interface UpdateSkillInput {
+  name?: string;
+  description?: string;
+  domain?: string;
+  confidence?: 'low' | 'medium' | 'high';
+  version?: number;
+  validatedAt?: string;
+  reviewByDate?: string;
+  triggers?: string[];
+  roles?: string[];
+  body?: string;
+}
+
+export interface SkillMatchResult {
+  skill: Skill;
+  score: number;
+  matchedTriggers: string[];
+}

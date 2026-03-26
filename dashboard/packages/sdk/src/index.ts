@@ -10,11 +10,15 @@ import { EventsResource } from './resources/events.js';
 import { QualityResource } from './resources/quality.js';
 import { MetricsResource } from './resources/metrics.js';
 import { LessonsResource } from './resources/lessons.js';
+import { PersonasResource } from './resources/personas.js';
+import { SkillsResource } from './resources/skills.js';
 
 export type { CardFilters } from './resources/cards.js';
 export type { AgentFilters } from './resources/agents.js';
 export type { EventFilters } from './resources/events.js';
 export type { LessonFilters } from './resources/lessons.js';
+export type { PersonaHistoryFilters } from './resources/personas.js';
+export type { SkillFilters, SkillMatchInput } from './resources/skills.js';
 export type { TimeRange } from './resources/metrics.js';
 export type { HeartbeatState } from './ws.js';
 
@@ -28,6 +32,8 @@ export { EventsResource } from './resources/events.js';
 export { QualityResource } from './resources/quality.js';
 export { MetricsResource } from './resources/metrics.js';
 export { LessonsResource } from './resources/lessons.js';
+export { PersonasResource } from './resources/personas.js';
+export { SkillsResource } from './resources/skills.js';
 
 export interface VolundrClientConfig {
   apiUrl?: string;
@@ -47,6 +53,8 @@ export class VolundrClient {
   public readonly quality: QualityResource;
   public readonly metrics: MetricsResource;
   public readonly lessons: LessonsResource;
+  public readonly personas: PersonasResource;
+  public readonly skills: SkillsResource;
 
   constructor(config: VolundrClientConfig) {
     const apiUrl = config.apiUrl ?? `http://localhost:${API_PORT}`;
@@ -63,6 +71,8 @@ export class VolundrClient {
     this.quality = new QualityResource(this.http, config.projectId);
     this.metrics = new MetricsResource(this.http, config.projectId);
     this.lessons = new LessonsResource(this.http, config.projectId);
+    this.personas = new PersonasResource(this.http);
+    this.skills = new SkillsResource(this.http);
 
     // Forward commands to registered handlers
     this.ws.on('command', (msg: ServerMessage) => {
