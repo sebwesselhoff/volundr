@@ -45,6 +45,7 @@ router.get('/projects/:projectId/timeline', (req, res) => {
     ))
     .all();
 
+  // durationMs = completedAt - startedAt in milliseconds; agents still running are excluded above
   const agentEntries: TimelineEntry[] = agentRows.map(a => ({
     kind: 'agent_lifecycle' as const,
     agentId: a.id,
