@@ -284,6 +284,137 @@ function QualityNode({ entry, expanded, onToggle }: QualityNodeProps) {
   );
 }
 
+// ─── agent lifecycle panel ───────────────────────────────────────────────────
+
+const AGENT_TYPE_COLORS: Record<string, string> = {
+  developer: '#3b82f6',
+  architect: '#8b5cf6',
+  reviewer: '#22c55e',
+  volundr: '#e8a838',
+};
+
+function agentTypeColor(agentType: string): string {
+  const key = agentType?.toLowerCase();
+  return AGENT_TYPE_COLORS[key] ?? '#6b7280';
+}
+
+interface AgentLifecyclePanelProps {
+  entries: TimelineEntry[];
+}
+
+function AgentLifecyclePanel({ entries }: AgentLifecyclePanelProps) {
+  const [open, setOpen] = useState(false);
+
+  const lifecycleEntries = entries.filter(
+    (e): e is Extract<TimelineEntry, { kind: 'agent_lifecycle' }> => e.kind === 'agent_lifecycle'
+  );
+
+  if (lifecycleEntries.length === 0) return null;
+
+  const maxDuration = Math.max(...lifecycleEntries.map(e => e.durationMs ?? 0), 1);
+
+  return (
+    <div
+      className="mb-8 rounded-xl overflow-hidden"
+      style={{
+        background: 'rgba(10,14,23,0.6)',
+        backdropFilter: 'blur(8px)',
+        border: '1px solid rgba(36,48,68,0.6)',
+      }}
+    >
+      {/* toggle header */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-2 px-4 py-3"
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <span
+          style={{
+            color: '#c5d0e6',
+            fontSize: '0.7rem',
+            fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+            letterSpacing: '0.05em',
+            userSelect: 'none',
+          }}
+        >
+          {open ? 'Agent Activity ▾' : 'Agent Activity ▸'}
+        </span>
+        <span
+          style={{
+            color: '#8899b3',
+            fontSize: '0.65rem',
+            fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+          }}
+        >
+          ({lifecycleEntries.length})
+        </span>
+      </button>
+
+      {/* rows */}
+      {open && (
+        <div
+          className="px-4 pb-4"
+          style={{ borderTop: '1px solid rgba(36,48,68,0.6)' }}
+        >
+          <div className="pt-3 space-y-2.5">
+            {lifecycleEntries.map((e, i) => {
+              const color = agentTypeColor(e.agentType);
+              const barPct = ((e.durationMs ?? 0) / maxDuration) * 100;
+              return (
+                <div key={i} className="flex items-center gap-3">
+                  {/* type label */}
+                  <span
+                    className="shrink-0 w-24 truncate"
+                    style={{
+                      color,
+                      fontSize: '0.7rem',
+                      fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+                    }}
+                  >
+                    {e.agentType}
+                  </span>
+                  {/* bar track */}
+                  <div
+                    className="flex-1 rounded-full overflow-hidden"
+                    style={{ height: 8, background: 'rgba(36,48,68,0.5)' }}
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${barPct}%`,
+                        background: color,
+                        transition: 'width 400ms ease',
+                      }}
+                    />
+                  </div>
+                  {/* duration text */}
+                  <span
+                    className="shrink-0 tabular-nums"
+                    style={{
+                      color: '#8899b3',
+                      fontSize: '0.7rem',
+                      fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+                      minWidth: '4.5rem',
+                      textAlign: 'right',
+                    }}
+                  >
+                    {formatDuration(e.durationMs ?? 0)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── shimmer loader ──────────────────────────────────────────────────────────
 
 function Shimmer() {
@@ -428,6 +559,9 @@ export default function TimelinePage() {
           </button>
         </div>
       )}
+
+      {/* Agent lifecycle summary panel */}
+      <AgentLifecyclePanel entries={entries} />
 
       {/* Timeline container — relative so the center line and dots can be positioned */}
       <div className="relative">
