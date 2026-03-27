@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { TimelineEntry } from '@vldr/shared';
 import { useApiQuery } from '@/hooks/use-api';
 import { useProject } from '@/contexts/project-context';
@@ -415,6 +415,82 @@ function AgentLifecyclePanel({ entries }: AgentLifecyclePanelProps) {
   );
 }
 
+// ─── timeline filters ────────────────────────────────────────────────────────
+
+const ALL_KINDS = ['event', 'agent_lifecycle', 'card_transition', 'quality_score'] as const;
+
+interface TimelineFiltersProps {
+  cardIds: string[];
+  filterCardId: string | null;
+  enabledKinds: Set<string>;
+  onCardChange: (id: string | null) => void;
+  onKindToggle: (kind: string) => void;
+  onClear: () => void;
+}
+
+function TimelineFilters({
+  cardIds,
+  filterCardId,
+  enabledKinds,
+  onCardChange,
+  onKindToggle,
+  onClear,
+}: TimelineFiltersProps) {
+  return (
+    <div
+      className="flex flex-wrap items-center gap-4 mb-6 px-4 py-2 rounded-lg"
+      style={{
+        background: 'rgba(10,14,23,0.6)',
+        border: '1px solid rgba(36,48,68,0.6)',
+        backdropFilter: 'blur(8px)',
+      }}
+    >
+      {/* Card dropdown */}
+      <select
+        value={filterCardId ?? ''}
+        onChange={(e) => onCardChange(e.target.value || null)}
+        className="bg-[#0a0e17] border border-[#243044] text-[#c5d0e6] text-xs rounded px-2 py-1"
+        style={{ fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace' }}
+      >
+        <option value="">All cards</option>
+        {cardIds.map((id) => (
+          <option key={id} value={id}>{id}</option>
+        ))}
+      </select>
+
+      {/* Kind checkboxes */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {ALL_KINDS.map((kind) => (
+          <label key={kind} className="flex items-center gap-1 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={enabledKinds.has(kind)}
+              onChange={() => onKindToggle(kind)}
+              className="accent-[#e8a838]"
+              style={{ width: 12, height: 12 }}
+            />
+            <span
+              className="text-[0.7rem] text-[#8899b3]"
+              style={{ fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace' }}
+            >
+              {kind.replace(/_/g, ' ')}
+            </span>
+          </label>
+        ))}
+      </div>
+
+      {/* Clear button */}
+      <button
+        onClick={onClear}
+        className="text-[0.7rem] text-[#e8a838] hover:underline ml-auto"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+      >
+        clear
+      </button>
+    </div>
+  );
+}
+
 // ─── shimmer loader ──────────────────────────────────────────────────────────
 
 function Shimmer() {
@@ -460,6 +536,19 @@ export default function TimelinePage() {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
 
+  // ── filter state ──────────────────────────────────────────────────────────
+  const [filterCardId, setFilterCardId] = useState<string | null>(null);
+  const [enabledKinds, setEnabledKinds] = useState<Set<string>>(
+    new Set(['event', 'agent_lifecycle', 'card_transition', 'quality_score'])
+  );
+
+  // Sync highlightedCardId → filterCardId when a card link is clicked
+  useEffect(() => {
+    if (highlightedCardId !== null) {
+      setFilterCardId(highlightedCardId);
+    }
+  }, [highlightedCardId]);
+
   function toggle(idx: number) {
     setExpanded(prev => {
       const next = new Set(prev);
@@ -476,6 +565,24 @@ export default function TimelinePage() {
     setHighlightedCardId(prev => (prev === cardId ? null : cardId));
   }
 
+  function handleKindToggle(kind: string) {
+    setEnabledKinds(prev => {
+      const next = new Set(prev);
+      if (next.has(kind)) {
+        next.delete(kind);
+      } else {
+        next.add(kind);
+      }
+      return next;
+    });
+  }
+
+  function handleClearFilters() {
+    setFilterCardId(null);
+    setHighlightedCardId(null);
+    setEnabledKinds(new Set(['event', 'agent_lifecycle', 'card_transition', 'quality_score']));
+  }
+
   function getHighlightState(entry: TimelineEntry): 'highlighted' | 'dimmed' | 'normal' {
     if (!highlightedCardId) return 'normal';
     const entryCardId = 'cardId' in entry ? entry.cardId : undefined;
@@ -484,6 +591,28 @@ export default function TimelinePage() {
   }
 
   const entries = data ?? [];
+
+  // Unique card IDs from all entries (preserving first-seen order)
+  const uniqueCardIds = useMemo(() => {
+    const seen = new Set<string>();
+    for (const e of entries) {
+      const cid = 'cardId' in e ? e.cardId : undefined;
+      if (cid) seen.add(cid);
+    }
+    return Array.from(seen);
+  }, [entries]);
+
+  // Filtered entries based on current filter state
+  const filteredEntries = useMemo(() => {
+    return entries.filter(e => {
+      if (!enabledKinds.has(e.kind)) return false;
+      if (filterCardId) {
+        const cid = 'cardId' in e ? e.cardId : undefined;
+        if (cid !== filterCardId) return false;
+      }
+      return true;
+    });
+  }, [entries, filterCardId, enabledKinds]);
 
   if (loading) {
     return (
@@ -563,6 +692,19 @@ export default function TimelinePage() {
       {/* Agent lifecycle summary panel */}
       <AgentLifecyclePanel entries={entries} />
 
+      {/* Filter bar */}
+      <TimelineFilters
+        cardIds={uniqueCardIds}
+        filterCardId={filterCardId}
+        enabledKinds={enabledKinds}
+        onCardChange={(id) => {
+          setFilterCardId(id);
+          setHighlightedCardId(id);
+        }}
+        onKindToggle={handleKindToggle}
+        onClear={handleClearFilters}
+      />
+
       {/* Timeline container — relative so the center line and dots can be positioned */}
       <div className="relative">
         {/* Center vertical line */}
@@ -572,7 +714,7 @@ export default function TimelinePage() {
         />
 
         <div className="space-y-8">
-          {entries.map((entry, idx) => {
+          {filteredEntries.map((entry, idx) => {
             const isLeft = idx % 2 === 0;
             const ts = getTimestamp(entry);
             const dotColor =
