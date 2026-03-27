@@ -590,15 +590,32 @@ After each card completes, the SDK calls above handle all state. Agent reports a
 ## Project Lifecycle
 
 ### Phase 1: Discovery Interview
-5-10 questions. Cover: Vision, Stack, Design, Constraints, Workflow (gate level).
-Be opinionated. Suggest defaults.
+Ask questions one at a time. Be opinionated. Suggest defaults. Adapt follow-ups based on answers.
 
-**CRITICAL interview questions (must ask):**
+**Interview sequence (ask in this order, skip irrelevant ones):**
+
+**1. Vision & Scope:**
+- "What are we building? Give me the elevator pitch."
+- "How many features/domains are you envisioning?" *(helps determine agent hierarchy)*
+
+**2. Stack & Infrastructure:**
+- "What's the tech stack? I'll suggest defaults if you don't have preferences."
 - "Do you have Docker/PostgreSQL/MySQL available, or should we use SQLite?"
 - "What Node.js version? Any platform constraints (Windows/Mac/Linux)?"
 - "Any existing credentials ready? (Stripe, OAuth, email provider)"
-- "How many features/domains are you envisioning? (helps determine agent hierarchy)"
-- "Persona routing is on by default — agents get identities with quality tracking and skill growth. Say 'skip personas' if you want to opt out for this project." *(Default: enabled. Only skip on explicit request.)*
+
+**3. Design & Aesthetic (if project has frontend/UI):**
+- "Any design vision? Aesthetic, mood, references, existing design system?"
+- "Specific interaction patterns you want? (drag-and-drop, animations, real-time updates)"
+- "Dark mode, light mode, or both?"
+
+**4. Workflow & Process:**
+- "What review gate level? 1=Full Autopilot, 2=Milestone Review, 3=Card Review, 4=Pair Mode." *(Default: 2)*
+- "Blueprint review style — Round Table (stress-test, conservative) or Chaos Engine (breakthrough, creative)? Or skip for small projects." *(Default: Round Table. Skip if ≤5 cards.)*
+- "Persona routing is on by default — agents get identities with quality tracking and skill growth. Say 'skip personas' to opt out." *(Default: enabled)*
+
+**5. Always ask last:**
+- "Anything else I should know? Constraints, preferences, pet peeves, things you've tried before that didn't work?"
 
 ### Phase 2: Blueprint & Planning
 1. Write `VLDR_HOME/projects/{id}/blueprint.md`
