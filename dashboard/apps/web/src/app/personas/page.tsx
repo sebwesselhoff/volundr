@@ -22,15 +22,22 @@ const STATUS_COLORS: Record<string, string> = {
   retired: '#6b7280',
 };
 
-function formatCost(cost: number): string {
-  if (cost >= 1) return `$${cost.toFixed(2)}`;
-  return `$${cost.toFixed(4)}`;
+function formatCost(cost: number | null | undefined): string {
+  const c = cost ?? 0;
+  if (c >= 1) return `$${c.toFixed(2)}`;
+  return `$${c.toFixed(4)}`;
 }
 
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}k`;
-  return String(n);
+function formatTokens(n: number | null | undefined): string {
+  const v = n ?? 0;
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}k`;
+  return String(v);
+}
+
+/** Safe accessor — persona stats fields may be null when no cards completed */
+function pNum(v: number | null | undefined): number {
+  return v ?? 0;
 }
 
 function ScoreBars({ score }: { score: number }) {
@@ -122,7 +129,7 @@ function PersonaCard({
           color: '#8899b3',
         }}
       >
-        <span>{persona.cardsCompleted} cards</span>
+        <span>{pNum(persona.cardsCompleted)} cards</span>
         <span>{formatTokens(persona.totalTokens)} tok</span>
         <span>{formatCost(persona.totalCost)}</span>
       </div>
@@ -138,9 +145,9 @@ function PersonaCard({
           }}
         >
           <span>quality avg</span>
-          <span>{persona.qualityAverage.toFixed(1)}</span>
+          <span>{pNum(persona.qualityAverage).toFixed(1)}</span>
         </div>
-        <ScoreBars score={persona.qualityAverage} />
+        <ScoreBars score={pNum(persona.qualityAverage)} />
       </div>
 
       {/* Expertise tags */}
@@ -689,8 +696,8 @@ function PersonaDetail({ persona }: { persona: Persona }) {
         style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}
       >
         {[
-          { label: 'Cards Completed', value: String(persona.cardsCompleted) },
-          { label: 'Quality Avg', value: `${persona.qualityAverage.toFixed(2)} / 5` },
+          { label: 'Cards Completed', value: String(pNum(persona.cardsCompleted)) },
+          { label: 'Quality Avg', value: `${pNum(persona.qualityAverage).toFixed(2)} / 5` },
           { label: 'Total Tokens', value: formatTokens(persona.totalTokens) },
           { label: 'Total Cost', value: formatCost(persona.totalCost) },
         ].map(({ label, value }) => (
@@ -749,7 +756,7 @@ function PersonaDetail({ persona }: { persona: Persona }) {
           }}
         >
           <span>Quality Score</span>
-          <span>{persona.qualityAverage.toFixed(2)} / 5.00</span>
+          <span>{pNum(persona.qualityAverage).toFixed(2)} / 5.00</span>
         </div>
         <div
           className="w-full rounded-full overflow-hidden"
@@ -758,11 +765,11 @@ function PersonaDetail({ persona }: { persona: Persona }) {
           <div
             className="h-full rounded-full"
             style={{
-              width: `${Math.min(100, (persona.qualityAverage / 5) * 100)}%`,
+              width: `${Math.min(100, (pNum(persona.qualityAverage) / 5) * 100)}%`,
               background:
-                persona.qualityAverage >= 4
+                pNum(persona.qualityAverage) >= 4
                   ? '#22c55e'
-                  : persona.qualityAverage >= 3
+                  : pNum(persona.qualityAverage) >= 3
                   ? '#e8a838'
                   : '#ef4444',
             }}
