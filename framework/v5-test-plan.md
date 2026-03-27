@@ -777,10 +777,10 @@ Test that spawn-integration.ts works end-to-end:
 ### TI.4 — Lockout → Re-route Flow
 ```
 1. Create a card, assign to persona-A
-2. Score card < 2.5 (quality failure)
+2. Score card < 5.0 (quality failure)
 3. Verify persona-A is locked out for this card
 4. Re-route card — verify different persona selected
-5. Score card >= 3.0 — verify lockout cleared
+5. Score card >= 6.0 — verify lockout cleared
 ```
 
 ### TI.5 — WebSocket Real-Time Updates
