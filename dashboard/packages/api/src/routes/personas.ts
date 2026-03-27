@@ -635,6 +635,36 @@ router.post('/personas/:id/extract-skills', (req, res) => {
     }
   }
 
+  // Link skills to persona via persona_skills junction table
+  for (const skill of skills) {
+    const [existingLink] = db
+      .select()
+      .from(schema.personaSkills)
+      .where(
+        and(
+          eq(schema.personaSkills.personaId, id),
+          eq(schema.personaSkills.skillId, skill.id),
+        ),
+      )
+      .all();
+
+    if (existingLink) {
+      db.update(schema.personaSkills)
+        .set({ usageCount: (existingLink.usageCount ?? 0) + 1 })
+        .where(
+          and(
+            eq(schema.personaSkills.personaId, id),
+            eq(schema.personaSkills.skillId, skill.id),
+          ),
+        )
+        .run();
+    } else {
+      db.insert(schema.personaSkills)
+        .values({ personaId: id, skillId: skill.id, usageCount: 1 })
+        .run();
+    }
+  }
+
   res.json({
     personaId: id,
     created: upserted,
