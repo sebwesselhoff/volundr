@@ -56,16 +56,16 @@ async function main() {
         process.stderr.write(`Quality gate: ${cardId} has no quality score. Score the card before completing.\n`);
         process.exit(2);
       }
-      if (typeof match.weightedScore === 'number' && match.weightedScore < 2.5) {
+      if (typeof match.weightedScore === 'number' && match.weightedScore < 5.0) {
         await apiPost('/api/events', {
           projectId: PROJECT_ID,
           type: 'quality_gate_failed',
           cardId,
-          detail: `Quality gate blocked ${cardId}: score ${match.weightedScore} < 2.5`,
+          detail: `Quality gate blocked ${cardId}: score ${match.weightedScore} < 5.0`,
         });
         log.warn('quality_gate_failed', `${cardId} score ${match.weightedScore} below threshold`, { cardId });
         process.stderr.write(
-          `Quality gate failed for ${cardId}: score ${match.weightedScore} below threshold 2.5. Fix quality issues before completing.\n`
+          `Quality gate failed for ${cardId}: score ${match.weightedScore} below threshold 5.0. Fix quality issues before completing.\n`
         );
         process.exit(2); // Block completion - card stays in_progress
       }
