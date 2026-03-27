@@ -86,10 +86,15 @@ export interface Event {
 export interface QualityScore {
   id: number;
   cardId: string;
+  /** 1-10 scale */
   completeness: number;
+  /** 1-10 scale */
   codeQuality: number;
+  /** 1-10 scale */
   formatCompliance: number;
+  /** 1-10 scale */
   independence: number;
+  /** Weighted average, 1.0-10.0 range */
   weightedScore: number;
   implementationType: ImplementationType;
   createdAt: string;
@@ -194,9 +199,13 @@ export interface LogEventInput {
 
 export interface ScoreQualityInput {
   cardId: string;
+  /** 1-10 scale */
   completeness: number;
+  /** 1-10 scale */
   codeQuality: number;
+  /** 1-10 scale */
   formatCompliance: number;
+  /** 1-10 scale */
   independence: number;
   implementationType: ImplementationType;
 }

@@ -54,3 +54,6 @@ export const GATE_LEVELS: ReadonlyArray<{ level: number; label: string; descript
   { level: 3, label: 'Card Review', description: 'Show each card before implementing' },
   { level: 4, label: 'Pair Mode', description: 'Discuss every decision' },
 ];
+
+// Quality scoring scale — all UI normalization and API validation references this
+export const SCORE_SCALE = 10;
