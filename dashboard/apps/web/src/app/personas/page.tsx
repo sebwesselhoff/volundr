@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { Persona, PersonaHistoryEntry } from '@vldr/shared';
+import { SCORE_SCALE, type Persona, type PersonaHistoryEntry } from '@vldr/shared';
 import { useApiQuery } from '@/hooks/use-api';
 
 const ROLE_COLORS: Record<string, string> = {
@@ -41,7 +41,7 @@ function pNum(v: number | null | undefined): number {
 }
 
 function ScoreBars({ score }: { score: number }) {
-  const pct = Math.min(100, Math.max(0, (score / 5) * 100));
+  const pct = Math.min(100, Math.max(0, (score / SCORE_SCALE) * 100));
   return (
     <div
       className="w-full rounded-full overflow-hidden"
@@ -419,7 +419,7 @@ const RADAR_AXES = [
 
 function deriveRadarValues(persona: Persona): Record<string, number> {
   // All values normalized 0–1
-  const quality   = Math.min(1, (persona.qualityAverage ?? 0) / 5);
+  const quality   = Math.min(1, (persona.qualityAverage ?? 0) / SCORE_SCALE);
   const velocity  = Math.min(1, (persona.cardsCompleted ?? 0) / 20);
   // cost efficiency: lower cost per card = better; cap at $0.50/card
   const costPerCard = persona.cardsCompleted > 0
@@ -697,7 +697,7 @@ function PersonaDetail({ persona }: { persona: Persona }) {
       >
         {[
           { label: 'Cards Completed', value: String(pNum(persona.cardsCompleted)) },
-          { label: 'Quality Avg', value: `${pNum(persona.qualityAverage).toFixed(2)} / 5` },
+          { label: 'Quality Avg', value: `${pNum(persona.qualityAverage).toFixed(2)} / ${SCORE_SCALE}` },
           { label: 'Total Tokens', value: formatTokens(persona.totalTokens) },
           { label: 'Total Cost', value: formatCost(persona.totalCost) },
         ].map(({ label, value }) => (
@@ -756,7 +756,7 @@ function PersonaDetail({ persona }: { persona: Persona }) {
           }}
         >
           <span>Quality Score</span>
-          <span>{pNum(persona.qualityAverage).toFixed(2)} / 5.00</span>
+          <span>{pNum(persona.qualityAverage).toFixed(2)} / {SCORE_SCALE}.00</span>
         </div>
         <div
           className="w-full rounded-full overflow-hidden"
@@ -765,11 +765,11 @@ function PersonaDetail({ persona }: { persona: Persona }) {
           <div
             className="h-full rounded-full"
             style={{
-              width: `${Math.min(100, (pNum(persona.qualityAverage) / 5) * 100)}%`,
+              width: `${Math.min(100, (pNum(persona.qualityAverage) / SCORE_SCALE) * 100)}%`,
               background:
-                pNum(persona.qualityAverage) >= 4
+                pNum(persona.qualityAverage) >= 8
                   ? '#22c55e'
-                  : pNum(persona.qualityAverage) >= 3
+                  : pNum(persona.qualityAverage) >= 6
                   ? '#e8a838'
                   : '#ef4444',
             }}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { QualityScore, Directive } from '@vldr/shared';
+import { SCORE_SCALE, type QualityScore, type Directive } from '@vldr/shared';
 import { useApiQuery } from '@/hooks/use-api';
 import { useProject } from '@/contexts/project-context';
 
@@ -121,8 +121,8 @@ const HEATMAP_METRICS: Array<{ key: keyof QualityScore; label: string }> = [
 ];
 
 function heatColor(v: number): string {
-  // 0–5 scale mapped to a dark-to-bright spectrum
-  const pct = clamp(v / 5, 0, 1);
+  // 0–10 scale mapped to a dark-to-bright spectrum
+  const pct = clamp(v / SCORE_SCALE, 0, 1);
   if (pct >= 0.8) return '#22c55e';
   if (pct >= 0.6) return '#84cc16';
   if (pct >= 0.4) return '#e8a838';
@@ -427,7 +427,7 @@ export default function CompliancePage() {
       scores.length > 0
         ? scores.reduce((sum, s) => sum + s.weightedScore, 0) / scores.length
         : 0;
-    const qualityPct = clamp((qualityAvg / 5) * 100, 0, 100);
+    const qualityPct = clamp((qualityAvg / SCORE_SCALE) * 100, 0, 100);
 
     const totalDirs = dirs.length;
     const activeDirs = dirs.filter(d => d.status === 'active').length;
@@ -540,7 +540,7 @@ export default function CompliancePage() {
                   color: '#8899b3',
                 }}
               >
-                <span>Quality {(qualityAvg / 5 * 100).toFixed(0)}%</span>
+                <span>Quality {(qualityAvg / SCORE_SCALE * 100).toFixed(0)}%</span>
                 <span>Directives {directiveHealth.toFixed(0)}%</span>
               </div>
             </div>
@@ -578,7 +578,7 @@ export default function CompliancePage() {
                     ] as const
                   ).map(({ key, label }) => {
                     const val = metricAverages[key];
-                    const pct = (val / 5) * 100;
+                    const pct = (val / SCORE_SCALE) * 100;
                     return (
                       <div key={key}>
                         <div
@@ -591,7 +591,7 @@ export default function CompliancePage() {
                         >
                           <span>{label}</span>
                           <span style={{ color: scoreColor(pct) }}>
-                            {val.toFixed(2)} / 5
+                            {val.toFixed(2)} / {SCORE_SCALE}
                           </span>
                         </div>
                         <div

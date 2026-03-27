@@ -6,7 +6,7 @@ import {
   BarChart, Bar,
   Cell,
 } from 'recharts';
-import type { MetricsResponse, Persona, Skill } from '@vldr/shared';
+import { SCORE_SCALE, type MetricsResponse, type Persona, type Skill } from '@vldr/shared';
 import { useApiQuery } from '@/hooks/use-api';
 import { useProject } from '@/contexts/project-context';
 
@@ -128,8 +128,8 @@ function QualityTrend({ data }: { data: MetricsResponse['qualityTrend'] }) {
           tickLine={false}
         />
         <YAxis
-          domain={[0, 4]}
-          ticks={[0, 1, 2, 3, 4]}
+          domain={[0, SCORE_SCALE]}
+          ticks={[0, 2, 4, 6, 8, SCORE_SCALE]}
           tick={{ ...AXIS_STYLE }}
           axisLine={false}
           tickLine={false}
@@ -545,7 +545,7 @@ function ComplianceTrend({ qualityTrend }: { qualityTrend: MetricsResponse['qual
   const WINDOW = 5;
   const chartData = qualityTrend.map((d, i) => {
     const window = qualityTrend.slice(Math.max(0, i - WINDOW + 1), i + 1);
-    const compliant = window.filter(w => w.score >= 3.0).length;
+    const compliant = window.filter(w => w.score >= 6.0).length;
     const rate = Math.round((compliant / window.length) * 100);
     return { index: i + 1, rate, score: Math.round(d.score * 100) / 100 };
   });
