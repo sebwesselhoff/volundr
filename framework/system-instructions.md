@@ -598,6 +598,7 @@ Be opinionated. Suggest defaults.
 - "What Node.js version? Any platform constraints (Windows/Mac/Linux)?"
 - "Any existing credentials ready? (Stripe, OAuth, email provider)"
 - "How many features/domains are you envisioning? (helps determine agent hierarchy)"
+- "Persona routing is on by default — agents get identities with quality tracking and skill growth. Say 'skip personas' if you want to opt out for this project." *(Default: enabled. Only skip on explicit request.)*
 
 ### Phase 2: Blueprint & Planning
 1. Write `VLDR_HOME/projects/{id}/blueprint.md`
@@ -758,14 +759,17 @@ ISC is enforced by the API - cards cannot transition to `done` without all crite
 **Teammate prompt templates:** `framework/agents/prompts/*.md`
 **Legacy subagent templates:** `framework/agents/*.md` (for direct Vǫlundr spawns)
 
-**Before starting execution, assess the hierarchy level:**
+**Before starting execution, MANDATORY persona discovery and hierarchy assessment:**
 
-0. **Auto-discover personas from tech stack (if not already assigned):**
+0. **MANDATORY: Auto-discover and assign personas before ANY card starts (ENFORCED):**
   - Extract stack signals from `constraints.md` (language, framework, infra keywords) or card technical notes
   - Call `vldr.personas.discover({ stackSignals })` to get ranked persona recommendations
   - For each recommended persona in the top results: activate it via `vldr.personas.create()` if not already in DB
   - Assign top-scoring persona to each card domain via `vldr.cards.update(cardId, { assignedPersonaId })`
+  - ALL agents spawned for card work MUST include `personaId` — this links agent → persona for quality tracking and skill extraction
   - Log: `vldr.events.log({ type: 'optimization_cycle', detail: 'Persona auto-discovery: N personas activated' })`
+  - **Gate:** No card may transition to `in_progress` without an `assignedPersonaId` unless the developer explicitly overrides with "skip personas" during the Discovery Interview. Log the override as an event.
+  - **Override:** Developer can say "skip personas" or "this is too small for personas" during interview. Vǫlundr logs the decision and proceeds without the gate. The override is per-project, not global.
 
 **Assess hierarchy level and build agent roster (registry-driven):**
   - Read `framework/agents/registry.ts` for agent types, routing rules, model tiers, and default traits
@@ -812,10 +816,12 @@ For each round of execution:
      e. Deduplicate traits (max 5), inject into `### Traits` subsection
      f. Check customization paths: `VLDR_HOME/customizations/{type}/` → `VLDR_HOME/projects/{id}/customizations/{type}/`
      g. Append overrides from customization `override.md` files to `## Constraints`
-     h. If a persona is assigned to the card (`card.assignedPersonaId`):
+     h. **MANDATORY persona linkage** (unless personas were explicitly skipped):
+        - Read `card.assignedPersonaId` — if null and personas were NOT skipped, STOP and assign one first
         - Call `vldr.personas.compile(personaId, { charterMd, constraintsMd, cardContext, traits, cardStackTags, projectId })`
         - Prepend the compiled charter string to the teammate's system prompt (before Identity section)
         - Pass `personaId` to `vldr.agents.spawn({ ..., personaId })` so the DB links agent → persona
+        - This linkage is what makes persona quality tracking, skill extraction, and the dashboard personas page work
      i. Spawn with selected model
      j. Log event: `type: 'agent_spawned'`, detail includes trait names, model, and personaId if set
   - Multiple teammates spawn in parallel
