@@ -76,7 +76,7 @@ export interface CeremonySnapshot {
 export interface CeremonyConfig {
   /** Cards completed per sprint before triggering sprint_review. Default: 5. */
   sprintSize: number;
-  /** Quality avg below this value triggers guardian_audit. Default: 3.0. */
+  /** Quality avg below this value triggers guardian_audit. Default: 6.0. */
   qualityAuditThreshold: number;
   /** Cards scored before triggering optimization_cycle. Default: 5. */
   optimizationCycleInterval: number;
@@ -84,7 +84,7 @@ export interface CeremonyConfig {
 
 export const DEFAULT_CEREMONY_CONFIG: CeremonyConfig = {
   sprintSize: 5,
-  qualityAuditThreshold: 3.0,
+  qualityAuditThreshold: 6.0,
   optimizationCycleInterval: 5,
 };
 

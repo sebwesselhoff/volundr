@@ -56,7 +56,7 @@ interface CeremonyConfig {
 
 function evaluateCeremonies(
   snapshot: CeremonySnapshot,
-  config: CeremonyConfig = { sprintSize: 5, qualityAuditThreshold: 3.0, optimizationCycleInterval: 5 },
+  config: CeremonyConfig = { sprintSize: 5, qualityAuditThreshold: 6.0, optimizationCycleInterval: 5 },
 ): CeremonyTrigger[] {
   const triggers: CeremonyTrigger[] = [];
 
@@ -194,7 +194,7 @@ router.post('/projects/:projectId/ceremonies/evaluate', (req, res) => {
   const {
     previousPhase = null,
     sprintSize = 5,
-    qualityAuditThreshold = 3.0,
+    qualityAuditThreshold = 6.0,
     optimizationCycleInterval = 5,
     budgetCeiling = null,
     costWarningThreshold = 0.8,
