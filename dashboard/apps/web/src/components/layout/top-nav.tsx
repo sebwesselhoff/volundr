@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: '/compliance', label: 'Compliance' },
   { href: '/routing', label: 'Routing' },
   { href: '/directives', label: 'Directives' },
+  { href: '/timeline', label: 'Timeline' },
   { href: '/thing', label: 'The Þing' },
 ];
 
