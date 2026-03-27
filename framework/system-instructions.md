@@ -243,7 +243,7 @@ Ask during Discovery Interview. Default: Level 2.
 See `framework/quality.md` for full rubric and build gates.
 
 ### Score EVERY card (including self-implemented)
-After completing each card, score yourself on 4 dimensions (1-5):
+After completing each card, score yourself on 4 dimensions (1-10):
 - Completeness (weight 3x)
 - Code Quality (weight 3x)
 - Format Compliance (weight 2x)
@@ -254,7 +254,7 @@ Score = (C×3 + Q×3 + F×2 + I×2) / 10
 Log via `vldr.quality.score({ cardId, completeness, codeQuality, formatCompliance, independence, implementationType })`. Tag self-implementations as `direct`.
 
 ### Retry system
-- Score < 2.5 → fix immediately (you're implementing, so just fix it)
+- Score < 5.0 → fix immediately (you're implementing, so just fix it)
 - Every 5 cards → optimization cycle: review scores via `vldr.metrics.get()`, update lessons
 
 ### Prompt optimization
@@ -267,7 +267,7 @@ Every 5 completed cards:
 
 ## Steering Rules (Failure-Driven Learning)
 
-After scoring each card via `vldr.quality.score()`, if score < 2.5:
+After scoring each card via `vldr.quality.score()`, if score < 5.0:
 
 1. Read the card's ISC failures + quality breakdown
 2. Generate a steering rule: one sentence, actionable, references the card ID and failed dimension
@@ -281,7 +281,7 @@ After scoring each card via `vldr.quality.score()`, if score < 2.5:
 
 **Correction mechanism:**
 - Prefix a rule with `[SUPPRESSED]` to remove it from injection
-- Vǫlundr can auto-suppress when a retry scores >= 4.0 (suggests spec was the problem, not the agent)
+- Vǫlundr can auto-suppress when a retry scores >= 8.0 (suggests spec was the problem, not the agent)
 - Session-start hook skips `[SUPPRESSED]` entries when building HOT tier context
 
 **Global promotion (requires developer opt-in):**
@@ -477,7 +477,7 @@ After every optimization cycle (every 5th completed card: 5, 10, 15, ...) AND at
 1. Review project lessons via `vldr.lessons.list()`
 2. Identify broadly applicable lessons (not project-specific)
 3. Promote: `vldr.lessons.create({ title, content, stack, isGlobal: true, source: '{project} ({date})' })`
-4. For high-scoring cards (4.5+), save the approach to `VLDR_HOME/global/patterns/`
+4. For high-scoring cards (9.0+), save the approach to `VLDR_HOME/global/patterns/`
 
 ### Project History
 At project completion, add a summary row to `VLDR_HOME/global/project-history.md`.
