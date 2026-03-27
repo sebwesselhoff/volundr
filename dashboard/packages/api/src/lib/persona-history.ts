@@ -28,9 +28,33 @@ export function shouldArchive(entry: {
   return decayedConfidence(entry.confidence, entry.lastReinforcedAt) < ARCHIVE_THRESHOLD;
 }
 
+const KNOWN_STACK_TAGS = new Set([
+  'react', 'vue', 'svelte', 'angular', 'next', 'nextjs', 'nuxt', 'astro', 'vite',
+  'typescript', 'javascript', 'python', 'rust', 'go', 'java', 'csharp', 'ruby',
+  'node', 'nodejs', 'deno', 'bun', 'express', 'fastify', 'hono', 'koa',
+  'tailwind', 'css', 'sass', 'styled-components',
+  'postgres', 'postgresql', 'mysql', 'sqlite', 'mongodb', 'redis', 'drizzle', 'prisma',
+  'docker', 'kubernetes', 'aws', 'azure', 'gcp', 'vercel', 'cloudflare',
+  'canvas2d', 'webgl', 'pixi', 'three', 'svg',
+  'dnd-kit', 'react-dnd', 'drag-and-drop',
+  'jest', 'vitest', 'playwright', 'cypress', 'testing',
+  'graphql', 'rest', 'grpc', 'websocket', 'trpc',
+  'auth', 'jwt', 'oauth', 'security', 'encryption',
+  'git', 'ci', 'cd', 'github', 'gitlab',
+]);
+
 export function extractStackTags(content: string): string[] {
-  const matches = content.match(/\[([a-z0-9._-]+)\]/gi) ?? [];
-  return [...new Set(matches.map((m) => m.slice(1, -1).toLowerCase()))];
+  // First: explicit [tag] bracket syntax
+  const bracketMatches = content.match(/\[([a-z0-9._-]+)\]/gi) ?? [];
+  const tags = bracketMatches.map((m) => m.slice(1, -1).toLowerCase());
+
+  // Second: match known tech keywords in the content
+  const lower = content.toLowerCase();
+  for (const tag of KNOWN_STACK_TAGS) {
+    if (lower.includes(tag)) tags.push(tag);
+  }
+
+  return [...new Set(tags)];
 }
 
 export function parseStackTags(raw: string | null | undefined): string[] {
