@@ -234,14 +234,14 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     customizationKey: 'chaos-engine-voice',
     pack: 'roundtable',
   },
-  developer: {
+  'developer-subagent': {
     model: 'sonnet-4',
     tools: ['Read', 'Write', 'Edit', 'Glob', 'Grep'],
     spawnedBy: ['volundr'],
     canSpawn: [],
     sdkAccess: false,
     isolation: 'worktree',
-    description: 'Writes code files. Edit for modifying existing, Write for new. No Bash, no Agent.',
+    description: 'Subagent developer. Writes code files. No Bash, no Agent. For flat hierarchy direct spawns.',
     promptTemplate: 'framework/packs/core/prompts/developer.md',
     personaTemplate: 'fullstack-web',
     triggerSignals: ['implementation', 'feature', 'refactor', 'migration'],
