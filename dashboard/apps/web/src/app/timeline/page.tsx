@@ -60,9 +60,10 @@ interface EventNodeProps {
   entry: Extract<TimelineEntry, { kind: 'event' }>;
   expanded: boolean;
   onToggle: () => void;
+  onHighlight?: () => void;
 }
 
-function EventNode({ entry, expanded, onToggle }: EventNodeProps) {
+function EventNode({ entry, expanded, onToggle, onHighlight }: EventNodeProps) {
   const color = getEventColor(entry.type);
   return (
     <button
@@ -90,7 +91,18 @@ function EventNode({ entry, expanded, onToggle }: EventNodeProps) {
       </div>
       {entry.cardId && (
         <p className="mt-1 text-[0.7rem]" style={{ color: '#8899b3' }}>
-          card: {entry.cardId}
+          card:{' '}
+          <span
+            onClick={(e) => { e.stopPropagation(); onHighlight?.(); }}
+            style={{
+              color: '#60a5fa',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              textUnderlineOffset: 2,
+            }}
+          >
+            {entry.cardId}
+          </span>
         </p>
       )}
       {expanded && entry.detail && (
@@ -117,9 +129,10 @@ function EventNode({ entry, expanded, onToggle }: EventNodeProps) {
 
 interface AgentNodeProps {
   entry: Extract<TimelineEntry, { kind: 'agent_lifecycle' }>;
+  onHighlight?: () => void;
 }
 
-function AgentNode({ entry }: AgentNodeProps) {
+function AgentNode({ entry, onHighlight }: AgentNodeProps) {
   return (
     <div>
       <div className="flex items-center gap-2 flex-wrap">
@@ -144,7 +157,18 @@ function AgentNode({ entry }: AgentNodeProps) {
       </div>
       {entry.cardId && (
         <p className="mt-1 text-[0.7rem]" style={{ color: '#8899b3' }}>
-          card: {entry.cardId}
+          card:{' '}
+          <span
+            onClick={(e) => { e.stopPropagation(); onHighlight?.(); }}
+            style={{
+              color: '#60a5fa',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              textUnderlineOffset: 2,
+            }}
+          >
+            {entry.cardId}
+          </span>
         </p>
       )}
     </div>
@@ -155,6 +179,7 @@ interface CardTransitionNodeProps {
   entry: Extract<TimelineEntry, { kind: 'card_transition' }>;
   expanded: boolean;
   onToggle: () => void;
+  onHighlight?: () => void;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -186,19 +211,29 @@ function StatusPill({ label }: { label: string }) {
   );
 }
 
-function CardTransitionNode({ entry, expanded, onToggle }: CardTransitionNodeProps) {
+function CardTransitionNode({ entry, expanded, onToggle, onHighlight }: CardTransitionNodeProps) {
   return (
-    <button
-      onClick={onToggle}
-      className="w-full text-left"
-      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-    >
-      <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex items-center gap-2 flex-wrap">
+      <button
+        onClick={onHighlight}
+        title="Click to highlight all entries for this card"
+        style={{
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.4rem',
+        }}
+      >
         <span
           className="text-[0.75rem]"
           style={{
-            color: '#c5d0e6',
+            color: '#60a5fa',
             fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+            textDecoration: 'underline',
+            textUnderlineOffset: 2,
           }}
         >
           {entry.cardId}
@@ -206,8 +241,8 @@ function CardTransitionNode({ entry, expanded, onToggle }: CardTransitionNodePro
         <StatusPill label={entry.fromStatus} />
         <span style={{ color: '#8899b3', fontSize: '0.7rem' }}>→</span>
         <StatusPill label={entry.toStatus} />
-      </div>
-    </button>
+      </button>
+    </div>
   );
 }
 
@@ -292,6 +327,7 @@ export default function TimelinePage() {
 
   // Set of expanded entry indices (events/card_transitions/quality_scores can expand)
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
 
   function toggle(idx: number) {
     setExpanded(prev => {
@@ -303,6 +339,17 @@ export default function TimelinePage() {
       }
       return next;
     });
+  }
+
+  function handleHighlight(cardId: string) {
+    setHighlightedCardId(prev => (prev === cardId ? null : cardId));
+  }
+
+  function getHighlightState(entry: TimelineEntry): 'highlighted' | 'dimmed' | 'normal' {
+    if (!highlightedCardId) return 'normal';
+    const entryCardId = 'cardId' in entry ? entry.cardId : undefined;
+    if (entryCardId === highlightedCardId) return 'highlighted';
+    return 'dimmed';
   }
 
   const entries = data ?? [];
@@ -354,6 +401,34 @@ export default function TimelinePage() {
         fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
       }}
     >
+      {/* Highlight banner */}
+      {highlightedCardId && (
+        <div
+          className="flex items-center justify-between mb-6 rounded-lg px-4 py-2"
+          style={{
+            background: 'rgba(59,130,246,0.1)',
+            border: '1px solid rgba(59,130,246,0.3)',
+          }}
+        >
+          <span className="text-[0.75rem]" style={{ color: '#60a5fa' }}>
+            Showing all entries for card:{' '}
+            <strong style={{ color: '#93c5fd' }}>{highlightedCardId}</strong>
+          </span>
+          <button
+            onClick={() => setHighlightedCardId(null)}
+            className="text-[0.7rem] px-2 py-0.5 rounded"
+            style={{
+              background: 'rgba(59,130,246,0.15)',
+              color: '#60a5fa',
+              border: '1px solid rgba(59,130,246,0.3)',
+              cursor: 'pointer',
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Timeline container — relative so the center line and dots can be positioned */}
       <div className="relative">
         {/* Center vertical line */}
@@ -370,6 +445,8 @@ export default function TimelinePage() {
               entry.kind === 'event'
                 ? getEventColor(entry.type)
                 : getKindColor(entry.kind);
+            const entryCardId = 'cardId' in entry ? (entry.cardId ?? undefined) : undefined;
+            const highlightState = getHighlightState(entry);
 
             return (
               <div key={idx} className="relative flex items-start" style={{ zIndex: 1 }}>
@@ -385,6 +462,8 @@ export default function TimelinePage() {
                         ts={ts}
                         dotColor={dotColor}
                         align="right"
+                        highlightState={highlightState}
+                        onHighlight={() => entryCardId && handleHighlight(entryCardId)}
                       />
                     </div>
                     {/* dot */}
@@ -397,6 +476,8 @@ export default function TimelinePage() {
                         borderColor: '#0a0e17',
                         zIndex: 2,
                         boxShadow: `0 0 8px ${dotColor}88`,
+                        opacity: highlightState === 'dimmed' ? 0.4 : 1,
+                        transition: 'opacity 200ms ease',
                       }}
                     />
                     <div className="w-[calc(50%-20px)] pl-4" />
@@ -414,6 +495,8 @@ export default function TimelinePage() {
                         borderColor: '#0a0e17',
                         zIndex: 2,
                         boxShadow: `0 0 8px ${dotColor}88`,
+                        opacity: highlightState === 'dimmed' ? 0.4 : 1,
+                        transition: 'opacity 200ms ease',
                       }}
                     />
                     <div className="w-[calc(50%-20px)] pl-4 flex justify-start">
@@ -425,6 +508,8 @@ export default function TimelinePage() {
                         ts={ts}
                         dotColor={dotColor}
                         align="left"
+                        highlightState={highlightState}
+                        onHighlight={() => entryCardId && handleHighlight(entryCardId)}
                       />
                     </div>
                   </>
@@ -448,19 +533,37 @@ interface NodeCardProps {
   ts: string;
   dotColor: string;
   align: 'left' | 'right';
+  highlightState: 'highlighted' | 'dimmed' | 'normal';
+  onHighlight: () => void;
 }
 
-function NodeCard({ entry, idx, expanded, onToggle, ts, dotColor, align }: NodeCardProps) {
+function getEntryCardId(entry: TimelineEntry): string | undefined {
+  if ('cardId' in entry) return entry.cardId ?? undefined;
+  return undefined;
+}
+
+function NodeCard({ entry, idx, expanded, onToggle, ts, dotColor, align, highlightState, onHighlight }: NodeCardProps) {
+  const entryCardId = getEntryCardId(entry);
+  const cardHighlight = entryCardId ? onHighlight : undefined;
+
+  const isHighlighted = highlightState === 'highlighted';
+  const isDimmed = highlightState === 'dimmed';
+
   return (
     <div
       className="rounded-xl w-full"
       style={{
-        background: 'rgba(10,14,23,0.6)',
+        background: isHighlighted ? 'rgba(20,30,50,0.85)' : 'rgba(10,14,23,0.6)',
         backdropFilter: 'blur(8px)',
-        boxShadow: '0 2px 16px rgba(0,0,0,0.4)',
+        boxShadow: isHighlighted
+          ? `0 2px 20px rgba(0,0,0,0.6), 0 0 0 1px ${dotColor}44`
+          : '0 2px 16px rgba(0,0,0,0.4)',
         padding: '12px 16px',
-        borderLeft: align === 'left' ? `3px solid ${dotColor}55` : undefined,
-        borderRight: align === 'right' ? `3px solid ${dotColor}55` : undefined,
+        borderLeft: align === 'left' ? `3px solid ${isHighlighted ? dotColor : dotColor + '55'}` : undefined,
+        borderRight: align === 'right' ? `3px solid ${isHighlighted ? dotColor : dotColor + '55'}` : undefined,
+        opacity: isDimmed ? 0.4 : 1,
+        transition: 'opacity 200ms ease, border-color 200ms ease, background 200ms ease, box-shadow 200ms ease',
+        pointerEvents: 'auto',
       }}
     >
       {/* timestamp */}
@@ -473,13 +576,13 @@ function NodeCard({ entry, idx, expanded, onToggle, ts, dotColor, align }: NodeC
 
       {/* content by kind */}
       {entry.kind === 'event' && (
-        <EventNode entry={entry} expanded={expanded} onToggle={onToggle} />
+        <EventNode entry={entry} expanded={expanded} onToggle={onToggle} onHighlight={cardHighlight} />
       )}
       {entry.kind === 'agent_lifecycle' && (
-        <AgentNode entry={entry} />
+        <AgentNode entry={entry} onHighlight={cardHighlight} />
       )}
       {entry.kind === 'card_transition' && (
-        <CardTransitionNode entry={entry} expanded={expanded} onToggle={onToggle} />
+        <CardTransitionNode entry={entry} expanded={expanded} onToggle={onToggle} onHighlight={cardHighlight} />
       )}
       {entry.kind === 'quality_score' && (
         <QualityNode entry={entry} expanded={expanded} onToggle={onToggle} />
