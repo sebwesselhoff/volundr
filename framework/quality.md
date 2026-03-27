@@ -1,9 +1,9 @@
 # Agent Quality & Self-Optimization System
 
-## Scoring Rubric (1-5)
+## Scoring Rubric (1-10)
 
-| Dimension | Weight | 1 | 3 | 5 |
-|-----------|--------|---|---|---|
+| Dimension | Weight | 1-2 | 5-6 | 9-10 |
+|-----------|--------|-----|-----|------|
 | Completeness | 3x | Missing most | All files, some gaps | Every criterion met |
 | Code Quality | 3x | Broken, no types | Works, reasonable | Clean, idiomatic |
 | Format Compliance | 2x | Ignored format | Mostly followed | Perfect |
@@ -14,10 +14,10 @@ Score = (C×3 + Q×3 + F×2 + I×2) / 10
 ## Thresholds
 | Score | Rating | Action |
 |-------|--------|--------|
-| 4.5+ | Excellent | Flag as reference |
-| 3.5+ | Good | Accept, note improvements |
-| 2.5+ | Needs Work | Fix issues, optimize for next time |
-| <2.5 | Poor | Fix immediately |
+| 9.0+ | Excellent | Flag as reference |
+| 7.0+ | Good | Accept, note improvements |
+| 5.0+ | Needs Work | Fix issues, optimize for next time |
+| <5.0 | Poor | Fix immediately |
 
 ## Self-Scoring
 When Vǫlundr implements directly, self-score with tag `direct`.
