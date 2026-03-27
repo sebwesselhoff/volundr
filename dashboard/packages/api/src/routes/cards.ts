@@ -273,14 +273,29 @@ router.patch('/cards/:id', (req, res) => {
   // Enforce quality scoring when marking a card as done
   if (status === 'done' && existing.status !== 'done') {
     if (!quality) {
-      throw new ApiError(400, 'Quality scoring required when marking card as done. Include a "quality" object with: completeness, codeQuality, formatCompliance, independence, implementationType (each 1-5)');
+      throw new ApiError(400, 'Quality scoring required when marking card as done. Include a "quality" object with: completeness, codeQuality, formatCompliance, independence, implementationType (each 1-10)');
     }
     if (
       quality.completeness == null || quality.codeQuality == null ||
       quality.formatCompliance == null || quality.independence == null ||
       !quality.implementationType
     ) {
-      throw new ApiError(400, 'Quality object must include: completeness, codeQuality, formatCompliance, independence (1-5), and implementationType (agent|direct|human)');
+      throw new ApiError(400, 'Quality object must include: completeness, codeQuality, formatCompliance, independence (1-10), and implementationType (agent|direct|human)');
+    }
+  }
+
+  // Validate score ranges when quality is provided
+  if (quality) {
+    const SCORE_MIN = 1, SCORE_MAX = 10;
+    for (const [key, val] of Object.entries({
+      completeness: quality.completeness,
+      codeQuality: quality.codeQuality,
+      formatCompliance: quality.formatCompliance,
+      independence: quality.independence,
+    })) {
+      if (val != null && (typeof val !== 'number' || val < SCORE_MIN || val > SCORE_MAX)) {
+        throw new ApiError(400, `quality.${key} must be between ${SCORE_MIN} and ${SCORE_MAX}, got ${val}`);
+      }
     }
   }
 

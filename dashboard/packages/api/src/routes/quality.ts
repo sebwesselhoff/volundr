@@ -46,6 +46,14 @@ router.post('/quality', (req, res) => {
     .from(schema.cards).where(eq(schema.cards.id, cardId)).all();
   if (!card) throw new ApiError(404, `Card ${cardId} not found`);
 
+  // Validate score ranges (1-10 scale)
+  const SCORE_MIN = 1, SCORE_MAX = 10;
+  for (const [key, val] of Object.entries({ completeness, codeQuality, formatCompliance, independence })) {
+    if (val != null && (typeof val !== 'number' || val < SCORE_MIN || val > SCORE_MAX)) {
+      throw new ApiError(400, `${key} must be between ${SCORE_MIN} and ${SCORE_MAX}, got ${val}`);
+    }
+  }
+
   const C = completeness ?? 0;
   const Q = codeQuality ?? 0;
   const F = formatCompliance ?? 0;
