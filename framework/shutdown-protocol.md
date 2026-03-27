@@ -227,8 +227,8 @@ Questions:
 #### 5d. Pattern identification
 
 Volundr looks for patterns across all the data:
-- **Winning patterns:** What prompt templates, agent configurations, or card structures led to 4.5+ scores?
-- **Antipatterns:** What configurations led to retries or sub-3.0 scores?
+- **Winning patterns:** What prompt templates, agent configurations, or card structures led to 9.0+ scores?
+- **Antipatterns:** What configurations led to retries or sub-6.0 scores?
 - **Process improvements:** Did the hierarchy level work well? Should it change?
 - **Teammate communication:** Were inter-agent messages effective or noisy?
 
@@ -559,7 +559,7 @@ Stack: [typescript | react | general | ...]
 | Project-specific antipattern | `VLDR_HOME/projects/{id}/constraints.md` |
 | Project-specific lesson | `vldr.lessons.create({ isGlobal: false })` |
 | Broadly applicable lesson | `vldr.lessons.create({ isGlobal: true })` |
-| High-scoring pattern (4.5+) | `VLDR_HOME/global/patterns/{name}.md` |
+| High-scoring pattern (9.0+) | `VLDR_HOME/global/patterns/{name}.md` |
 | Session narrative | `POST /api/session-summaries` |
 | Checkpoint state | `VLDR_HOME/projects/{id}/checkpoints/checkpoint-{N}.md` |
 | Journal observations | `POST /api/journal` |

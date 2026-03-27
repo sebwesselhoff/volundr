@@ -116,11 +116,11 @@ Written to `projects/{id}/reports/dev-{CARD_ID}.md`:
 - [ ] Criterion - BLOCKED: reason
 
 ## Quality Self-Score
-- Completeness: X/5
-- Code Quality: X/5
-- Format Compliance: X/5
-- Independence: X/5
-- **Total: X.X/5**
+- Completeness: X/10
+- Code Quality: X/10
+- Format Compliance: X/10
+- Independence: X/10
+- **Total: X.X/10**
 
 ## Build Gate Results
 - tsc --noEmit: PASS | FAIL

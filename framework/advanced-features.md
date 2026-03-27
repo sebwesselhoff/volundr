@@ -25,7 +25,7 @@ Git tag: `checkpoint-{N}`
 ## 5. Cross-Project Memory
 Load lessons via `vldr.lessons.list({ isGlobal: true })` at startup.
 Promote lessons via `vldr.lessons.create({ ..., isGlobal: true })` at completion.
-Save reusable patterns from 4.5+ cards to `VLDR_HOME/global/patterns/`.
+Save reusable patterns from 9.0+ cards to `VLDR_HOME/global/patterns/`.
 
 ## 6. Architecture Guardian
 Spawn via Agent tool at milestones. Reviews entire codebase.
