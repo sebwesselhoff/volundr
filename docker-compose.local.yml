@@ -1,0 +1,6 @@
+# Override for local development — uses locally built image instead of GHCR
+# Usage: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+name: volundr
+services:
+  dashboard:
+    image: volundr-dashboard:local
