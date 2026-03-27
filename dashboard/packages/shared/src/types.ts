@@ -678,3 +678,13 @@ export interface UpdateDirectiveInput {
   priority?: number;
   supersededBy?: number;
 }
+
+// --- Timeline types ---
+
+export type TimelineEntryKind = 'event' | 'agent_lifecycle' | 'card_transition' | 'quality_score';
+
+export type TimelineEntry =
+  | { kind: 'event'; timestamp: string; type: string; title: string; detail: string; cardId: string | null; costEstimate: number | null }
+  | { kind: 'agent_lifecycle'; agentId: string; agentType: string; model: string; startedAt: string; completedAt: string; durationMs: number; cardId: string | null }
+  | { kind: 'card_transition'; cardId: string; fromStatus: string; toStatus: string; timestamp: string }
+  | { kind: 'quality_score'; cardId: string; weightedScore: number; timestamp: string };

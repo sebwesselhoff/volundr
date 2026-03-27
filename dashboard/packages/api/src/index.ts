@@ -34,6 +34,7 @@ import economyRouter from './routes/economy.js';
 import reviewerLockoutsRouter from './routes/reviewer-lockouts.js';
 import ceremoniesRouter from './routes/ceremonies.js';
 import packsRouter from './routes/packs.js';
+import timelineRouter from './routes/timeline.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Matches the DB path used by the db package (dashboard/data/the-forge.db)
@@ -114,6 +115,7 @@ app.use('/api', economyRouter);
 app.use('/api', reviewerLockoutsRouter);
 app.use('/api', ceremoniesRouter);
 app.use('/api', packsRouter);
+app.use('/api', timelineRouter);
 
 // Error handler (must be after routes)
 app.use(errorHandler);
