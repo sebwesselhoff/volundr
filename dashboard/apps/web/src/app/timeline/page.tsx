@@ -152,7 +152,7 @@ function AgentNode({ entry, onHighlight }: AgentNodeProps) {
           className="ml-auto text-[0.7rem] tabular-nums"
           style={{ color: '#e8a838' }}
         >
-          {formatDuration(entry.durationMs)}
+          {formatDuration(entry.durationMs ?? 0)}
         </span>
       </div>
       {entry.cardId && (
