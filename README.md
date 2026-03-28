@@ -10,9 +10,9 @@
 
 ![The Campfire - Full Team](docs/images/the-thing-full-team.png)
 
-Vǫlundr is an autonomous PM, architect, and orchestrator that runs inside Claude Code. It manages multi-agent software projects from discovery through deployment - planning work as cards, spawning specialized agent teammates, scoring quality, and learning across projects.
+Vǫlundr is an autonomous PM, architect, and orchestrator that runs inside Claude Code. It manages multi-agent software projects from discovery through deployment — planning work as cards, spawning specialized agent personas, scoring quality with blind reviews, and learning across projects.
 
-> **[Read the full documentation](https://sebwesselhoff.github.io/volundr/guide.html)** or open `guide.html` locally in your browser.
+> **[Read the Wiki](https://github.com/sebwesselhoff/volundr/wiki)** for full documentation.
 
 ---
 
@@ -20,13 +20,13 @@ Vǫlundr is an autonomous PM, architect, and orchestrator that runs inside Claud
 
 - [Key Features](#key-features)
 - [How It Works](#how-it-works)
+- [The Persona Roster](#the-persona-roster)
 - [Screenshots](#screenshots)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Commands](#commands)
 - [Architecture](#architecture)
-- [Agent Types](#agent-types)
 - [Tech Stack](#tech-stack)
 - [Configuration](#configuration)
 - [FAQ](#faq)
@@ -37,34 +37,76 @@ Vǫlundr is an autonomous PM, architect, and orchestrator that runs inside Claud
 
 ## Key Features
 
-- **Autonomous Project Management** - Discovery interviews, blueprint generation, card-based work breakdown with dependency graphs
-- **Multi-Agent Orchestration** - Spawns Developer, Architect, QA, DevOps, Designer, Reviewer, and Guardian teammates that work in parallel
-- **The Forge Dashboard** - Real-time project monitoring with kanban board, agent tracking, quality scores, and cost metrics
-- **The Campfire** - Live visualization of agent activity around an animated campfire with pixel-art Viking sprites
-- **Quality System** - 4-dimension scoring rubric, build gates, retry logic, and steering rules that learn from failures
-- **Cross-Project Memory** - Lessons, patterns, and insights persist across projects via a global knowledge base
-- **13 Lifecycle Hooks** - Session start/stop, agent spawn/complete, task completion, worktree management, context compaction
-- **4 Slash Commands** - `/vldr-shutdown`, `/vldr-journal`, `/vldr-status`, `/vldr-compact`
-- **Blueprint Round Table** - AI panel debate reviews your architecture before implementation begins
-- **Cost Tracking** - Per-card, per-agent, per-session token usage and dollar cost with budget gating
+- **Autonomous Project Management** — Discovery interviews, blueprint generation, card-based work breakdown with dependency graphs
+- **Multi-Agent Orchestration** — Spawns Developer, Architect, QA, DevOps, Designer, Reviewer, and Guardian teammates that work in parallel
+- **21 Viking Personas** — Built-in roster of specialists (Baldr Brightblade, Heimdall Watchfire, Mímir Deepwell...) that learn and improve over time
+- **Blind Card Reviewer** — Every card gets an independent quality assessment from a separate reviewer agent, not just self-scoring
+- **The Forge Dashboard** — Real-time project monitoring with kanban board, agent tracking, quality scores, persona radar charts, and cost metrics
+- **Blueprint Debates** — Round Table (stress-test) or Chaos Engine (breakthrough) — AI panel reviews your architecture before implementation
+- **Quality System** — 1-10 scoring with blind review, build gates (tsc + production build), steering rules from failures, optimization cycles
+- **Three-Tier Persona Discovery** — User-created > pack-installed > built-in roster. Extensible without editing code.
+- **Persona Builder** — Create custom personas from the dashboard with expertise tags, traits, and role selection
+- **Pack System** — Installable bundles of agent configurations and persona seeds
+- **Cross-Project Memory** — Lessons, patterns, and extracted skills persist across projects
+- **13 Lifecycle Hooks** — Session start/stop, agent spawn/complete, task completion, worktree management
+- **Cost Tracking** — Per-card, per-agent, per-session token usage and dollar cost with budget gating
 
 ---
 
 ## How It Works
 
 ```
-Discovery  -->  Blueprint  -->  Cards  -->  Agents  -->  Ship
-   |               |              |            |           |
- Interview    Architecture    Break down    Spawn team   Test,
- 5-10 Qs      + Round Table   into cards    in parallel  review,
-              debate          with deps     (worktrees)  document
+Discovery  →  Blueprint  →  Debate  →  Cards  →  Agents  →  Review  →  Ship
+   |              |            |          |          |          |          |
+ Interview    Architecture   Round     Break       Spawn     Blind      Test,
+ 5 sections   + plan        Table or  down with   team in   reviewer   document,
+                             Chaos    deps + ISC  parallel  scores     retrospect
+                             Engine               (personas)
 ```
 
-1. **Discovery** - Vǫlundr interviews you about your project (5-10 targeted questions)
-2. **Blueprint** - Generates architecture, runs a round-table debate with virtual perspectives, creates card breakdown
-3. **Execution** - Spawns specialized agent teammates in parallel, each in isolated git worktrees
-4. **Quality** - Scores every card on 4 dimensions (completeness, code quality, format compliance, independence), retries failures, generates behavioral steering rules
-5. **Ship** - Integration testing, architecture guardian review, documentation generation, retrospective
+1. **Discovery** — Structured interview: vision, stack, design, workflow, anything else
+2. **Blueprint** — Architecture plan, then stress-tested by AI debate panel
+3. **Persona Discovery** — Matches project stack to specialist personas (mandatory)
+4. **Card Breakdown** — Work split into dependency-tracked cards with ISC criteria
+5. **Implementation** — Agents spawned with persona charters, work in parallel
+6. **Blind Review** — Every card scored by an independent reviewer agent (not self-scored)
+7. **Ship** — Integration testing, guardian review, documentation, lessons learned
+
+> **[Full lifecycle details →](https://github.com/sebwesselhoff/volundr/wiki/How-It-Works)**
+
+---
+
+## The Persona Roster
+
+21 Viking-named specialists ship with the framework. Personas accumulate skills and quality stats over time.
+
+| Persona | Role | Domain |
+|---------|------|--------|
+| Týr Lawbringer | architect | System design, DDD, patterns |
+| Heimdall Watchfire | developer | OAuth2, JWT, SSO, MFA |
+| Mímir Deepwell | developer | SQL, ORMs, migrations |
+| Skuld Threadweaver | developer | ETL, pipelines, data mapping |
+| Brokkr Forgehand | devops-engineer | Docker, CI/CD, K8s |
+| Saga Storyteller | content | API docs, READMEs |
+| Baldr Brightblade | developer | TypeScript, React, Node |
+| Víðarr Silentward | reviewer | OWASP, XSS, security audit |
+| Forseti Truthseeker | qa-engineer | Jest, Playwright, E2E |
+| Iðunn Goldleaf | designer | CSS, design systems |
+| Sigyn Steadfast | developer | Python, FastAPI, Django |
+| Eitri Runecaster | developer | C#, ASP.NET, Azure |
+| Sleipnir Swiftfoot | developer | React Native, Flutter |
+| Huginn Thoughtwing | developer | LLM, embeddings, ML |
+| Skaði Cloudpiercer | developer | Lambda, serverless, edge |
+| Magni Irongrip | reviewer | Profiling, load testing |
+| Höðr Allseer | reviewer | WCAG, accessibility |
+| Muninn Farseeker | researcher | API research, docs analysis |
+| Hermóðr Swiftmessage | developer | REST, GraphQL, gRPC |
+| Rán Tidecaller | developer | Schema evolution, migrations |
+| Freyja Goldseeker | developer | SEO, structured data |
+
+Create your own via the dashboard's **Persona Builder** or install persona packs.
+
+> **[Full persona docs →](https://github.com/sebwesselhoff/volundr/wiki/Personas)**
 
 ---
 
@@ -98,8 +140,6 @@ cd volundr
 
 ### 2. Start the dashboard
 
-The launcher script handles everything - pulling the pre-built dashboard image, database initialization, and health checks.
-
 **macOS / Linux:**
 ```bash
 ./start.sh
@@ -113,26 +153,9 @@ start.bat
 This will:
 - Initialize `~/.volundr/` (VLDR_HOME) if it doesn't exist
 - Start Docker Desktop if not running
-- Pull the pre-built dashboard image from `ghcr.io` (~30s on first run)
-- Wait for the API health check at `http://localhost:3141`
+- Pull the pre-built dashboard image from `ghcr.io`
+- Wait for API health check at `http://localhost:3141`
 - Open the dashboard at `http://localhost:3000`
-
-If the dashboard is already running, start is near-instant (~2s).
-
-To build the dashboard from source instead of pulling (for development):
-```bash
-./start.sh --rebuild    # or start.bat --rebuild
-```
-
-### 3. Configure MCP servers (optional)
-
-Copy the example config and add your MCP servers:
-
-```bash
-cp .mcp.json.example .mcp.json
-```
-
-Edit `.mcp.json` to add any project-specific MCP servers (Playwright is included by default).
 
 ---
 
@@ -142,7 +165,7 @@ Edit `.mcp.json` to add any project-specific MCP servers (Playwright is included
 # From the volundr directory:
 claude
 
-# Or for fully autonomous mode (no permission prompts):
+# Or for fully autonomous mode:
 claude --dangerously-skip-permissions
 ```
 
@@ -152,7 +175,9 @@ Then type:
 Wake up!
 ```
 
-Vǫlundr activates, checks the dashboard connection, and either resumes an existing project or starts a new one with a discovery interview.
+Vǫlundr activates, checks the dashboard, and starts a discovery interview for your project.
+
+> **[Full getting started guide →](https://github.com/sebwesselhoff/volundr/wiki/Getting-Started)**
 
 ---
 
@@ -160,96 +185,46 @@ Vǫlundr activates, checks the dashboard connection, and either resumes an exist
 
 | Command | Description |
 |---------|-------------|
-| `/vldr-shutdown` | Graceful shutdown - saves WIP, writes session summary, runs self-review, generates lessons, creates checkpoint |
-| `/vldr-journal <type> <entry>` | Log a journal entry (types: `decision`, `insight`, `blocker`, `pivot`, `feedback`, `milestone`). No args = show recent entries |
-| `/vldr-status` | Quick status dashboard - card progress, running agents, costs |
-| `/vldr-compact` | Smart context compaction - preserves project state, cards, teammates, recovery instructions |
-
-### Examples
-
-```
-/vldr-journal decision Chose flat hierarchy - only 4 cards
-/vldr-journal blocker Migration failing on nullable columns
-/vldr-journal insight Build gate must run AFTER npm install
-/vldr-status
-/vldr-shutdown
-```
+| `/vldr-shutdown` | Graceful shutdown — saves WIP, session summary, self-review, lessons, checkpoint |
+| `/vldr-journal <type> <entry>` | Log a journal entry (decision, insight, blocker, pivot, feedback, milestone) |
+| `/vldr-doctor` | Validate setup — checks Docker, dashboard, DB, Git, Node, hooks |
+| `/vldr-pack install <name>` | Install an agent pack with persona seeds |
 
 ---
 
 ## Architecture
 
 ```
-volundr/                          (this repo - framework, shareable)
+volundr/                          (this repo)
 ├── framework/
 │   ├── system-instructions.md        Vǫlundr's operating manual
-│   ├── packs/                        Agent role definitions
-│   │   ├── core/                       Developer, Architect, Reviewer, Planner
-│   │   ├── frontend/                   Designer
-│   │   ├── infrastructure/             DevOps, Content
-│   │   ├── quality/                    QA, Guardian, Fixer, Review
-│   │   ├── research/                   Researcher
-│   │   ├── roundtable/                 Round Table debate voices
-│   │   └── testing/                    Tester
-│   ├── agents/                       Communication patterns, registry, traits
-│   ├── lessons/seed.json             Community lessons (seeded on boot)
-│   ├── quality.md                    Scoring rubric and build gates
-│   ├── hierarchy-assessor.ts         Auto-select flat vs two-level hierarchy
-│   └── shutdown-protocol.md          Graceful shutdown specification
+│   ├── packs/                        8 agent packs with persona seeds
+│   │   ├── core/                       Baldr, Týr, Hermóðr, Saga
+│   │   ├── frontend/                   Iðunn, Höðr, Freyja
+│   │   ├── infrastructure/             Brokkr, Skaði, Rán
+│   │   ├── security/                   Víðarr, Heimdall
+│   │   ├── testing/                    Forseti, Magni
+│   │   ├── research/                   Muninn, Skuld, Mímir
+│   │   ├── languages/                  Sigyn, Eitri, Sleipnir, Huginn
+│   │   └── roundtable/                 Debate voices
+│   ├── quality.md                    Scoring rubric + blind reviewer
+│   └── agents/                       Registry, traits, team patterns
 ├── dashboard/                        The Forge (Turborepo monorepo)
 │   ├── apps/web/                       Next.js 15 frontend
-│   ├── packages/api/                   Express API server (:3141)
+│   ├── packages/api/                   Express API (:3141)
 │   ├── packages/db/                    Drizzle ORM + SQLite
-│   ├── packages/sdk/                   Client library for Vǫlundr
-│   └── packages/shared/                Shared types and constants
-├── .claude/
-│   ├── hooks/                        13 lifecycle hooks
-│   ├── agents/                       Agent role templates
-│   ├── commands/                     Slash commands (shutdown, journal)
-│   ├── skills/                       Skills (status, compact)
-│   └── settings.json                 Hook configuration
-├── start.bat / start.sh              One-click launchers
-├── docker-compose.yml                Dashboard container config
-├── guide.html                        Comprehensive documentation
-└── CLAUDE.md                         Framework entry point
+│   ├── packages/sdk/                   TypeScript SDK
+│   └── packages/shared/                Types, enums, constants
+├── .claude/hooks/                    13 lifecycle hooks
+└── start.bat / start.sh              One-click launchers
 
-~/.volundr/                           (VLDR_HOME - user data, private)
-├── projects/                         Per-project state
-│   ├── registry.json                   Project registry
-│   └── {project-id}/                   Blueprint, constraints, reports, checkpoints
+~/.volundr/                           (user data, private)
+├── projects/{id}/                    Blueprint, constraints, reports
 ├── global/                           Cross-project knowledge
-│   ├── lessons.md                      Aggregated lessons
-│   ├── patterns/                       Reusable patterns from high-scoring cards
-│   └── project-history.md              Summary of all completed projects
-└── data/                             Dashboard SQLite DB
+└── data/                             SQLite database
 ```
 
-### Data Flow
-
-```
-Claude Code  -->  Lifecycle Hooks  -->  Dashboard API  -->  SQLite DB
-     |                                      |                    |
-     v                                      v                    v
-  CLAUDE.md                           WebSocket Push       Next.js Frontend
-  (boot instructions)                 (live updates)       (The Forge UI)
-```
-
----
-
-## Agent Types
-
-| Agent | Role | Model Tier |
-|-------|------|------------|
-| **Vǫlundr** | Team lead - orchestrates everything | Opus |
-| **Developer** | Implements features in isolated worktrees (max 4 parallel) | Sonnet |
-| **Architect** | Continuous design alignment, pattern enforcement | Sonnet |
-| **QA Engineer** | Test strategy, coverage tracking, test execution | Sonnet |
-| **DevOps Engineer** | Infrastructure, CI/CD, database migrations | Sonnet |
-| **Designer** | UI/UX quality, component patterns, visual consistency | Sonnet |
-| **Reviewer** | Cross-domain code review, security checks | Sonnet |
-| **Guardian** | Milestone architecture audit, full codebase review | Opus |
-| **Researcher** | External API research, documentation analysis | Sonnet |
-| **Fixer** | Targeted build-gate fixes (lightweight) | Haiku |
+> **[Full configuration docs →](https://github.com/sebwesselhoff/volundr/wiki/Configuration)**
 
 ---
 
@@ -262,17 +237,13 @@ Claude Code  -->  Lifecycle Hooks  -->  Dashboard API  -->  SQLite DB
 | **Database** | better-sqlite3, Drizzle ORM |
 | **Build** | Turborepo, TypeScript 5.7 |
 | **Container** | Docker, pre-built image via [GHCR](https://ghcr.io/sebwesselhoff/volundr-dashboard) |
-| **CI** | GitHub Actions (typecheck, build, shellcheck, spell check, link check) |
-| **Visualization** | Custom pixel-art campfire scene |
-| **Charts** | Recharts (metrics/insights) |
+| **Charts** | Recharts |
 
 ---
 
 ## Configuration
 
 ### Review Gate Levels
-
-Set during the discovery interview. Controls how much Vǫlundr pauses for your input.
 
 | Level | Name | Behavior |
 |-------|------|----------|
@@ -281,48 +252,41 @@ Set during the discovery interview. Controls how much Vǫlundr pauses for your i
 | 3 | Card Review | Shows each card before implementing |
 | 4 | Pair Mode | Discusses every decision |
 
-### Environment
+### Persona Discovery
 
-All user data lives in `VLDR_HOME` (defaults to `~/.volundr/`). Set the `VLDR_HOME` environment variable to change the location. The framework repo contains no user data.
-
-### MCP Servers
-
-Copy `.mcp.json.example` to `.mcp.json` and add your MCP servers. Playwright is included by default.
+Personas are discovered automatically before implementation. Three-tier priority:
+1. **User-created** (dashboard persona builder) — highest
+2. **Pack-installed** (via `/vldr-pack install`) — medium
+3. **Built-in roster** (21 Vikings) — always available
 
 ---
 
 ## FAQ
 
-**Does this require a specific Claude plan?**
-Works with any Claude Code plan that supports the CLI. No special subscription required.
+**How much does it cost?**
+A small project (5-10 cards) typically runs $2-10. Budget gating pauses before spawning if cost exceeds threshold.
 
-**How much does it cost to run?**
-A small project (5-10 cards) typically runs $2-10. Larger projects scale linearly. Budget gating pauses execution before spawning agents if estimated cost exceeds your threshold.
+**Is my data shared?**
+No. All data stays in `~/.volundr/` on your machine.
 
 **What models does it use?**
-Configurable per agent role. Defaults: Haiku for fix agents, Sonnet for developers and most roles, Opus for architecture decisions and Guardian reviews.
-
-**Is my project data shared?**
-No. All data stays in `~/.volundr/` on your machine. The SQLite database, blueprints, card specs, lessons, and session history never leave your environment.
-
-**What if an agent fails?**
-Vǫlundr's quality gate runs after every agent completes. On failure, a Fixer agent retries up to twice. On double failure, the issue escalates to you. Low scores automatically generate behavioral steering rules.
+Configurable per role. Defaults: Haiku for reviewers/fixers, Sonnet for developers, Opus for Vǫlundr and Guardian.
 
 **Can I add custom agents?**
-Yes. Add agent packs to `framework/packs/` following the existing pack structure (`pack.json` + `prompts/*.md`).
+Yes — create personas via the dashboard builder, or add packs to `framework/packs/`.
+
+> **[Full FAQ →](https://github.com/sebwesselhoff/volundr/wiki/FAQ)**
 
 ---
 
 ## The Name
 
-**Vǫlundr** (Old Norse: *Völundr*, English: *Wayland the Smith*) is the legendary master craftsman of Norse mythology. A smith of unmatched skill, he could forge anything - weapons, jewelry, machines - working alone in his forge with tireless precision.
+**Vǫlundr** (Old Norse: *Völundr*, English: *Wayland the Smith*) is the legendary master craftsman of Norse mythology. An autonomous smith that takes raw materials and forges finished work, orchestrating a team of specialists around the forge.
 
-When asked what the framework should be called, the AI chose the name itself. An autonomous smith that takes raw materials and forges finished work, orchestrating a team of specialists around a campfire. The name fit.
-
-The dashboard is called **The Forge**. The agent visualization is called **The Þing** (Old Norse assembly). The campfire is where the team gathers.
+The dashboard is **The Forge**. The agent assembly is **The Þing** (Old Norse parliament). The 21 built-in personas carry Norse names matching their domains.
 
 ---
 
 ## License
 
-[MIT](LICENSE) - Sebastian Wesselhoff
+[MIT](LICENSE) — Sebastian Wesselhoff
