@@ -88,6 +88,36 @@ async function main() {
         log.info('agent_maps_cleaned', `Cleaned ${files.length} stale agent mapping(s) from prior session`);
       }
     } catch (e) { /* map dir doesn't exist yet - fine */ }
+
+    // Clean up stale team directories from prior sessions
+    // Teams that weren't properly deleted (crash, timeout, etc.) leave directories in ~/.claude/teams/
+    // The 'default' directory is Claude Code's internal — never delete it.
+    const teamsDir = path.join(process.env.HOME || process.env.USERPROFILE || '', '.claude', 'teams');
+    try {
+      const teamDirs = fs.readdirSync(teamsDir).filter(d => d !== 'default');
+      let cleanedTeams = 0;
+      for (const teamDir of teamDirs) {
+        const teamPath = path.join(teamsDir, teamDir);
+        try {
+          // Recursively remove the team directory and all contents
+          const removeDir = (dir) => {
+            for (const entry of fs.readdirSync(dir)) {
+              const entryPath = path.join(dir, entry);
+              if (fs.statSync(entryPath).isDirectory()) removeDir(entryPath);
+              else fs.unlinkSync(entryPath);
+            }
+            fs.rmdirSync(dir);
+          };
+          removeDir(teamPath);
+          cleanedTeams++;
+        } catch (e) {
+          log.debug('team_cleanup_failed', `Could not remove stale team dir ${teamDir}: ${e.message}`);
+        }
+      }
+      if (cleanedTeams > 0) {
+        log.info('stale_teams_cleaned', `Cleaned ${cleanedTeams} stale team director(ies) from prior session`);
+      }
+    } catch (e) { /* teams dir doesn't exist - fine */ }
   }
 
   // HOT tier context injection - assemble and output as additionalContext
