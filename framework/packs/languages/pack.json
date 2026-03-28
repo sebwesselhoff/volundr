@@ -1,0 +1,34 @@
+{
+  "name": "languages",
+  "version": "1.0.0",
+  "description": "Language and platform specialists — Python, .NET, Mobile, AI/ML",
+  "alwaysLoad": false,
+  "agentTypes": [],
+  "signals": ["python", "csharp", "dotnet", "flutter", "react native", "swift", "kotlin", "ml", "llm", "pytorch"],
+  "personas": [
+    {
+      "id": "python-developer",
+      "name": "Sigyn Steadfast",
+      "role": "developer",
+      "expertise": "python, fastapi, django, flask, pydantic, sqlalchemy, alembic, poetry, pytest, asyncio, uvicorn, pandas, celery, scripting"
+    },
+    {
+      "id": "dotnet-developer",
+      "name": "Eitri Runecaster",
+      "role": "developer",
+      "expertise": "csharp, c#, dotnet, .net, asp.net, asp.net core, entity framework, ef core, linq, blazor, nuget, azure, dapper, mediatr, xunit, nunit"
+    },
+    {
+      "id": "mobile-developer",
+      "name": "Sleipnir Swiftfoot",
+      "role": "developer",
+      "expertise": "react native, flutter, swift, swiftui, kotlin, jetpack compose, expo, ios, android, mobile, push notification, deep linking, offline-first"
+    },
+    {
+      "id": "ai-ml-engineer",
+      "name": "Huginn Thoughtwing",
+      "role": "developer",
+      "expertise": "machine learning, ml, llm, embeddings, vector database, pinecone, rag, fine-tuning, langchain, openai, anthropic, pytorch, tensorflow, huggingface, ai"
+    }
+  ]
+}

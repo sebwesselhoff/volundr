@@ -1,1 +1,28 @@
-{"name":"frontend","version":"1.0.0","description":"Frontend and design","alwaysLoad":false,"agentTypes":["designer"],"signals":["frontend","ui","ux","css"]}
+{
+  "name": "frontend",
+  "version": "1.1.0",
+  "description": "Frontend, design, and accessibility",
+  "alwaysLoad": false,
+  "agentTypes": ["designer"],
+  "signals": ["frontend", "ui", "ux", "css", "tailwind", "responsive"],
+  "personas": [
+    {
+      "id": "frontend-ui",
+      "name": "Iðunn Goldleaf",
+      "role": "designer",
+      "expertise": "css, scss, tailwind, responsive, flexbox, grid, animation, framer motion, design system, storybook, figma, dark mode, ui, ux, frontend"
+    },
+    {
+      "id": "accessibility-specialist",
+      "name": "Höðr Allseer",
+      "role": "reviewer",
+      "expertise": "accessibility, a11y, wcag, aria, screen reader, keyboard navigation, color contrast, semantic html, axe, focus management"
+    },
+    {
+      "id": "seo-growth",
+      "name": "Freyja Goldseeker",
+      "role": "developer",
+      "expertise": "seo, meta tags, structured data, open graph, sitemap, core web vitals, schema.org, lighthouse, page speed"
+    }
+  ]
+}

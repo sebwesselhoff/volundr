@@ -1,1 +1,34 @@
-{"name":"core","version":"1.0.0","description":"Core agent types — always loaded","alwaysLoad":true,"agentTypes":["developer","architect","reviewer"],"signals":[]}
+{
+  "name": "core",
+  "version": "1.1.0",
+  "description": "Core agent types — always loaded",
+  "alwaysLoad": true,
+  "agentTypes": ["developer", "architect", "reviewer"],
+  "signals": [],
+  "personas": [
+    {
+      "id": "fullstack-web",
+      "name": "Baldr Brightblade",
+      "role": "developer",
+      "expertise": "typescript, javascript, react, nextjs, node, express, tailwind, rest, vite, html, css, fullstack, web"
+    },
+    {
+      "id": "architect",
+      "name": "Týr Lawbringer",
+      "role": "architect",
+      "expertise": "system design, api contract, service boundaries, ddd, microservices, event-driven, clean architecture"
+    },
+    {
+      "id": "api-designer",
+      "name": "Hermóðr Swiftmessage",
+      "role": "developer",
+      "expertise": "rest, graphql, grpc, openapi, api versioning, pagination, rate limiting, webhook, websocket"
+    },
+    {
+      "id": "documentation-engineer",
+      "name": "Saga Storyteller",
+      "role": "content",
+      "expertise": "openapi, swagger, adr, readme, documentation, changelog, technical writing, markdown"
+    }
+  ]
+}

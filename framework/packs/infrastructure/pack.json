@@ -1,1 +1,28 @@
-{"name":"infrastructure","version":"1.0.0","description":"Infrastructure and DevOps","alwaysLoad":false,"agentTypes":["devops-engineer","content"],"signals":["infra","deploy","docker","ci"]}
+{
+  "name": "infrastructure",
+  "version": "1.1.0",
+  "description": "Infrastructure, DevOps, and cloud",
+  "alwaysLoad": false,
+  "agentTypes": ["devops-engineer", "content"],
+  "signals": ["infra", "deploy", "docker", "ci", "kubernetes", "aws", "azure", "gcp"],
+  "personas": [
+    {
+      "id": "devops-infra",
+      "name": "Brokkr Forgehand",
+      "role": "devops-engineer",
+      "expertise": "docker, docker compose, ci, cd, github actions, kubernetes, k8s, terraform, helm, nginx, monitoring, grafana, prometheus, deployment, infrastructure, devops"
+    },
+    {
+      "id": "cloud-serverless",
+      "name": "Skaði Cloudpiercer",
+      "role": "developer",
+      "expertise": "lambda, aws lambda, azure functions, cloudflare workers, serverless, vercel, edge, cloud run, dynamodb, supabase, cloud-native, faas"
+    },
+    {
+      "id": "migration-engineer",
+      "name": "Rán Tidecaller",
+      "role": "developer",
+      "expertise": "schema evolution, backfill, zero-downtime, rollback, expand-contract, flyway, liquibase, migration, data migration"
+    }
+  ]
+}

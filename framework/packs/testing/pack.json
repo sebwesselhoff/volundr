@@ -1,1 +1,22 @@
-{"name":"testing","version":"1.0.0","description":"Test strategy and execution","alwaysLoad":false,"agentTypes":["qa-engineer","tester"],"signals":["test","coverage","e2e"]}
+{
+  "name": "testing",
+  "version": "1.1.0",
+  "description": "Test strategy, automation, and quality",
+  "alwaysLoad": false,
+  "agentTypes": ["qa-engineer", "tester"],
+  "signals": ["test", "coverage", "e2e", "jest", "vitest", "playwright"],
+  "personas": [
+    {
+      "id": "test-engineer",
+      "name": "Forseti Truthseeker",
+      "role": "qa-engineer",
+      "expertise": "test, unit test, integration test, e2e, playwright, cypress, vitest, jest, coverage, mock, xunit, nunit, pytest, qa, quality"
+    },
+    {
+      "id": "performance-engineer",
+      "name": "Magni Irongrip",
+      "role": "reviewer",
+      "expertise": "performance, profiling, load testing, caching, cdn, bundle size, core web vitals, lighthouse, k6, flamegraph, memory leak, n+1"
+    }
+  ]
+}

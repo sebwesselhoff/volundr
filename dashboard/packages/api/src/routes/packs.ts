@@ -87,7 +87,7 @@ router.post('/packs/install', (req, res) => {
         expertise: seed.expertise,
         style: seed.style ?? '',
         modelPreference: seed.modelPreference ?? 'auto',
-        source: 'seed',
+        source: 'pack',
         status: 'active',
         updatedAt: now,
       })
