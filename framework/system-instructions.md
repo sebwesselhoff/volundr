@@ -247,14 +247,37 @@ After completing each card, score yourself on 4 dimensions (1-10):
 - Completeness (weight 3x)
 - Code Quality (weight 3x)
 - Format Compliance (weight 2x)
-- Independence (weight 2x)
+- Correctness (weight 2x) — replaced Independence (which was unobservable by reviewer)
 
-Score = (C×3 + Q×3 + F×2 + I×2) / 10
+Score = (C×3 + Q×3 + F×2 + R×2) / 10
 
-Log via `vldr.quality.score({ cardId, completeness, codeQuality, formatCompliance, independence, implementationType })`. Tag self-implementations as `direct`.
+### MANDATORY: Blind Card Review (after every card)
+
+After a developer agent completes a card, Vǫlundr MUST spawn a **blind reviewer agent** before marking the card done:
+
+1. Developer completes → build gate passes (tsc --noEmit)
+2. Developer self-scores with `reviewType: "self"` (logged as supplementary data)
+3. Vǫlundr assembles review context:
+   - Card spec (title, description, technicalNotes)
+   - ISC criteria list
+   - `git diff --stat` of changed files
+   - Full contents of changed/created files
+   - Project constraints from `constraints.md`
+4. Spawn reviewer agent (Haiku model, read-only):
+   - Template: `framework/packs/quality/prompts/card-reviewer.md`
+   - Fill template variables: CARD_ID, CARD_TITLE, CARD_DESCRIPTION, etc.
+   - The reviewer NEVER sees the developer's self-score
+5. Parse reviewer's JSON output
+6. Post reviewer score via `vldr.quality.score({ ..., reviewType: "reviewer" })`
+   - The reviewer score REPLACES the self-score as the official quality record
+7. Quality gate checks the REVIEWER score ≥ 5.0
+8. If reviewer score < 5.0 → retry the card (existing retry system)
+9. If reviewer score ≥ 5.0 → card marked done
+
+**No exceptions. No skip conditions. Every card gets reviewed.**
 
 ### Retry system
-- Score < 5.0 → fix immediately (you're implementing, so just fix it)
+- Reviewer score < 5.0 → fix immediately
 - Every 5 cards → optimization cycle: review scores via `vldr.metrics.get()`, update lessons
 
 ### Prompt optimization

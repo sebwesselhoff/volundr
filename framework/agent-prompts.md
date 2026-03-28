@@ -115,11 +115,11 @@ Written to `projects/{id}/reports/dev-{CARD_ID}.md`:
 - [x] Criterion - where implemented
 - [ ] Criterion - BLOCKED: reason
 
-## Quality Self-Score
+## Quality Self-Score (supplementary — blind reviewer provides official score)
 - Completeness: X/10
 - Code Quality: X/10
 - Format Compliance: X/10
-- Independence: X/10
+- Correctness: X/10
 - **Total: X.X/10**
 
 ## Build Gate Results
