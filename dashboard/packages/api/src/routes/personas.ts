@@ -347,21 +347,36 @@ router.post('/personas/discover', (req, res) => {
     throw new ApiError(400, 'stackSignals must be a non-empty string array');
   }
 
-  // Merge with any custom personas in the DB (personas with source = 'user')
+  // Three-tier persona discovery:
+  //   1. User-created personas (DB, source = 'user') — highest priority
+  //   2. Pack-installed persona seeds (DB, source = 'pack') — medium priority
+  //   3. Built-in roster (PERSONA_SEEDS) — lowest priority, always available
+  //
+  // If a user persona has the same ID as a built-in, the user version wins.
   const db = getDb();
   const dbPersonas = db.select().from(schema.personas).all();
-  const customSeeds = dbPersonas
-    .filter((p) => p.source === 'user')
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      role: p.role,
-      expertiseKeywords: p.expertise
-        ? p.expertise.split(',').map((e: string) => e.trim().toLowerCase())
-        : [],
-    }));
 
-  const allSeeds = [...PERSONA_SEEDS, ...customSeeds];
+  const dbSeeds = dbPersonas.map((p) => {
+    let keywords: string[] = [];
+    try {
+      const parsed = JSON.parse(p.expertise ?? '[]');
+      keywords = Array.isArray(parsed) ? parsed.map((e: string) => e.toLowerCase()) : [];
+    } catch {
+      keywords = p.expertise ? p.expertise.split(',').map((e: string) => e.trim().toLowerCase()) : [];
+    }
+    return { id: p.id, name: p.name, role: p.role, expertiseKeywords: keywords, _source: p.source ?? 'unknown' };
+  });
+
+  const userSeeds = dbSeeds.filter(s => s._source === 'user');
+  const packSeeds = dbSeeds.filter(s => s._source === 'pack');
+
+  // Merge: user overrides pack overrides built-in (by ID)
+  const seedMap = new Map<string, typeof PERSONA_SEEDS[0]>();
+  for (const s of PERSONA_SEEDS) seedMap.set(s.id, s);   // built-in (lowest)
+  for (const s of packSeeds) seedMap.set(s.id, s);        // pack overrides built-in
+  for (const s of userSeeds) seedMap.set(s.id, s);        // user overrides everything
+
+  const allSeeds = [...seedMap.values()];
 
   const results = discoverPersonas({ stackSignals, limit, roleFilter }, allSeeds);
 
