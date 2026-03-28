@@ -14,22 +14,23 @@ const log = createLogger('agent-start');
 function inferAgentType(name) {
   if (!name) return 'developer';
   const lower = name.toLowerCase();
-  // v6 teammate types
-  if (lower.includes('domain-dev') || lower.includes('domaindev')) return 'developer';
+  // v6 teammate types — check specific roles first
   if (lower.includes('architect')) return 'architect';
   if (lower.includes('qa-eng') || lower.includes('qa_eng')) return 'qa-engineer';
   if (lower.includes('devops') || lower.includes('infra')) return 'devops-engineer';
   if (lower.includes('design')) return 'designer';
   if (lower.includes('chaos-engine') || lower.includes('chaos_engine')) return 'chaos-engine-voice';
   if (lower.includes('roundtable') || lower.includes('voice-')) return 'roundtable-voice';
-  // Legacy types
-  if (lower.includes('orchestrat') || lower.includes('suborc')) return 'developer';
   if (lower.includes('review') || lower.includes('guardian')) return 'review';
-  if (lower.includes('test')) return 'tester';
+  if (lower.includes('research')) return 'researcher';
   if (lower.includes('content') || lower.includes('doc')) return 'content';
+  // Developer check BEFORE test — "test-dev" should be developer, not tester
+  if (lower.includes('dev') || lower.includes('domain-dev') || lower.includes('domaindev')) return 'developer';
+  if (lower.includes('orchestrat') || lower.includes('suborc')) return 'developer';
   if (lower.includes('fix')) return 'developer';
   if (lower.includes('explore')) return 'developer';
-  if (lower.includes('research')) return 'researcher';
+  // Tester only if no dev match
+  if (lower.includes('test')) return 'tester';
   return 'developer';
 }
 
@@ -122,11 +123,48 @@ async function main() {
   const preToolData = popDescriptionFromQueue(input.agent_type);
   const preToolDescription = preToolData ? preToolData.description : null;
   const preToolName = preToolData ? preToolData.name : null;
-  const preToolCardId = preToolData ? preToolData.cardId : null;
-  const preToolPersonaId = preToolData ? preToolData.personaId : null;
+  let preToolCardId = preToolData ? preToolData.cardId : null;
+  let preToolPersonaId = preToolData ? preToolData.personaId : null;
 
   // Effective agent name: prefer user-given name from Agent tool, fall back to type/id
   const rawAgentName = input.agent_type || input.agent_id || 'subagent';
+
+  // Fallback for teammates: if queue had no card/persona, try reading from the team config
+  // Teammates have their prompt stored in ~/.claude/teams/{team}/config.json
+  if (!preToolCardId || !preToolPersonaId) {
+    try {
+      const teamsDir = path.join(process.env.HOME || process.env.USERPROFILE || '', '.claude', 'teams');
+      const teamDirs = fs.readdirSync(teamsDir).filter(d => {
+        try { return fs.statSync(path.join(teamsDir, d)).isDirectory(); } catch { return false; }
+      });
+      for (const teamDir of teamDirs) {
+        const configPath = path.join(teamsDir, teamDir, 'config.json');
+        if (!fs.existsSync(configPath)) continue;
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        const nameToFind = preToolName || rawAgentName || input.agent_type || '';
+        const member = (config.members || []).find(m =>
+          m.agentId === input.agent_id ||
+          m.name === nameToFind ||
+          m.name === input.agent_type ||
+          (input.agent_id && m.agentId.startsWith(input.agent_id))
+        );
+        if (member && member.prompt) {
+          if (!preToolCardId) {
+            const cardMatch = member.prompt.match(/CARD-[A-Z0-9]+-\d{3}/);
+            if (cardMatch) preToolCardId = cardMatch[0];
+          }
+          if (!preToolPersonaId) {
+            const personaMatch = member.prompt.match(/personaId[:\s]+["']?([a-z0-9-]+)["']?/i);
+            if (personaMatch) preToolPersonaId = personaMatch[1];
+          }
+          break;
+        }
+      }
+    } catch (e) {
+      log.debug('team_config_read_failed', `Could not read team config for card/persona fallback: ${e.message}`);
+    }
+  }
+
   const effectiveName = preToolName || rawAgentName;
 
   // Build label: prefer PreToolUse description, fall back to agent name
