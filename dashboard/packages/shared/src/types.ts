@@ -551,6 +551,10 @@ export interface Persona {
   lastActiveAt: string | null;
   charterPath: string | null;
   historyPath: string | null;
+  /** Live computed: count of proven skills from persona_skills */
+  skillCount: number;
+  /** Live computed: % of cards passing quality gate on first attempt */
+  reliability: number;
 }
 
 export interface PersonaHistoryEntry {

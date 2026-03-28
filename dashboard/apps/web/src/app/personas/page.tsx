@@ -411,33 +411,28 @@ function HistoryTimeline({ personaId }: { personaId: string }) {
 // ── Radar Chart ───────────────────────────────────────────────────────────────
 
 const RADAR_AXES = [
-  { key: 'quality',   label: 'Quality' },
-  { key: 'velocity',  label: 'Velocity' },
-  { key: 'cost_eff',  label: 'Cost Eff.' },
-  { key: 'expertise', label: 'Expertise' },
-  { key: 'activity',  label: 'Activity' },
+  { key: 'quality',     label: 'Quality' },
+  { key: 'cost_eff',    label: 'Cost Eff.' },
+  { key: 'skills',      label: 'Skills' },
+  { key: 'reliability', label: 'Reliability' },
+  { key: 'velocity',    label: 'Velocity' },
 ];
 
 function deriveRadarValues(persona: Persona): Record<string, number> {
   // All values normalized 0–1
-  const quality   = Math.min(1, (persona.qualityAverage ?? 0) / SCORE_SCALE);
-  const velocity  = Math.min(1, (persona.cardsCompleted ?? 0) / 20);
+  const quality = Math.min(1, (persona.qualityAverage ?? 0) / SCORE_SCALE);
+  const velocity = Math.min(1, (persona.cardsCompleted ?? 0) / 20);
   // cost efficiency: lower cost per card = better; cap at $0.50/card
   const costPerCard = persona.cardsCompleted > 0
     ? persona.totalCost / persona.cardsCompleted
     : 0;
-  const cost_eff  = Math.max(0, 1 - Math.min(1, costPerCard / 0.5));
-  // expertise = number of expertise tags, capped at 8
-  let expertiseArr: string[] = [];
-  try { expertiseArr = persona.expertise ? JSON.parse(persona.expertise) : []; } catch { /* */ }
-  const expertise = Math.min(1, expertiseArr.length / 8);
-  // activity: was active recently (within 30 days)
-  const daysInactive = persona.lastActiveAt
-    ? (Date.now() - new Date(persona.lastActiveAt).getTime()) / 86400000
-    : 9999;
-  const activity = Math.max(0, 1 - Math.min(1, daysInactive / 30));
+  const cost_eff = Math.max(0, 1 - Math.min(1, costPerCard / 0.5));
+  // skills: proven extracted skills, capped at 8
+  const skills = Math.min(1, (persona.skillCount ?? 0) / 8);
+  // reliability: % of cards passing quality gate first attempt (0-1, already computed by API)
+  const reliability = persona.reliability ?? 1.0;
 
-  return { quality, velocity, cost_eff, expertise, activity };
+  return { quality, velocity, cost_eff, skills, reliability };
 }
 
 function PersonaRadar({ persona, roleColor }: { persona: Persona; roleColor: string }) {

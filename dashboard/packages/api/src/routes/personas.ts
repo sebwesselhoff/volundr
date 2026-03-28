@@ -46,7 +46,23 @@ function computePersonaStats(db: ReturnType<typeof getDb>, personaId: string) {
     ? completed.sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''))[0]?.completedAt ?? null
     : null;
 
-  return { cardsCompleted, qualityAverage, totalTokens, totalCost, lastActiveAt };
+  // Skill count: from persona_skills junction table
+  const skillLinks = db.select().from(schema.personaSkills)
+    .where(eq(schema.personaSkills.personaId, personaId)).all();
+  const skillCount = skillLinks.length;
+
+  // Reliability: % of cards that scored >= 5.0 on first attempt (no retry needed)
+  let reliability = 1.0;
+  if (cardIds.length > 0) {
+    const passing = cardIds.filter(cid => {
+      const scores = db.select().from(schema.qualityScores)
+        .where(eq(schema.qualityScores.cardId, cid)).all();
+      return scores.length > 0 && scores.every(s => (s.weightedScore ?? 0) >= 5.0);
+    }).length;
+    reliability = cardIds.length > 0 ? passing / cardIds.length : 1.0;
+  }
+
+  return { cardsCompleted, qualityAverage, totalTokens, totalCost, lastActiveAt, skillCount, reliability };
 }
 
 // GET /personas — list all personas (optional ?status= filter)
