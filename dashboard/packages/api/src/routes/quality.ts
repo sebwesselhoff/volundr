@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getDb, schema } from '@vldr/db';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
 import { ApiError } from '../middleware/error-handler.js';
 
@@ -68,7 +68,9 @@ router.post('/quality', (req, res) => {
 
   const effectiveReviewType = reviewType ?? 'self';
 
-  const [existing] = db.select().from(schema.qualityScores).where(eq(schema.qualityScores.cardId, cardId)).all();
+  // Match on (cardId, reviewType) — allows both self and reviewer scores per card
+  const [existing] = db.select().from(schema.qualityScores)
+    .where(and(eq(schema.qualityScores.cardId, cardId), eq(schema.qualityScores.reviewType, effectiveReviewType))).all();
 
   const now = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
 
@@ -81,12 +83,12 @@ router.post('/quality', (req, res) => {
       formatCompliance: F,
       correctness: R,
       weightedScore,
-      reviewType: effectiveReviewType,
       ...(implementationType != null ? { implementationType } : {}),
       updatedAt: now,
-    }).where(eq(schema.qualityScores.cardId, cardId)).run();
+    }).where(and(eq(schema.qualityScores.cardId, cardId), eq(schema.qualityScores.reviewType, effectiveReviewType))).run();
 
-    [scoreRow] = db.select().from(schema.qualityScores).where(eq(schema.qualityScores.cardId, cardId)).all();
+    [scoreRow] = db.select().from(schema.qualityScores)
+      .where(and(eq(schema.qualityScores.cardId, cardId), eq(schema.qualityScores.reviewType, effectiveReviewType))).all();
   } else {
     const result = db.insert(schema.qualityScores).values({
       cardId,

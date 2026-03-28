@@ -130,6 +130,49 @@ function heatColor(v: number): string {
   return '#ef4444';
 }
 
+const REVIEW_TYPE_INFO: Record<string, { label: string; color: string; tooltip: string }> = {
+  self: {
+    label: 'S',
+    color: '#6b7280',
+    tooltip: 'Self-review: The building agent scored its own work. Tends to be optimistic.',
+  },
+  reviewer: {
+    label: 'R',
+    color: '#3b82f6',
+    tooltip: 'Blind review: An independent reviewer agent scored this card without seeing the self-score. This is the official quality record.',
+  },
+  human: {
+    label: 'H',
+    color: '#22c55e',
+    tooltip: 'Human review: A developer manually scored this card.',
+  },
+};
+
+function ReviewTypeBadge({ type }: { type: string }) {
+  const info = REVIEW_TYPE_INFO[type] ?? REVIEW_TYPE_INFO.self;
+  return (
+    <span
+      title={info.tooltip}
+      style={{
+        display: 'inline-block',
+        width: 16,
+        height: 16,
+        borderRadius: '50%',
+        background: `${info.color}22`,
+        color: info.color,
+        fontSize: '0.55rem',
+        fontWeight: 700,
+        lineHeight: '16px',
+        textAlign: 'center',
+        cursor: 'help',
+        fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+      }}
+    >
+      {info.label}
+    </span>
+  );
+}
+
 function QualityHeatmap({ scores }: { scores: QualityScore[] }) {
   if (scores.length === 0) {
     return (
@@ -147,10 +190,33 @@ function QualityHeatmap({ scores }: { scores: QualityScore[] }) {
     );
   }
 
-  // Show latest 20 sorted by date
-  const recent = [...scores]
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  // Group by cardId, show reviewer + self side by side
+  const byCard = new Map<string, QualityScore[]>();
+  for (const s of scores) {
+    const list = byCard.get(s.cardId) ?? [];
+    list.push(s);
+    byCard.set(s.cardId, list);
+  }
+
+  // Sort cards by most recent score, flatten with reviewer first
+  const rows: Array<QualityScore & { isComparisonRow?: boolean }> = [];
+  const sortedCards = [...byCard.entries()]
+    .sort(([, a], [, b]) => {
+      const latestA = a.reduce((m, s) => s.updatedAt > m ? s.updatedAt : m, '');
+      const latestB = b.reduce((m, s) => s.updatedAt > m ? s.updatedAt : m, '');
+      return latestB.localeCompare(latestA);
+    })
     .slice(0, 20);
+
+  for (const [, cardScores] of sortedCards) {
+    // Show reviewer score first (primary), then self (comparison)
+    const reviewer = cardScores.find(s => s.reviewType === 'reviewer');
+    const self = cardScores.find(s => s.reviewType === 'self' || !s.reviewType);
+    if (reviewer) rows.push(reviewer);
+    else if (self) rows.push(self);
+    // If both exist, show self as a dimmed comparison row
+    if (reviewer && self) rows.push({ ...self, isComparisonRow: true } as QualityScore & { isComparisonRow?: boolean });
+  }
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -202,21 +268,39 @@ function QualityHeatmap({ scores }: { scores: QualityScore[] }) {
             >
               Weighted
             </th>
+            <th
+              style={{
+                fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+                fontSize: '0.62rem',
+                color: '#6b7280',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                padding: '0 0 0.5rem 0.5rem',
+                textAlign: 'center',
+                fontWeight: 400,
+              }}
+              title="Review type: S = self-review by building agent, R = blind reviewer agent, H = human"
+            >
+              Type
+            </th>
           </tr>
         </thead>
         <tbody>
-          {recent.map((qs, i) => (
+          {rows.map((qs, i) => {
+            const isComp = (qs as QualityScore & { isComparisonRow?: boolean }).isComparisonRow;
+            return (
             <tr
-              key={qs.id}
+              key={`${qs.id}-${qs.reviewType}`}
               style={{
-                background: i % 2 === 0 ? 'rgba(26,35,54,0.3)' : 'transparent',
+                background: isComp ? 'transparent' : i % 2 === 0 ? 'rgba(26,35,54,0.3)' : 'transparent',
+                opacity: isComp ? 0.45 : 1,
               }}
             >
               <td
                 style={{
                   fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
                   fontSize: '0.7rem',
-                  color: '#8899b3',
+                  color: isComp ? '#6b728088' : '#8899b3',
                   padding: '0.4rem 0.75rem 0.4rem 0.25rem',
                   whiteSpace: 'nowrap',
                   maxWidth: 120,
@@ -224,7 +308,7 @@ function QualityHeatmap({ scores }: { scores: QualityScore[] }) {
                   textOverflow: 'ellipsis',
                 }}
               >
-                {qs.cardId}
+                {isComp ? '↳ self' : qs.cardId}
               </td>
               {HEATMAP_METRICS.map(m => {
                 const val = qs[m.key] as number;
@@ -268,8 +352,12 @@ function QualityHeatmap({ scores }: { scores: QualityScore[] }) {
                   {qs.weightedScore.toFixed(1)}
                 </span>
               </td>
+              <td style={{ padding: '0.4rem 0.25rem 0.4rem 0.5rem', textAlign: 'center' }}>
+                <ReviewTypeBadge type={qs.reviewType ?? 'self'} />
+              </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

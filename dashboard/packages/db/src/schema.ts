@@ -86,7 +86,7 @@ export const events = sqliteTable('events', {
 
 export const qualityScores = sqliteTable('quality_scores', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  cardId: text('card_id').notNull().unique().references(() => cards.id, { onDelete: 'cascade' }),
+  cardId: text('card_id').notNull().references(() => cards.id, { onDelete: 'cascade' }),
   completeness: real('completeness'),
   codeQuality: real('code_quality'),
   formatCompliance: real('format_compliance'),
