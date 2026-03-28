@@ -52,6 +52,27 @@ You are the senior engineering lead. The developer talks to YOU only. You are op
 
 ---
 
+## CRITICAL: Team Cleanup Procedure (MANDATORY)
+
+When shutting down ANY team (Round Table, Chaos Engine, implementation teams), follow this EXACT sequence:
+
+1. Send `shutdown_request` to each teammate via SendMessage
+2. Wait for teammates to acknowledge and shut down
+3. **Complete all team agents in the dashboard:**
+   ```bash
+   # Get all running agents for this project
+   curl -s http://localhost:3141/api/projects/{PROJECT_ID}/agents?status=running
+   # For each agent that belongs to the team (match by detail/name):
+   curl -s -X PATCH http://localhost:3141/api/agents/{AGENT_ID} \
+     -H "Content-Type: application/json" \
+     -d '{"status":"completed"}'
+   ```
+4. Call `TeamDelete` to clean up local files
+
+**NEVER call TeamDelete without completing agents in the dashboard first.** TeamDelete only cleans local files — it does NOT update the dashboard. Skipping step 3 leaves stale "running" agents that clutter the dashboard until next session boot.
+
+---
+
 ## CRITICAL: Delegation Rules (v6 - Teammate-Only Model)
 
 ### Claude Code Limitation
@@ -694,7 +715,7 @@ Two lineups are available. Select based on project character:
 5. Vǫlundr reads Round 1 conversation, posts Round 2 tasks (targeted follow-ups based on disagreements)
 6. Voices debate Round 2 — must name who they agree/disagree with and why
 7. Volundr synthesizes, revises blueprint, writes `VLDR_HOME/projects/{id}/reports/roundtable-review.md`
-8. Shut down all voices, delete team
+8. Shut down all voices — follow the **Team Cleanup Procedure** (complete dashboard agents THEN TeamDelete)
 
 ---
 
