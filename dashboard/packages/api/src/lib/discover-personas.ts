@@ -106,7 +106,7 @@ export const PERSONA_SEEDS: PersonaSeedDefinition[] = [
   // Does NOT: build user-facing features, own database schema design, manage infra.
   {
     id: 'data-engineer',
-    name: 'Völva Threadweaver',
+    name: 'Skuld Threadweaver',
     role: 'developer',
     expertiseKeywords: [
       'etl', 'pipeline', 'csv', 'xml', 'json', 'mapping', 'validation',
