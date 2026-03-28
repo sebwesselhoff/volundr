@@ -60,6 +60,30 @@ function getNameKey(agentLabel) {
 // Entries older than 5 minutes are considered stale and deleted
 const QUEUE_TTL_MS = 5 * 60 * 1000;
 
+// Pop the oldest non-stale entry from the entire queue (any type prefix)
+function popAnyFromQueue() {
+  const queueDir = getQueueDir();
+  const now = Date.now();
+  try {
+    const files = fs.readdirSync(queueDir).sort(); // oldest first
+    for (const file of files) {
+      const filePath = path.join(queueDir, file);
+      // Check staleness: extract timestamp from filename ({typeKey}-{timestamp}-{random})
+      const parts = file.split('-');
+      // Find the timestamp part (a large number)
+      const tsCandidate = parts.find(p => /^\d{13}$/.test(p));
+      if (tsCandidate && (now - parseInt(tsCandidate, 10)) > QUEUE_TTL_MS) {
+        try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+        continue;
+      }
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      fs.unlinkSync(filePath); // consume
+      return data;
+    }
+  } catch (e) { /* queue empty or doesn't exist */ }
+  return null;
+}
+
 function popDescriptionFromQueue(agentType) {
   const queueDir = getQueueDir();
   const typeKey = (agentType || 'general-purpose').replace(/[^a-z0-9-]/gi, '_');
@@ -120,14 +144,18 @@ async function main() {
   const agentType = inferAgentType(input.agent_type);
 
   // Pop description + name + cardId + personaId from FIFO queue (written by pre-agent-tool.js)
-  // Try multiple keys: raw agent_type, inferred type, and common type names
   // pre-agent-tool.js queues by the Agent tool's subagent_type, but agent-start
-  // receives input.agent_type which may be the teammate name, not the subagent type
+  // receives input.agent_type which may be the teammate name, not the subagent type.
+  // Try the exact key first, then scan ALL queue entries for the oldest match.
   let preToolData = popDescriptionFromQueue(input.agent_type);
-  if (!preToolData) preToolData = popDescriptionFromQueue(agentType);
-  if (!preToolData && input.agent_type !== 'developer') preToolData = popDescriptionFromQueue('developer');
-  if (!preToolData && input.agent_type !== 'architect') preToolData = popDescriptionFromQueue('architect');
-  if (!preToolData && input.agent_type !== 'general-purpose') preToolData = popDescriptionFromQueue('general-purpose');
+  if (!preToolData && agentType !== input.agent_type) {
+    preToolData = popDescriptionFromQueue(agentType);
+  }
+  if (!preToolData) {
+    // Fallback: pop the oldest entry from the entire queue regardless of type prefix
+    // This handles teammate spawns where input.agent_type doesn't match the queued subagent_type
+    preToolData = popAnyFromQueue();
+  }
   const preToolDescription = preToolData ? preToolData.description : null;
   const preToolName = preToolData ? preToolData.name : null;
   let preToolCardId = preToolData ? preToolData.cardId : null;
