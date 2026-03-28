@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { SCORE_SCALE, type Persona, type PersonaHistoryEntry, type Agent, type Skill } from '@vldr/shared';
 import { useApiQuery } from '@/hooks/use-api';
 import { useProject } from '@/contexts/project-context';
+import { PersonaBuilder } from '@/components/personas/persona-builder';
 
 const ROLE_COLORS: Record<string, string> = {
   developer: '#3b82f6',
@@ -1061,6 +1062,14 @@ export default function PersonasPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showBuilder, setShowBuilder] = useState(false);
+
+  const handlePersonaCreated = useCallback((persona: Persona) => {
+    setShowBuilder(false);
+    setSelectedId(persona.id);
+    // Trigger refetch by navigating — useApiQuery will refetch on next render
+    window.location.reload();
+  }, []);
 
   const filtered = useMemo(() => {
     if (!personas) return [];
@@ -1095,7 +1104,7 @@ export default function PersonasPage() {
       style={{ maxWidth: 1140, margin: '0 auto' }}
     >
       {/* Header */}
-      <div className="mb-6 kindle">
+      <div className="mb-6 kindle flex items-center justify-between">
         <h1
           style={{
             fontFamily: 'var(--font-outfit), Outfit, sans-serif',
@@ -1108,6 +1117,22 @@ export default function PersonasPage() {
         >
           Personas
         </h1>
+        <button
+          onClick={() => setShowBuilder(b => !b)}
+          style={{
+            fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+            fontSize: '0.7rem',
+            fontWeight: 600,
+            color: showBuilder ? '#6b7280' : '#e8a838',
+            background: showBuilder ? 'transparent' : 'rgba(232,168,56,0.1)',
+            border: `1px solid ${showBuilder ? 'rgba(36,48,68,0.6)' : 'rgba(232,168,56,0.3)'}`,
+            borderRadius: 4,
+            padding: '0.4rem 0.75rem',
+            cursor: 'pointer',
+          }}
+        >
+          {showBuilder ? 'Cancel' : '+ Forge New Persona'}
+        </button>
       </div>
 
       {/* Filters row */}
@@ -1207,9 +1232,14 @@ export default function PersonasPage() {
           )}
         </div>
 
-        {/* Right: detail panel */}
+        {/* Right: detail panel or builder */}
         <div className="flex-1 min-w-0">
-          {effectiveSelected ? (
+          {showBuilder ? (
+            <PersonaBuilder
+              onCreated={handlePersonaCreated}
+              onCancel={() => setShowBuilder(false)}
+            />
+          ) : effectiveSelected ? (
             <PersonaDetail persona={effectiveSelected} />
           ) : (
             <div
