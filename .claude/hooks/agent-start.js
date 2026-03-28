@@ -60,25 +60,28 @@ function getNameKey(agentLabel) {
 // Entries older than 5 minutes are considered stale and deleted
 const QUEUE_TTL_MS = 5 * 60 * 1000;
 
-// Pop the oldest non-stale entry from the entire queue (any type prefix)
-function popAnyFromQueue() {
+// Pop the oldest non-stale entry from the queue that matches the agent name
+// Only consumes entries whose name matches the agent being registered
+function popByNameFromQueue(agentName) {
+  if (!agentName) return null;
   const queueDir = getQueueDir();
   const now = Date.now();
   try {
     const files = fs.readdirSync(queueDir).sort(); // oldest first
     for (const file of files) {
       const filePath = path.join(queueDir, file);
-      // Check staleness: extract timestamp from filename ({typeKey}-{timestamp}-{random})
       const parts = file.split('-');
-      // Find the timestamp part (a large number)
       const tsCandidate = parts.find(p => /^\d{13}$/.test(p));
       if (tsCandidate && (now - parseInt(tsCandidate, 10)) > QUEUE_TTL_MS) {
         try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
         continue;
       }
+      // Peek at the data to check the name
       const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      fs.unlinkSync(filePath); // consume
-      return data;
+      if (data.name === agentName) {
+        fs.unlinkSync(filePath); // consume only if name matches
+        return data;
+      }
     }
   } catch (e) { /* queue empty or doesn't exist */ }
   return null;
@@ -152,9 +155,17 @@ async function main() {
     preToolData = popDescriptionFromQueue(agentType);
   }
   if (!preToolData) {
-    // Fallback: pop the oldest entry from the entire queue regardless of type prefix
-    // This handles teammate spawns where input.agent_type doesn't match the queued subagent_type
-    preToolData = popAnyFromQueue();
+    // Fallback: pop by agent name — handles teammates where input.agent_type
+    // doesn't match the queued subagent_type but the name is consistent
+    // Try rawAgentName first, then input.agent_id (which for teammates is "name@team")
+    preToolData = popByNameFromQueue(rawAgentName);
+    if (!preToolData && input.agent_id) {
+      // For teammates: agent_id is "name@team", extract the name part
+      const nameFromId = input.agent_id.split('@')[0];
+      if (nameFromId !== rawAgentName) {
+        preToolData = popByNameFromQueue(nameFromId);
+      }
+    }
   }
   const preToolDescription = preToolData ? preToolData.description : null;
   const preToolName = preToolData ? preToolData.name : null;
@@ -208,8 +219,9 @@ async function main() {
     ? (isGenericType ? preToolDescription : `${effectiveName}: ${preToolDescription}`)
     : effectiveName;
 
-  log.info('hook_started', `Registering ${agentType}: ${agentLabel}`, {
+  log.info('hook_started', `Registering ${agentType}: ${agentLabel} (raw input.agent_type=${input.agent_type}, preToolName=${preToolName})`, {
     agentId: input.agent_id,
+    rawAgentType: input.agent_type,
     effectiveName,
     preToolName: preToolName || '(none)',
   });
