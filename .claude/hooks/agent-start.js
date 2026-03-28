@@ -117,10 +117,12 @@ async function main() {
 
   const agentType = inferAgentType(input.agent_type);
 
-  // Pop description + name from FIFO queue (written by pre-agent-tool.js)
+  // Pop description + name + cardId + personaId from FIFO queue (written by pre-agent-tool.js)
   const preToolData = popDescriptionFromQueue(input.agent_type);
   const preToolDescription = preToolData ? preToolData.description : null;
   const preToolName = preToolData ? preToolData.name : null;
+  const preToolCardId = preToolData ? preToolData.cardId : null;
+  const preToolPersonaId = preToolData ? preToolData.personaId : null;
 
   // Effective agent name: prefer user-given name from Agent tool, fall back to type/id
   const rawAgentName = input.agent_type || input.agent_id || 'subagent';
@@ -221,6 +223,8 @@ async function main() {
     type: agentType,
     model: 'sonnet-4', // Default - corrected by agent-stop via transcript parsing
     ...(parentAgentId ? { parentAgentId } : {}),
+    ...(preToolCardId ? { cardId: preToolCardId } : {}),
+    ...(preToolPersonaId ? { personaId: preToolPersonaId } : {}),
     detail: agentLabel,
   });
 

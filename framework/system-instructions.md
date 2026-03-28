@@ -860,10 +860,12 @@ For each round of execution:
         - Read `card.assignedPersonaId` — if null and personas were NOT skipped, STOP and assign one first
         - Call `vldr.personas.compile(personaId, { charterMd, constraintsMd, cardContext, traits, cardStackTags, projectId })`
         - Prepend the compiled charter string to the teammate's system prompt (before Identity section)
-        - Pass `personaId` to `vldr.agents.spawn({ ..., personaId })` so the DB links agent → persona
-        - This linkage is what makes persona quality tracking, skill extraction, and the dashboard personas page work
+        - Include the card ID (e.g., "# CARD-XX-NNN: title") and "personaId: {id}" in the prompt text
+        - The `pre-agent-tool.js` hook extracts cardId and personaId from the prompt and passes them to `agent-start.js`
+        - The hook registers the agent in the dashboard with cardId + personaId automatically
+        - **Do NOT manually call `POST /api/agents`** — the hooks handle agent registration. Manual registration creates phantom duplicates.
      i. Spawn with selected model
-     j. Log event: `type: 'agent_spawned'`, detail includes trait names, model, and personaId if set
+     j. The hooks log `agent_spawned` events automatically — do not duplicate with manual event logging
   - Multiple teammates spawn in parallel
   - Each Developer claims tasks matching their domain prefix
 7. **Optionally spawn Reviewer teammate** (if cross-domain deps > 5 or total cards > 15):
