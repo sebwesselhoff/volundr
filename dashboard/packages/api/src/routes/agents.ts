@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { getDb, schema } from '@vldr/db';
 import { eq } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
-import { estimateCost } from '@vldr/shared';
+import { estimateCost, normalizeModel } from '@vldr/shared';
 import type { Agent } from '@vldr/shared';
 import { ApiError } from '../middleware/error-handler.js';
 import { broadcastToAll } from '../ws/broadcast.js';
@@ -113,12 +113,13 @@ router.post('/agents', (req, res) => {
 
     const db = getDb();
     const id = uuid();
+    const canonicalModel = normalizeModel(model);
 
     db.insert(schema.agents).values({
       id,
       projectId,
       type,
-      model,
+      model: canonicalModel,
       status: 'running',
       ...(cardId != null ? { cardId } : {}),
       ...(parentAgentId != null ? { parentAgentId } : {}),
@@ -168,7 +169,7 @@ router.patch('/agents/:id', (req, res) => {
     }
     if (detail != null) updates.detail = detail;
     if (completedAt != null) updates.completedAt = completedAt;
-    if (model != null) updates.model = model;
+    if (model != null) updates.model = normalizeModel(model);
 
     // Recompute tokens and cost
     const newPromptTokens = promptTokens ?? existing.promptTokens;
@@ -180,7 +181,7 @@ router.patch('/agents/:id', (req, res) => {
     if (cacheCreationTokens != null) updates.cacheCreationTokens = newCacheCreation;
     if (cacheReadTokens != null) updates.cacheReadTokens = newCacheRead;
 
-    const effectiveModel = model ?? existing.model;
+    const effectiveModel = normalizeModel(model ?? existing.model);
     if (promptTokens != null || completionTokens != null || cacheCreationTokens != null || cacheReadTokens != null || model != null) {
       updates.estimatedCost = estimateCost(effectiveModel, newPromptTokens, newCompletionTokens, newCacheCreation, newCacheRead);
     }
