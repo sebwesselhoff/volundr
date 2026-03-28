@@ -4,6 +4,7 @@
 
 const { apiGet, apiPatch, apiPost, readStdin, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
+const { updateHeartbeat } = require('./vldr-heartbeat');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -264,6 +265,9 @@ async function main() {
   }
 
   emitAdditionalContext();
+
+  // Update Volundr heartbeat — show agent spawn on dashboard
+  await updateHeartbeat('spawning agents', preToolCardId).catch(() => {});
 }
 
 main().catch((e) => {

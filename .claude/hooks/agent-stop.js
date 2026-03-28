@@ -4,6 +4,7 @@
 
 const { apiGet, apiPatch, apiPost, readStdin, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
+const { updateHeartbeat } = require('./vldr-heartbeat');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -157,6 +158,9 @@ async function main() {
   if (!eventResult) {
     log.warn('event_post_failed', 'Failed to log agent_completed event');
   }
+
+  // Update Volundr heartbeat — reflect agent completion on dashboard
+  await updateHeartbeat('active').catch(() => {});
 }
 
 main().catch((e) => {
