@@ -15,9 +15,10 @@ router.get('/projects/:projectId/quality', (req, res) => {
     completeness: schema.qualityScores.completeness,
     codeQuality: schema.qualityScores.codeQuality,
     formatCompliance: schema.qualityScores.formatCompliance,
-    independence: schema.qualityScores.independence,
+    correctness: schema.qualityScores.correctness,
     weightedScore: schema.qualityScores.weightedScore,
     implementationType: schema.qualityScores.implementationType,
+    reviewType: schema.qualityScores.reviewType,
     createdAt: schema.qualityScores.createdAt,
     updatedAt: schema.qualityScores.updatedAt,
   })
@@ -31,13 +32,15 @@ router.get('/projects/:projectId/quality', (req, res) => {
 
 // POST /quality — upsert quality score
 router.post('/quality', (req, res) => {
-  const { cardId, completeness, codeQuality, formatCompliance, independence, implementationType } = req.body as {
+  const { cardId, completeness, codeQuality, formatCompliance, correctness, independence, implementationType, reviewType } = req.body as {
     cardId?: string;
     completeness?: number;
     codeQuality?: number;
     formatCompliance?: number;
-    independence?: number;
+    correctness?: number;
+    independence?: number; // backward compat — maps to correctness
     implementationType?: string;
+    reviewType?: string;
   };
   if (!cardId) throw new ApiError(400, 'cardId is required');
 
@@ -46,9 +49,12 @@ router.post('/quality', (req, res) => {
     .from(schema.cards).where(eq(schema.cards.id, cardId)).all();
   if (!card) throw new ApiError(404, `Card ${cardId} not found`);
 
+  // Accept either correctness or independence (backward compat)
+  const effectiveCorrectness = correctness ?? independence;
+
   // Validate score ranges (1-10 scale)
   const SCORE_MIN = 1, SCORE_MAX = 10;
-  for (const [key, val] of Object.entries({ completeness, codeQuality, formatCompliance, independence })) {
+  for (const [key, val] of Object.entries({ completeness, codeQuality, formatCompliance, correctness: effectiveCorrectness })) {
     if (val != null && (typeof val !== 'number' || val < SCORE_MIN || val > SCORE_MAX)) {
       throw new ApiError(400, `${key} must be between ${SCORE_MIN} and ${SCORE_MAX}, got ${val}`);
     }
@@ -57,8 +63,10 @@ router.post('/quality', (req, res) => {
   const C = completeness ?? 0;
   const Q = codeQuality ?? 0;
   const F = formatCompliance ?? 0;
-  const I = independence ?? 0;
-  const weightedScore = (C * 3 + Q * 3 + F * 2 + I * 2) / 10;
+  const R = effectiveCorrectness ?? 0;
+  const weightedScore = (C * 3 + Q * 3 + F * 2 + R * 2) / 10;
+
+  const effectiveReviewType = reviewType ?? 'self';
 
   const [existing] = db.select().from(schema.qualityScores).where(eq(schema.qualityScores.cardId, cardId)).all();
 
@@ -71,8 +79,9 @@ router.post('/quality', (req, res) => {
       completeness: C,
       codeQuality: Q,
       formatCompliance: F,
-      independence: I,
+      correctness: R,
       weightedScore,
+      reviewType: effectiveReviewType,
       ...(implementationType != null ? { implementationType } : {}),
       updatedAt: now,
     }).where(eq(schema.qualityScores.cardId, cardId)).run();
@@ -84,9 +93,10 @@ router.post('/quality', (req, res) => {
       completeness: C,
       codeQuality: Q,
       formatCompliance: F,
-      independence: I,
+      correctness: R,
       weightedScore,
       implementationType: implementationType ?? 'unknown',
+      reviewType: effectiveReviewType,
     }).run();
 
     [scoreRow] = db.select().from(schema.qualityScores).where(eq(schema.qualityScores.id, Number(result.lastInsertRowid))).all();
@@ -99,7 +109,6 @@ router.post('/quality', (req, res) => {
       .where(eq(schema.cards.projectId, card.projectId))
       .all()
       .filter(c => {
-        // cards that have a quality score = implicitly done
         const qs = db.select({ id: schema.qualityScores.id })
           .from(schema.qualityScores)
           .where(eq(schema.qualityScores.cardId, c.id))

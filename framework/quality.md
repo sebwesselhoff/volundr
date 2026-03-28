@@ -7,9 +7,24 @@
 | Completeness | 3x | Missing most | All files, some gaps | Every criterion met |
 | Code Quality | 3x | Broken, no types | Works, reasonable | Clean, idiomatic |
 | Format Compliance | 2x | Ignored format | Mostly followed | Perfect |
-| Independence | 2x | Couldn't function | Minor questions | Zero blockers |
+| Correctness | 2x | Logic broken | Works, some edge cases | Handles all cases |
 
-Score = (C×3 + Q×3 + F×2 + I×2) / 10
+Score = (C×3 + Q×3 + F×2 + R×2) / 10
+
+## Review Types
+
+Every card gets TWO scores:
+1. **Self-score** (`reviewType: "self"`) — implementer's self-assessment, logged as supplementary
+2. **Reviewer score** (`reviewType: "reviewer"`) — blind reviewer agent, this is the OFFICIAL score
+
+The quality gate checks the reviewer score. If no reviewer score exists, falls back to self-score.
+
+A **blind reviewer agent** (read-only, Haiku model) is spawned after each card completes:
+- Reads: card spec, ISC criteria, git diff, changed file contents
+- Never sees the developer's self-score
+- Scores each ISC criterion as pass/fail with evidence
+- Scores the 4 dimensions independently
+- Reviewer score is the official quality score
 
 ## Thresholds
 | Score | Rating | Action |

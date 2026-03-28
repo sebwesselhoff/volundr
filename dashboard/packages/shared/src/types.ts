@@ -2,7 +2,7 @@ import type {
   ProjectStatus, ProjectPhase, CardStatus, CardSize, CardPriority,
   AgentType, AgentStatus, EventType, ImplementationType, JournalEntryType,
   TeamStatus, TeamMemberStatus, TeamTaskStatus,
-  PersonaStatus, PersonaRole, HistorySection,
+  PersonaStatus, PersonaRole, HistorySection, ReviewType,
   RoutingConfidence, DirectiveSource, DirectiveStatus,
 } from './enums.js';
 
@@ -92,11 +92,13 @@ export interface QualityScore {
   codeQuality: number;
   /** 1-10 scale */
   formatCompliance: number;
-  /** 1-10 scale */
-  independence: number;
+  /** 1-10 scale — correctness (logic, edge cases, error handling) */
+  correctness: number;
   /** Weighted average, 1.0-10.0 range */
   weightedScore: number;
   implementationType: ImplementationType;
+  /** self = implementer scored, reviewer = blind reviewer, human = manual */
+  reviewType: ReviewType;
   createdAt: string;
   updatedAt: string;
 }
@@ -205,9 +207,11 @@ export interface ScoreQualityInput {
   codeQuality: number;
   /** 1-10 scale */
   formatCompliance: number;
-  /** 1-10 scale */
-  independence: number;
+  /** 1-10 scale — correctness (logic, edge cases, error handling) */
+  correctness: number;
   implementationType: ImplementationType;
+  /** self = implementer scored, reviewer = blind reviewer, human = manual */
+  reviewType?: ReviewType;
 }
 
 export interface CreateLessonInput {

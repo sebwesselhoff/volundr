@@ -221,8 +221,10 @@ router.patch('/cards/:id', (req, res) => {
       completeness: number;
       codeQuality: number;
       formatCompliance: number;
-      independence: number;
+      correctness?: number;
+      independence?: number; // backward compat → maps to correctness
       implementationType: string;
+      reviewType?: string;
     };
   };
 
@@ -273,14 +275,16 @@ router.patch('/cards/:id', (req, res) => {
   // Enforce quality scoring when marking a card as done
   if (status === 'done' && existing.status !== 'done') {
     if (!quality) {
-      throw new ApiError(400, 'Quality scoring required when marking card as done. Include a "quality" object with: completeness, codeQuality, formatCompliance, independence, implementationType (each 1-10)');
+      throw new ApiError(400, 'Quality scoring required when marking card as done. Include a "quality" object with: completeness, codeQuality, formatCompliance, correctness, implementationType (each 1-10)');
     }
+    // Accept either correctness or independence (backward compat)
+    const effectiveCorrectness = quality.correctness ?? quality.independence;
     if (
       quality.completeness == null || quality.codeQuality == null ||
-      quality.formatCompliance == null || quality.independence == null ||
+      quality.formatCompliance == null || effectiveCorrectness == null ||
       !quality.implementationType
     ) {
-      throw new ApiError(400, 'Quality object must include: completeness, codeQuality, formatCompliance, independence (1-10), and implementationType (agent|direct|human)');
+      throw new ApiError(400, 'Quality object must include: completeness, codeQuality, formatCompliance, correctness (1-10), and implementationType (agent|direct|human)');
     }
   }
 
@@ -344,22 +348,23 @@ router.patch('/cards/:id', (req, res) => {
     const C = quality.completeness;
     const Q = quality.codeQuality;
     const F = quality.formatCompliance;
-    const I = quality.independence;
-    const weightedScore = (C * 3 + Q * 3 + F * 2 + I * 2) / 10;
+    const R = quality.correctness ?? quality.independence ?? 0;
+    const weightedScore = (C * 3 + Q * 3 + F * 2 + R * 2) / 10;
+    const reviewType = quality.reviewType ?? 'self';
 
     const [existingScore] = db.select().from(schema.qualityScores)
       .where(eq(schema.qualityScores.cardId, req.params.id)).all();
 
     if (existingScore) {
       db.update(schema.qualityScores).set({
-        completeness: C, codeQuality: Q, formatCompliance: F, independence: I,
-        weightedScore, implementationType: quality.implementationType, updatedAt: now,
+        completeness: C, codeQuality: Q, formatCompliance: F, correctness: R,
+        weightedScore, implementationType: quality.implementationType, reviewType, updatedAt: now,
       }).where(eq(schema.qualityScores.cardId, req.params.id)).run();
     } else {
       db.insert(schema.qualityScores).values({
         cardId: req.params.id,
-        completeness: C, codeQuality: Q, formatCompliance: F, independence: I,
-        weightedScore, implementationType: quality.implementationType,
+        completeness: C, codeQuality: Q, formatCompliance: F, correctness: R,
+        weightedScore, implementationType: quality.implementationType, reviewType,
       }).run();
     }
   }

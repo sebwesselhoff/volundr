@@ -117,7 +117,7 @@ const HEATMAP_METRICS: Array<{ key: keyof QualityScore; label: string }> = [
   { key: 'completeness', label: 'Complete' },
   { key: 'codeQuality', label: 'Code Q' },
   { key: 'formatCompliance', label: 'Format' },
-  { key: 'independence', label: 'Indep.' },
+  { key: 'correctness', label: 'Correct.' },
 ];
 
 function heatColor(v: number): string {
@@ -443,7 +443,7 @@ export default function CompliancePage() {
             completeness: scores.reduce((s, q) => s + q.completeness, 0) / scores.length,
             codeQuality: scores.reduce((s, q) => s + q.codeQuality, 0) / scores.length,
             formatCompliance: scores.reduce((s, q) => s + q.formatCompliance, 0) / scores.length,
-            independence: scores.reduce((s, q) => s + q.independence, 0) / scores.length,
+            correctness: scores.reduce((s, q) => s + q.correctness, 0) / scores.length,
           }
         : null;
 
@@ -574,7 +574,7 @@ export default function CompliancePage() {
                       { key: 'completeness', label: 'Completeness' },
                       { key: 'codeQuality', label: 'Code Quality' },
                       { key: 'formatCompliance', label: 'Format Compliance' },
-                      { key: 'independence', label: 'Independence' },
+                      { key: 'correctness', label: 'Correctness' },
                     ] as const
                   ).map(({ key, label }) => {
                     const val = metricAverages[key];

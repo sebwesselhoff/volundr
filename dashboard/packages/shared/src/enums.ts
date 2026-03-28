@@ -104,6 +104,13 @@ export const ImplementationType = {
 } as const;
 export type ImplementationType = (typeof ImplementationType)[keyof typeof ImplementationType];
 
+export const ReviewType = {
+  self: 'self',
+  reviewer: 'reviewer',
+  human: 'human',
+} as const;
+export type ReviewType = (typeof ReviewType)[keyof typeof ReviewType];
+
 export const JournalEntryType = {
   decision: 'decision',
   feedback: 'feedback',

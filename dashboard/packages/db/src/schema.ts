@@ -90,9 +90,10 @@ export const qualityScores = sqliteTable('quality_scores', {
   completeness: real('completeness'),
   codeQuality: real('code_quality'),
   formatCompliance: real('format_compliance'),
-  independence: real('independence'),
+  correctness: real('correctness'),
   weightedScore: real('weighted_score'),
   implementationType: text('implementation_type'),
+  reviewType: text('review_type').default('self'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });
