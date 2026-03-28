@@ -249,15 +249,13 @@ async function main() {
     if (allAgents) {
       const existing = allAgents.find(a => a.id === existingDashboardId);
       if (existing && existing.status === 'completed') {
-        // Agent was completed by cleanup — don't resurrect it
-        log.info('skip_reactivation', `Agent ${existingDashboardId} already completed — skipping reactivation (team shutdown)`, {
+        // Agent was completed (by cleanup or naturally) — don't resurrect it.
+        // Clean the stale mapping and fall through to create a FRESH agent.
+        log.info('stale_mapping_cleared', `Agent ${existingDashboardId} already completed — clearing mapping, will create fresh`, {
           agentId: existingDashboardId,
         });
-        shouldReactivate = false;
-        // Clean the name mapping so future spawns create fresh
         try { fs.unlinkSync(nameMapFile); } catch (e) { /* ignore */ }
-        emitAdditionalContext();
-        return;
+        existingDashboardId = null; // force fall-through to fresh registration
       }
     }
 
