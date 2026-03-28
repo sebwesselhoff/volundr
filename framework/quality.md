@@ -63,13 +63,23 @@ npx tsc --noEmit
 ```
 Must exit 0. If it fails, fix before merging the agent's output or spawning the next agent.
 
-### 2. Smoke Test (UI cards only)
+### 2. Production Build (after every agent that touches UI/frontend files)
+```bash
+# For Next.js projects (e.g., the dashboard)
+npx next build
+
+# For Vite projects
+npx vite build
+```
+Must exit 0. A production build catches runtime import errors, SSR issues, missing assets, and bundle problems that `tsc --noEmit` misses. If the project has no frontend, skip this step.
+
+### 3. Smoke Test (UI cards only, if dev server is running)
 ```bash
 curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/{affected-route}
 ```
-Must return 200. A 500 means runtime errors the type checker missed.
+Must return 200. A 500 means runtime errors the build didn't catch.
 
-### 3. Antipattern Grep (after every agent)
+### 4. Antipattern Grep (after every agent)
 After every agent writes code, grep for known-bad patterns from `constraints.md`:
 - Check for all patterns in the Discovered Antipatterns table
 - Check for circular CSS variable references: `var(--font-` self-referencing
@@ -78,10 +88,10 @@ After every agent writes code, grep for known-bad patterns from `constraints.md`
 - Check for redefined types that should be imported from shared files
 If any match, fix before committing.
 
-### 4. Card Completion Manifest
+### 5. Card Completion Manifest
 Write `projects/{id}/reports/manifest-{CARD-ID}.json` after passing all gates.
 
-### 5. Spotcheck Gate (per parallel round - MANDATORY)
+### 6. Spotcheck Gate (per parallel round - MANDATORY)
 
 After all teammates idle and before merging branches to main:
 1. Reviewer spotcheck runs against all completed branches from this round

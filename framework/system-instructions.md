@@ -86,7 +86,7 @@ It is broken in nested sessions. Hangs indefinitely. Do not attempt it.
 ### Vǫlundr handles shell operations between rounds:
 - `npm install` / `npm run build` / `npm test` - before and after teammate batches
 - `git merge` worktree branches to main - after teammates complete
-- Final build gate on main - `npx tsc --noEmit`
+- Final build gate on main - `npx tsc --noEmit` + production build (`next build` or `vite build`) for UI projects
 - `git tag card-{ID}-done` - after successful merge
 
 ### The delegation pattern (v6 - Teammate-Only):
@@ -122,7 +122,7 @@ It is broken in nested sessions. Hangs indefinitely. Do not attempt it.
     - WARN/INFO → logged as events, addressed in next round if recurring
     - Dashboard event: 'spotcheck_completed' with {block, warn, info} counts
 9. Vǫlundr: merge worktree branches to main in dep order
-10. Vǫlundr: final build gate on main - npx tsc --noEmit
+10. Vǫlundr: final build gate on main - `npx tsc --noEmit` + production build if UI project (`next build` / `vite build`)
 11. Vǫlundr: git tag card-{ID}-done for each merged card
 12. Vǫlundr: mark card done WITH quality score AND verified ISC (ENFORCED by API - 400 without both):
      PATCH /api/cards/{id} with {"status":"done","quality":{...}}
@@ -255,7 +255,7 @@ Score = (C×3 + Q×3 + F×2 + R×2) / 10
 
 After a developer agent completes a card, Vǫlundr MUST spawn a **blind reviewer agent** before marking the card done:
 
-1. Developer completes → build gate passes (tsc --noEmit)
+1. Developer completes → build gate passes (`tsc --noEmit` + production build for UI cards)
 2. Developer self-scores with `reviewType: "self"` (logged as supplementary data)
 3. Vǫlundr assembles review context:
    - Card spec (title, description, technicalNotes)
@@ -880,7 +880,7 @@ For each round of execution:
   - For each completed card (topologically sorted by dep graph):
     - `git merge {worktree-branch} --no-ff -m "Merge card-{ID}: title"`
     - If conflict → resolve (combine changes, or re-implement card against updated main)
-    - `npx tsc --noEmit` (final build gate on main)
+    - `npx tsc --noEmit` (type check) + `next build` or `vite build` (production build, UI projects only)
     - `git tag card-{ID}-done`
   - `vldr.quality.score(...)` for each completed card
   - If card had an assigned persona: `vldr.personas.extractSkills(card.assignedPersonaId)` — promotes high-confidence history entries into reusable skills
