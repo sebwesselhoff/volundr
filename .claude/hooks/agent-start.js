@@ -207,10 +207,29 @@ async function main() {
   } catch (e) { /* no existing mapping - first spawn */ }
 
   if (existingDashboardId) {
-    // Reactivate existing agent instead of creating a duplicate
-    const reopened = await apiPatch(`/api/agents/${existingDashboardId}`, {
+    // Check if the agent was explicitly completed by the team cleanup procedure.
+    // If so, don't reactivate — the team is shutting down.
+    let shouldReactivate = true;
+    const allAgents = await apiGet(`/api/projects/${PROJECT_ID}/agents`);
+    if (allAgents) {
+      const existing = allAgents.find(a => a.id === existingDashboardId);
+      if (existing && existing.status === 'completed') {
+        // Agent was completed by cleanup — don't resurrect it
+        log.info('skip_reactivation', `Agent ${existingDashboardId} already completed — skipping reactivation (team shutdown)`, {
+          agentId: existingDashboardId,
+        });
+        shouldReactivate = false;
+        // Clean the name mapping so future spawns create fresh
+        try { fs.unlinkSync(nameMapFile); } catch (e) { /* ignore */ }
+        emitAdditionalContext();
+        return;
+      }
+    }
+
+    // Reactivate existing agent (normal idle/wake cycle)
+    const reopened = shouldReactivate ? await apiPatch(`/api/agents/${existingDashboardId}`, {
       status: 'running',
-    });
+    }) : null;
 
     if (reopened) {
       // Update CLI→dashboard mapping for this new CLI agent ID
