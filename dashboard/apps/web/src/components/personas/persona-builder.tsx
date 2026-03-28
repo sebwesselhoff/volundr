@@ -9,6 +9,31 @@ const COMMON_ROLES = [
   'designer', 'reviewer', 'researcher', 'content',
 ];
 
+// Built-in persona IDs that can be overridden
+const BUILTIN_PERSONAS = [
+  { id: 'architect', name: 'Týr Lawbringer', role: 'architect' },
+  { id: 'auth-specialist', name: 'Heimdall Watchfire', role: 'developer' },
+  { id: 'database-engineer', name: 'Mímir Deepwell', role: 'developer' },
+  { id: 'data-engineer', name: 'Skuld Threadweaver', role: 'developer' },
+  { id: 'devops-infra', name: 'Brokkr Forgehand', role: 'devops-engineer' },
+  { id: 'documentation-engineer', name: 'Saga Storyteller', role: 'content' },
+  { id: 'fullstack-web', name: 'Baldr Brightblade', role: 'developer' },
+  { id: 'migration-engineer', name: 'Rán Tidecaller', role: 'developer' },
+  { id: 'security-reviewer', name: 'Víðarr Silentward', role: 'reviewer' },
+  { id: 'test-engineer', name: 'Forseti Truthseeker', role: 'qa-engineer' },
+  { id: 'frontend-ui', name: 'Iðunn Goldleaf', role: 'designer' },
+  { id: 'api-designer', name: 'Hermóðr Swiftmessage', role: 'developer' },
+  { id: 'python-developer', name: 'Sigyn Steadfast', role: 'developer' },
+  { id: 'mobile-developer', name: 'Sleipnir Swiftfoot', role: 'developer' },
+  { id: 'cloud-serverless', name: 'Skaði Cloudpiercer', role: 'developer' },
+  { id: 'performance-engineer', name: 'Magni Irongrip', role: 'reviewer' },
+  { id: 'ai-ml-engineer', name: 'Huginn Thoughtwing', role: 'developer' },
+  { id: 'accessibility-specialist', name: 'Höðr Allseer', role: 'reviewer' },
+  { id: 'researcher', name: 'Muninn Farseeker', role: 'researcher' },
+  { id: 'dotnet-developer', name: 'Eitri Runecaster', role: 'developer' },
+  { id: 'seo-growth', name: 'Freyja Goldseeker', role: 'developer' },
+];
+
 const TRAIT_CATALOG = [
   'thorough', 'fast', 'cautious', 'creative', 'methodical',
   'concise', 'verbose', 'security-focused', 'performance-focused',
@@ -32,6 +57,7 @@ export function PersonaBuilder({ onCreated, onCancel }: Props) {
   const [traits, setTraits] = useState<string[]>([]);
   const [style, setStyle] = useState('');
   const [modelPref, setModelPref] = useState('sonnet-4');
+  const [overrideId, setOverrideId] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -132,6 +158,85 @@ export function PersonaBuilder({ onCreated, onCancel }: Props) {
         </button>
       </div>
 
+      {/* Mode selector: new or override */}
+      <div className="mb-5" style={{
+        background: 'rgba(26,35,54,0.4)', border: '1px solid rgba(36,48,68,0.5)',
+        borderRadius: 6, padding: '0.75rem',
+      }}>
+        <div className="flex items-center gap-2 mb-2">
+          <label style={{ ...labelStyle, margin: 0 }}>Mode</label>
+          <span
+            title="Create New: adds a persona alongside the built-in roster. Override: replaces a built-in persona with your version — same ID, your name/expertise/traits."
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 16, height: 16, borderRadius: '50%', cursor: 'help',
+              background: 'rgba(59,130,246,0.15)', color: '#3b82f6',
+              fontSize: '0.55rem', fontWeight: 700, fontFamily: MONO,
+            }}
+          >
+            i
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setOverrideId(''); setId(''); setName(''); setRole('developer'); }}
+            style={{
+              fontFamily: MONO, fontSize: '0.7rem', flex: 1,
+              padding: '0.4rem', borderRadius: 4, cursor: 'pointer',
+              border: `1px solid ${!overrideId ? 'rgba(232,168,56,0.5)' : 'rgba(36,48,68,0.6)'}`,
+              background: !overrideId ? 'rgba(232,168,56,0.1)' : 'transparent',
+              color: !overrideId ? '#e8a838' : '#6b7280',
+            }}
+          >
+            Create New
+          </button>
+          <button
+            onClick={() => setOverrideId('__pick__')}
+            style={{
+              fontFamily: MONO, fontSize: '0.7rem', flex: 1,
+              padding: '0.4rem', borderRadius: 4, cursor: 'pointer',
+              border: `1px solid ${overrideId ? 'rgba(139,92,246,0.5)' : 'rgba(36,48,68,0.6)'}`,
+              background: overrideId ? 'rgba(139,92,246,0.1)' : 'transparent',
+              color: overrideId ? '#8b5cf6' : '#6b7280',
+            }}
+          >
+            Override Built-in
+          </button>
+        </div>
+        {overrideId && (
+          <div className="mt-3">
+            <select
+              value={overrideId === '__pick__' ? '' : overrideId}
+              onChange={e => {
+                const sel = BUILTIN_PERSONAS.find(p => p.id === e.target.value);
+                if (sel) {
+                  setOverrideId(sel.id);
+                  setId(sel.id);
+                  setRole(sel.role);
+                  if (!name) setName('');
+                }
+              }}
+              style={{ ...inputStyle, cursor: 'pointer' }}
+            >
+              <option value="">Select a persona to override...</option>
+              {BUILTIN_PERSONAS.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.role}) — {p.id}
+                </option>
+              ))}
+            </select>
+            {overrideId && overrideId !== '__pick__' && (
+              <p style={{
+                fontFamily: MONO, fontSize: '0.62rem', color: '#8b5cf6',
+                marginTop: '0.4rem',
+              }}>
+                Your persona will replace {BUILTIN_PERSONAS.find(p => p.id === overrideId)?.name ?? overrideId} in discovery results.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       {error && (
         <div style={{
           fontFamily: MONO, fontSize: '0.75rem', color: '#ef4444',
@@ -149,20 +254,39 @@ export function PersonaBuilder({ onCreated, onCancel }: Props) {
           type="text"
           value={name}
           onChange={e => updateName(e.target.value)}
-          placeholder="e.g. Freya Ironcode"
+          placeholder={overrideId && overrideId !== '__pick__' ? `Your name for ${overrideId}` : 'e.g. Freya Ironcode'}
           style={inputStyle}
         />
       </div>
 
-      {/* ID (auto-generated, editable) */}
+      {/* ID */}
       <div className="mb-4">
-        <label style={labelStyle}>ID (auto-generated)</label>
+        <div className="flex items-center gap-2 mb-1">
+          <label style={{ ...labelStyle, margin: 0 }}>ID</label>
+          <span
+            title="The persona ID determines uniqueness. Using the same ID as a built-in persona overrides it. A new ID creates an additional persona that competes on signal score."
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 16, height: 16, borderRadius: '50%', cursor: 'help',
+              background: 'rgba(59,130,246,0.15)', color: '#3b82f6',
+              fontSize: '0.55rem', fontWeight: 700, fontFamily: MONO,
+            }}
+          >
+            i
+          </span>
+        </div>
         <input
           type="text"
           value={id}
-          onChange={e => setId(e.target.value)}
+          onChange={e => { if (!overrideId || overrideId === '__pick__') setId(e.target.value); }}
           placeholder="auto-generated-from-name"
-          style={{ ...inputStyle, color: '#8899b3', fontSize: '0.72rem' }}
+          readOnly={!!overrideId && overrideId !== '__pick__'}
+          style={{
+            ...inputStyle,
+            color: overrideId && overrideId !== '__pick__' ? '#8b5cf6' : '#8899b3',
+            fontSize: '0.72rem',
+            cursor: overrideId && overrideId !== '__pick__' ? 'not-allowed' : undefined,
+          }}
         />
       </div>
 
