@@ -120,7 +120,14 @@ async function main() {
   const agentType = inferAgentType(input.agent_type);
 
   // Pop description + name + cardId + personaId from FIFO queue (written by pre-agent-tool.js)
-  const preToolData = popDescriptionFromQueue(input.agent_type);
+  // Try multiple keys: raw agent_type, inferred type, and common type names
+  // pre-agent-tool.js queues by the Agent tool's subagent_type, but agent-start
+  // receives input.agent_type which may be the teammate name, not the subagent type
+  let preToolData = popDescriptionFromQueue(input.agent_type);
+  if (!preToolData) preToolData = popDescriptionFromQueue(agentType);
+  if (!preToolData && input.agent_type !== 'developer') preToolData = popDescriptionFromQueue('developer');
+  if (!preToolData && input.agent_type !== 'architect') preToolData = popDescriptionFromQueue('architect');
+  if (!preToolData && input.agent_type !== 'general-purpose') preToolData = popDescriptionFromQueue('general-purpose');
   const preToolDescription = preToolData ? preToolData.description : null;
   const preToolName = preToolData ? preToolData.name : null;
   let preToolCardId = preToolData ? preToolData.cardId : null;
