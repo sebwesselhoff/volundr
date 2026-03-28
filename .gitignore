@@ -24,3 +24,7 @@ docs/superpowers/
 /*.png
 .mcp.json
 .claude/settings.local.json
+
+# Local-only files (machine-specific, never push)
+docker-compose.local.yml
+framework/machine-constraints.md
