@@ -86,7 +86,7 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/agent-start.js\"",
-            "timeout": 5
+            "timeout": 10
           }
         ]
       }

@@ -159,6 +159,33 @@ async function main() {
     log.warn('event_post_failed', 'Failed to log agent_completed event');
   }
 
+  // Clean name mappings for teammates whose team no longer exists
+  // This prevents agent-start from reactivating completed agents after TeamDelete
+  if (input.agent_id) {
+    const nameFromId = input.agent_id.split('@')[0];
+    const teamFromId = input.agent_id.split('@')[1];
+    if (teamFromId) {
+      const teamDir = path.join(process.env.HOME || process.env.USERPROFILE || '', '.claude', 'teams', teamFromId);
+      if (!fs.existsSync(teamDir)) {
+        // Team was deleted — clean all name mappings for this agent
+        const mapDir = getMapDir();
+        try {
+          const files = fs.readdirSync(mapDir).filter(f => f.startsWith('name-'));
+          for (const f of files) {
+            const mapPath = path.join(mapDir, f);
+            try {
+              const mappedId = fs.readFileSync(mapPath, 'utf8').trim();
+              if (mappedId === dashboardAgentId) {
+                fs.unlinkSync(mapPath);
+                log.info('name_mapping_cleaned', `Cleaned name mapping for ${nameFromId} (team ${teamFromId} deleted)`);
+              }
+            } catch (e) { /* ignore */ }
+          }
+        } catch (e) { /* ignore */ }
+      }
+    }
+  }
+
   // Update Volundr heartbeat — reflect agent completion on dashboard
   await updateHeartbeat('active').catch(() => {});
 }

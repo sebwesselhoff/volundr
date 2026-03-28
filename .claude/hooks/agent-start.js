@@ -254,27 +254,13 @@ async function main() {
   } catch (e) { /* no existing mapping - first spawn */ }
 
   if (existingDashboardId) {
-    // Check if the agent was explicitly completed by the team cleanup procedure.
-    // If so, don't reactivate — the team is shutting down.
-    let shouldReactivate = true;
-    const allAgents = await apiGet(`/api/projects/${PROJECT_ID}/agents`);
-    if (allAgents) {
-      const existing = allAgents.find(a => a.id === existingDashboardId);
-      if (existing && existing.status === 'completed') {
-        // Agent was completed (by cleanup or naturally) — don't resurrect it.
-        // Clean the stale mapping and fall through to create a FRESH agent.
-        log.info('stale_mapping_cleared', `Agent ${existingDashboardId} already completed — clearing mapping, will create fresh`, {
-          agentId: existingDashboardId,
-        });
-        try { fs.unlinkSync(nameMapFile); } catch (e) { /* ignore */ }
-        existingDashboardId = null; // force fall-through to fresh registration
-      }
-    }
-
-    // Reactivate existing agent (normal idle/wake cycle)
-    const reopened = shouldReactivate ? await apiPatch(`/api/agents/${existingDashboardId}`, {
+    // Try to reactivate existing agent (normal idle/wake cycle).
+    // If the agent was completed (by cleanup), the PATCH will set it back to running —
+    // but since the name mapping was cleaned by agent-stop on shutdown, we shouldn't
+    // reach here for completed agents. If we do, fall through to fresh creation.
+    const reopened = await apiPatch(`/api/agents/${existingDashboardId}`, {
       status: 'running',
-    }) : null;
+    });
 
     if (reopened) {
       // Update CLI→dashboard mapping for this new CLI agent ID
