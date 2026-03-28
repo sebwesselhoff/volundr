@@ -4,10 +4,10 @@ import { useState, useCallback } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import type { Persona } from '@vldr/shared';
 
-const ROLES = [
+const COMMON_ROLES = [
   'developer', 'architect', 'qa-engineer', 'devops-engineer',
   'designer', 'reviewer', 'researcher', 'content',
-] as const;
+];
 
 const TRAIT_CATALOG = [
   'thorough', 'fast', 'cautious', 'creative', 'methodical',
@@ -166,18 +166,33 @@ export function PersonaBuilder({ onCreated, onCancel }: Props) {
         />
       </div>
 
-      {/* Role */}
+      {/* Role — dropdown with common roles + custom input */}
       <div className="mb-4">
         <label style={labelStyle}>Role</label>
-        <select
-          value={role}
-          onChange={e => setRole(e.target.value)}
-          style={{ ...inputStyle, cursor: 'pointer' }}
-        >
-          {ROLES.map(r => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
+        <div className="flex gap-2">
+          <select
+            value={COMMON_ROLES.includes(role) ? role : '__custom__'}
+            onChange={e => {
+              if (e.target.value !== '__custom__') setRole(e.target.value);
+              else setRole('');
+            }}
+            style={{ ...inputStyle, cursor: 'pointer', flex: 1 }}
+          >
+            {COMMON_ROLES.map(r => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+            <option value="__custom__">Custom role...</option>
+          </select>
+          {!COMMON_ROLES.includes(role) && (
+            <input
+              type="text"
+              value={role}
+              onChange={e => setRole(e.target.value)}
+              placeholder="e.g. data-scientist"
+              style={{ ...inputStyle, flex: 1 }}
+            />
+          )}
+        </div>
       </div>
 
       {/* Expertise tags */}
