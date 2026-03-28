@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { SCORE_SCALE, type Persona, type PersonaHistoryEntry } from '@vldr/shared';
+import { SCORE_SCALE, type Persona, type PersonaHistoryEntry, type Agent, type Skill } from '@vldr/shared';
 import { useApiQuery } from '@/hooks/use-api';
+import { useProject } from '@/contexts/project-context';
 
 const ROLE_COLORS: Record<string, string> = {
   developer: '#3b82f6',
@@ -601,6 +602,159 @@ function PersonaRadar({ persona, roleColor }: { persona: Persona; roleColor: str
   );
 }
 
+// ── Persona Agents Section ────────────────────────────────────────────────────
+
+const AGENT_STATUS_COLORS: Record<string, string> = {
+  running: '#3b82f6',
+  completed: '#22c55e',
+  failed: '#ef4444',
+  timeout: '#f59e0b',
+};
+
+function PersonaAgents({ personaId }: { personaId: string }) {
+  const { projectId } = useProject();
+  const { data: allAgents } = useApiQuery<Agent[]>(
+    projectId ? `/api/projects/${projectId}/agents` : null
+  );
+
+  const agents = useMemo(() => {
+    if (!allAgents) return [];
+    return allAgents
+      .filter(a => a.personaId === personaId)
+      .sort((a, b) => (b.startedAt ?? '').localeCompare(a.startedAt ?? ''));
+  }, [allAgents, personaId]);
+
+  if (agents.length === 0) {
+    return (
+      <p style={{ fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace', fontSize: '0.72rem', color: '#6b7280' }}>
+        No agents have used this persona yet.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {agents.map(agent => {
+        const statusColor = AGENT_STATUS_COLORS[agent.status] ?? '#8899b3';
+        const totalTokens = (agent.promptTokens ?? 0) + (agent.completionTokens ?? 0) +
+          (agent.cacheCreationTokens ?? 0) + (agent.cacheReadTokens ?? 0);
+        return (
+          <div
+            key={agent.id}
+            className="flex items-center gap-3 py-1.5 px-2 rounded"
+            style={{ background: 'rgba(26,35,54,0.3)' }}
+          >
+            <span style={{
+              display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
+              background: statusColor, flexShrink: 0,
+              boxShadow: agent.status === 'running' ? `0 0 6px ${statusColor}` : 'none',
+            }} />
+            <span style={{
+              fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+              fontSize: '0.72rem', color: '#c5d0e6', minWidth: 80,
+            }}>
+              {agent.type}
+            </span>
+            {agent.cardId && (
+              <span style={{
+                fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+                fontSize: '0.68rem', color: '#60a5fa',
+              }}>
+                {agent.cardId}
+              </span>
+            )}
+            <span style={{
+              fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+              fontSize: '0.68rem', color: '#8899b3', marginLeft: 'auto',
+            }}>
+              {totalTokens > 0 ? `${(totalTokens / 1000).toFixed(1)}k` : '—'}
+            </span>
+            <span style={{
+              fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+              fontSize: '0.68rem', color: '#e8a838',
+            }}>
+              ${(agent.estimatedCost ?? 0).toFixed(3)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Persona Skills Section ────────────────────────────────────────────────────
+
+const CONFIDENCE_COLORS: Record<string, string> = {
+  high: '#22c55e',
+  medium: '#e8a838',
+  low: '#ef4444',
+};
+
+function PersonaSkills({ personaId }: { personaId: string }) {
+  const { data: allSkills } = useApiQuery<Skill[]>('/api/skills');
+
+  const skills = useMemo(() => {
+    if (!allSkills) return [];
+    return allSkills.filter(s => s.id.startsWith(personaId));
+  }, [allSkills, personaId]);
+
+  if (skills.length === 0) {
+    return (
+      <p style={{ fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace', fontSize: '0.72rem', color: '#6b7280' }}>
+        No skills extracted yet. Skills are learned from completed cards.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {skills.map(skill => {
+        const confColor = CONFIDENCE_COLORS[skill.confidence] ?? '#8899b3';
+        return (
+          <div
+            key={skill.id}
+            className="rounded px-3 py-2"
+            style={{ background: 'rgba(26,35,54,0.3)', border: '1px solid rgba(36,48,68,0.4)' }}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span style={{
+                fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+                fontSize: '0.72rem', color: '#c5d0e6', fontWeight: 500,
+              }}>
+                {skill.domain}
+              </span>
+              <span
+                className="text-[0.6rem] uppercase tracking-wider px-1.5 py-0.5 rounded"
+                style={{
+                  fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+                  background: `${confColor}22`, color: confColor,
+                }}
+                title={`Confidence: ${skill.confidence}`}
+              >
+                {skill.confidence}
+              </span>
+              <span style={{
+                fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+                fontSize: '0.62rem', color: '#6b7280', marginLeft: 'auto',
+              }}>
+                v{skill.version}
+              </span>
+            </div>
+            <p style={{
+              fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+              fontSize: '0.68rem', color: '#8899b3', margin: 0,
+              overflow: 'hidden', textOverflow: 'ellipsis',
+              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
+            }}>
+              {skill.description}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── PersonaDetail ─────────────────────────────────────────────────────────────
 
 function PersonaDetail({ persona }: { persona: Persona }) {
@@ -775,6 +929,40 @@ function PersonaDetail({ persona }: { persona: Persona }) {
             }}
           />
         </div>
+      </div>
+
+      {/* Agents that used this persona */}
+      <div className="mb-6">
+        <p
+          style={{
+            fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+            fontSize: '0.65rem',
+            color: '#6b7280',
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            margin: '0 0 0.75rem',
+          }}
+        >
+          Agents
+        </p>
+        <PersonaAgents personaId={persona.id} />
+      </div>
+
+      {/* Extracted skills */}
+      <div className="mb-6">
+        <p
+          style={{
+            fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+            fontSize: '0.65rem',
+            color: '#6b7280',
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            margin: '0 0 0.75rem',
+          }}
+        >
+          Learned Skills
+        </p>
+        <PersonaSkills personaId={persona.id} />
       </div>
 
       {/* Model & style */}

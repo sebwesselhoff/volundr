@@ -18,13 +18,51 @@ const router = Router();
 
 // ---- Personas -----------------------------------------------------------------
 
+// Compute live persona stats from agents + quality_scores tables
+function computePersonaStats(db: ReturnType<typeof getDb>, personaId: string) {
+  const agents = db.select().from(schema.agents)
+    .where(eq(schema.agents.personaId, personaId)).all();
+  const completed = agents.filter(a => a.status === 'completed');
+
+  const cardsCompleted = new Set(completed.filter(a => a.cardId).map(a => a.cardId)).size;
+  const totalTokens = agents.reduce((sum, a) =>
+    sum + (a.promptTokens ?? 0) + (a.completionTokens ?? 0) +
+    (a.cacheCreationTokens ?? 0) + (a.cacheReadTokens ?? 0), 0);
+  const totalCost = agents.reduce((sum, a) => sum + (a.estimatedCost ?? 0), 0);
+
+  // Quality average from cards this persona worked on
+  const cardIds = [...new Set(completed.filter(a => a.cardId).map(a => a.cardId!))];
+  let qualityAverage = 0;
+  if (cardIds.length > 0) {
+    const scores = cardIds.map(cid =>
+      db.select().from(schema.qualityScores).where(eq(schema.qualityScores.cardId, cid)).all()
+    ).flat();
+    if (scores.length > 0) {
+      qualityAverage = scores.reduce((sum, s) => sum + (s.weightedScore ?? 0), 0) / scores.length;
+    }
+  }
+
+  const lastActiveAt = completed.length > 0
+    ? completed.sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''))[0]?.completedAt ?? null
+    : null;
+
+  return { cardsCompleted, qualityAverage, totalTokens, totalCost, lastActiveAt };
+}
+
 // GET /personas — list all personas (optional ?status= filter)
 router.get('/personas', (req, res) => {
   const db = getDb();
   const { status } = req.query as { status?: string };
   let rows = db.select().from(schema.personas).all();
   if (status) rows = rows.filter((p) => p.status === status);
-  res.json(rows);
+
+  // Enrich each persona with live computed stats
+  const enriched = rows.map(p => ({
+    ...p,
+    ...computePersonaStats(db, p.id),
+  }));
+
+  res.json(enriched);
 });
 
 // GET /personas/alumni — list retired personas (must be before /:id)
@@ -38,7 +76,7 @@ router.get('/personas/alumni', (_req, res) => {
   res.json(rows);
 });
 
-// GET /personas/:id — get a single persona with stats
+// GET /personas/:id — get a single persona with live stats
 router.get('/personas/:id', (req, res) => {
   const db = getDb();
   const [persona] = db
@@ -48,13 +86,9 @@ router.get('/personas/:id', (req, res) => {
     .all();
   if (!persona) throw new ApiError(404, 'Persona not found');
 
-  const [stats] = db
-    .select()
-    .from(schema.personaStats)
-    .where(eq(schema.personaStats.personaId, req.params.id))
-    .all();
+  const liveStats = computePersonaStats(db, req.params.id);
 
-  res.json({ ...persona, stats: stats ?? null });
+  res.json({ ...persona, ...liveStats });
 });
 
 // POST /personas — create or upsert a persona
