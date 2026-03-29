@@ -342,11 +342,13 @@ code{font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--accent)}
   <div class="nav-links">
     <a href="#what">What Is This?</a>
     <a href="#how">How It Works</a>
+    <a href="#personas">Personas</a>
+    <a href="#quality">Quality</a>
     <a href="#forge">The Forge</a>
-    <a href="#campfire">Campfire</a>
+    <a href="#campfire">The Thing</a>
     <a href="#agents">Agents</a>
+    <a href="#packs">Packs</a>
     <a href="#start">Get Started</a>
-    <a href="#architecture">Architecture</a>
     <a href="#commands">Commands</a>
     <a href="#faq">FAQ</a>
   </div>
@@ -468,11 +470,224 @@ code{font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--accent)}
     <div class="grid-2 reveal" style="margin-top:3rem">
       <div class="card">
         <h3 style="color:var(--cyan);font-size:1.1rem">Card System</h3>
-        <p style="color:var(--text-2);font-size:.88rem;line-height:1.7">Work is broken into cards with binary testable success criteria. The dashboard enforces these - a card cannot be marked done unless all criteria pass with evidence. Quality is scored on completeness, code quality, format compliance, and independence.</p>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.7">Work is broken into cards with binary testable success criteria. The dashboard enforces these - a card cannot be marked done unless all criteria pass with evidence. Quality is scored on four dimensions: completeness, code quality, format compliance, and correctness.</p>
       </div>
       <div class="card">
-        <h3 style="color:var(--amber);font-size:1.1rem">Quality Gates</h3>
-        <p style="color:var(--text-2);font-size:.88rem;line-height:1.7">After every agent completes: type check, smoke test, anti-pattern scan, and success criteria verification. On failure: a lightweight Fixer agent is spawned for up to two retries. On double failure: escalated to a developer for direct resolution.</p>
+        <h3 style="color:var(--amber);font-size:1.1rem">Quality Gates &amp; Blind Review</h3>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.7">After every agent completes: type check, production build, smoke test, anti-pattern scan, and success criteria verification. Then a blind card reviewer (independent Haiku agent) scores the card without seeing the self-score. Both scores are tracked side-by-side. On failure: a Fixer agent retries up to twice. On double failure: escalated directly.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- PERSONAS -->
+<section id="personas">
+  <div class="container">
+    <div class="section-label">Persona System</div>
+    <h2>The Viking Roster</h2>
+    <p class="section-desc">21 specialized personas named after Norse mythology figures. Each persona carries expertise signals, personality traits, and a preferred work style. When a card needs doing, Volundr matches it to the right persona automatically.</p>
+
+    <div class="card reveal" style="margin-bottom:2.5rem;border-left:3px solid var(--amber);padding:1.75rem">
+      <p style="color:var(--text-2);font-size:1rem;line-height:1.8;margin-bottom:1rem">
+        <strong style="color:var(--amber)">How matching works:</strong> Every card has a domain, a stack, and acceptance criteria. Volundr scans the persona roster and selects the persona whose expertise tags best match the work. A database migration card? <strong style="color:var(--text)">M&iacute;mir Deepwell</strong> (database specialist). A security audit? <strong style="color:var(--text)">V&iacute;&eth;arr Silentward</strong>. Frontend polish? <strong style="color:var(--text)">I&eth;unn Goldleaf</strong>.
+      </p>
+      <p style="color:var(--text-2);font-size:1rem;line-height:1.8;margin-bottom:0">
+        The persona shapes the agent's behavior. A persona with the <strong style="color:var(--text)">cautious</strong> trait will write more defensive code. One with <strong style="color:var(--text)">terse</strong> will keep output minimal. Persona stats (quality average, reliability, cards completed) accumulate over time - the dashboard tracks which personas perform best.
+      </p>
+    </div>
+
+    <div class="grid-4 reveal" style="margin-bottom:2rem">
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#9876;</div>
+        <div style="font-weight:700;font-size:.85rem">T&yacute;r Lawbringer</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Architect</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#128065;</div>
+        <div style="font-weight:700;font-size:.85rem">Heimdall Watchfire</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Auth &amp; Security</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#128218;</div>
+        <div style="font-weight:700;font-size:.85rem">M&iacute;mir Deepwell</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Database</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#127744;</div>
+        <div style="font-weight:700;font-size:.85rem">Skuld Threadweaver</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Data Engineering</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#128295;</div>
+        <div style="font-weight:700;font-size:.85rem">Brokkr Forgehand</div>
+        <div style="font-size:.7rem;color:var(--text-3)">DevOps</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#128214;</div>
+        <div style="font-weight:700;font-size:.85rem">Saga Storyteller</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Documentation</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#9734;</div>
+        <div style="font-weight:700;font-size:.85rem">Baldr Brightblade</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Fullstack</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#128256;</div>
+        <div style="font-weight:700;font-size:.85rem">R&aacute;n Tidecaller</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Migration</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#128737;</div>
+        <div style="font-weight:700;font-size:.85rem">V&iacute;&eth;arr Silentward</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Security</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#128269;</div>
+        <div style="font-weight:700;font-size:.85rem">Forseti Truthseeker</div>
+        <div style="font-size:.7rem;color:var(--text-3)">QA</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#127808;</div>
+        <div style="font-weight:700;font-size:.85rem">I&eth;unn Goldleaf</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Frontend</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#9889;</div>
+        <div style="font-weight:700;font-size:.85rem">Herm&oacute;&eth;r Swiftmessage</div>
+        <div style="font-size:.7rem;color:var(--text-3)">API</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#128013;</div>
+        <div style="font-weight:700;font-size:.85rem">Sigyn Steadfast</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Python</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#128241;</div>
+        <div style="font-weight:700;font-size:.85rem">Sleipnir Swiftfoot</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Mobile</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#9729;</div>
+        <div style="font-weight:700;font-size:.85rem">Ska&eth;i Cloudpiercer</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Cloud</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#128168;</div>
+        <div style="font-weight:700;font-size:.85rem">Magni Irongrip</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Performance</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#129302;</div>
+        <div style="font-weight:700;font-size:.85rem">Huginn Thoughtwing</div>
+        <div style="font-size:.7rem;color:var(--text-3)">AI / ML</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#9855;</div>
+        <div style="font-weight:700;font-size:.85rem">H&ouml;&eth;r Allseer</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Accessibility</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#128301;</div>
+        <div style="font-weight:700;font-size:.85rem">Muninn Farseeker</div>
+        <div style="font-size:.7rem;color:var(--text-3)">Researcher</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#128142;</div>
+        <div style="font-weight:700;font-size:.85rem">Eitri Runecaster</div>
+        <div style="font-size:.7rem;color:var(--text-3)">.NET</div>
+      </div>
+      <div class="card" style="padding:1rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">&#128270;</div>
+        <div style="font-weight:700;font-size:.85rem">Freyja Goldseeker</div>
+        <div style="font-size:.7rem;color:var(--text-3)">SEO</div>
+      </div>
+    </div>
+
+    <div class="grid-3 reveal">
+      <div class="card">
+        <h3 style="font-size:1rem;color:var(--amber)">Three-Tier Discovery</h3>
+        <p style="color:var(--text-2);font-size:.85rem;line-height:1.65"><strong>User-created</strong> personas (highest priority) override <strong>pack-installed</strong> personas, which override <strong>built-in</strong> roster personas. Same ID = override. This means you can customize any built-in persona without losing the defaults.</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:1rem;color:var(--cyan)">Persona Builder</h3>
+        <p style="color:var(--text-2);font-size:.85rem;line-height:1.65">Create custom personas from the dashboard. Define name, role, expertise tags, personality traits, writing style, and model preference. Or override any built-in persona with your own tweaks.</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:1rem;color:var(--green)">Skill Tracking</h3>
+        <p style="color:var(--text-2);font-size:.85rem;line-height:1.65">As agents complete work, skills are extracted and linked to their persona. Over time, each persona builds a skill profile - tracked with domain, confidence level, and version. The dashboard shows learned skills per persona with a radar chart.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- QUALITY SYSTEM -->
+<section id="quality">
+  <div class="container">
+    <div class="section-label">Quality System</div>
+    <h2>Scoring &amp; Review</h2>
+    <p class="section-desc">Every card is scored on a 1-10 scale across four weighted dimensions. A blind reviewer double-checks the work. Low scores trigger automatic corrections. Nothing ships without passing the gate.</p>
+
+    <div class="card reveal" style="margin-bottom:2.5rem;border-left:3px solid var(--green);padding:1.75rem">
+      <h3 style="font-size:1.1rem;color:var(--green);margin-bottom:1rem">The Formula</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:1.5rem;margin-bottom:1.25rem">
+        <div style="text-align:center">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:2rem;font-weight:700;color:var(--accent)">C</div>
+          <div style="font-size:.72rem;color:var(--text-3)">Completeness</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--text-2)">&times;3</div>
+        </div>
+        <div style="font-size:1.5rem;color:var(--text-3);align-self:center">+</div>
+        <div style="text-align:center">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:2rem;font-weight:700;color:var(--cyan)">Q</div>
+          <div style="font-size:.72rem;color:var(--text-3)">Code Quality</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--text-2)">&times;3</div>
+        </div>
+        <div style="font-size:1.5rem;color:var(--text-3);align-self:center">+</div>
+        <div style="text-align:center">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:2rem;font-weight:700;color:var(--amber)">F</div>
+          <div style="font-size:.72rem;color:var(--text-3)">Format</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--text-2)">&times;2</div>
+        </div>
+        <div style="font-size:1.5rem;color:var(--text-3);align-self:center">+</div>
+        <div style="text-align:center">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:2rem;font-weight:700;color:var(--purple)">R</div>
+          <div style="font-size:.72rem;color:var(--text-3)">Correctness</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--text-2)">&times;2</div>
+        </div>
+        <div style="font-size:1.5rem;color:var(--text-3);align-self:center">=</div>
+        <div style="text-align:center">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:2rem;font-weight:700;background:linear-gradient(135deg,#fff,var(--amber));-webkit-background-clip:text;-webkit-text-fill-color:transparent">/10</div>
+          <div style="font-size:.72rem;color:var(--text-3)">Weighted Score</div>
+        </div>
+      </div>
+      <p style="color:var(--text-2);font-size:.9rem;line-height:1.7">Each dimension scored 1-10. Weights reflect priority: completeness and code quality matter most (&times;3), format and correctness are important but secondary (&times;2). A score of 7 means "meets spec" - not everything deserves a 10.</p>
+    </div>
+
+    <div class="grid-2 reveal" style="margin-bottom:2rem">
+      <div class="card">
+        <h3 style="font-size:1rem;color:var(--amber)">&#128064; Blind Card Reviewer</h3>
+        <p style="color:var(--text-2);font-size:.85rem;line-height:1.65">After the implementing agent self-scores, an independent reviewer agent (Haiku model for cost efficiency) scores the same card <strong>without seeing the self-score</strong>. This prevents score inflation. Both scores are stored and shown side-by-side in the compliance heatmap with S (self) and R (reviewer) badges.</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:1rem;color:var(--red)">&#9888; Steering Rules</h3>
+        <p style="color:var(--text-2);font-size:.85rem;line-height:1.65">When a card scores below 5.0/10, Volundr generates a behavioral steering rule. These are concrete "don't do this again" instructions appended to the project constraints. Future agents inherit them automatically. Rules are tagged with the card ID and timestamp so you can see why each rule exists.</p>
+      </div>
+    </div>
+
+    <div class="card reveal" style="border-left:3px solid var(--accent)">
+      <h3 style="font-size:1rem;margin-bottom:.75rem;color:var(--accent)">The Build Gate</h3>
+      <p style="color:var(--text-2);font-size:.88rem;line-height:1.7;margin-bottom:.75rem">Every card runs through a six-step gate before it can be merged:</p>
+      <div style="display:flex;flex-wrap:wrap;gap:.6rem">
+        <span class="tag tag-blue">1. Type Check</span>
+        <span class="tag tag-cyan">2. Production Build</span>
+        <span class="tag tag-green">3. Smoke Test</span>
+        <span class="tag tag-amber">4. Anti-Pattern Scan</span>
+        <span class="tag tag-purple">5. Success Criteria</span>
+        <span class="tag tag-red">6. Blind Review</span>
       </div>
     </div>
   </div>
@@ -552,35 +767,39 @@ code{font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--accent)}
 
 <div class="divider"></div>
 
-<!-- THE CAMPFIRE -->
+<!-- THE THING -->
 <section id="campfire">
   <div class="container">
-    <div class="section-label">Visualization</div>
-    <h2>The Campfire</h2>
-    <p class="section-desc">The heartbeat of your project. A live visualization showing Volundr and every active agent gathered around an animated campfire.</p>
+    <div class="section-label">Communication</div>
+    <h2>The &#222;ing</h2>
+    <p class="section-desc">Named after the Old Norse assembly where decisions were debated and made collectively. This is where agent teams communicate, claim work, raise concerns, and resolve conflicts - in real time.</p>
 
     <div class="grid-2 reveal" style="align-items:start;gap:2.5rem">
       <div>
         <div class="screenshot-frame">
           <div class="screenshot-titlebar">
             <span class="dot-r"></span><span class="dot-a"></span><span class="dot-g"></span>
-            <span class="titlebar-label">The Campfire - Live Agent View</span>
+            <span class="titlebar-label">The Thing - Live Agent Assembly</span>
           </div>
-          <img src="docs/images/the-thing-full-team.png" alt="The Campfire - full team around the fire" style="width:100%;display:block">
+          <img src="docs/images/the-thing-full-team.png" alt="The Thing - full team around the fire" style="width:100%;display:block">
         </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:1.25rem">
         <div class="card" style="padding:1.5rem">
           <h4 style="font-size:.95rem;font-weight:700;margin-bottom:.4rem;color:var(--amber)">&#128293; The Campfire</h4>
-          <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">At the center: an animated campfire with flickering light. Around it: every active agent appears as a silhouette figure. The campfire grows brighter as more agents join the project.</p>
+          <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">At the center: an animated campfire with flickering light. Around it: every active agent appears as a silhouette figure. Volundr sits at the conductor's seat. Developers fan out. Specialists appear as they spawn and fade out on completion.</p>
         </div>
         <div class="card" style="padding:1.5rem">
-          <h4 style="font-size:.95rem;font-weight:700;margin-bottom:.4rem;color:var(--cyan)">&#128172; Speech Bubbles</h4>
-          <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Each agent shows a speech bubble with what it is currently working on. Watch developers claim tasks, architects raise concerns, and QA engineers report test results - all in real time.</p>
+          <h4 style="font-size:.95rem;font-weight:700;margin-bottom:.4rem;color:var(--cyan)">&#128172; Agent Communication</h4>
+          <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Agents talk to each other via message passing. A developer claims a card and announces work. The architect reviews the approach and raises concerns. QA reports test failures. Volundr mediates conflicts and makes final calls. All messages stream to the dashboard in real time.</p>
         </div>
         <div class="card" style="padding:1.5rem">
-          <h4 style="font-size:.95rem;font-weight:700;margin-bottom:.4rem;color:var(--green)">&#127775; Seating Position</h4>
-          <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Volundr sits at the conductor's seat. Domain developers fan out around the fire. Specialists appear as they are spawned. Agents facing inward - facing the work. When an agent completes, its silhouette fades out gracefully.</p>
+          <h4 style="font-size:.95rem;font-weight:700;margin-bottom:.4rem;color:var(--green)">&#9878; The Roundtable</h4>
+          <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Before implementation starts, Volundr convenes a virtual roundtable. Multiple perspectives debate the blueprint - a skeptic challenges assumptions, a pragmatist focuses on delivery, an architect guards patterns. The plan is stress-tested before a single line of code is written.</p>
+        </div>
+        <div class="card" style="padding:1.5rem">
+          <h4 style="font-size:.95rem;font-weight:700;margin-bottom:.4rem;color:var(--purple)">&#128260; Task Lifecycle</h4>
+          <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">A card moves through: persona matched &rarr; developer claims &rarr; worktree created &rarr; implementation &rarr; self-review &rarr; blind reviewer scores &rarr; quality gate pass/fail &rarr; merge or retry. Every transition fires a hook and updates the dashboard instantly.</p>
         </div>
       </div>
     </div>
@@ -673,6 +892,63 @@ code{font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--accent)}
         <span class="agent-badge" style="background:var(--amber-glow);color:var(--amber);border:1px solid rgba(245,158,11,.3)">Teammate</span>
         <div class="agent-name">Researcher</div>
         <div class="agent-desc">Pre-implementation research on external APIs, libraries, and documentation. Produces reports, TypeScript interface mappings, and endpoint catalogs that developers can use directly.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- PACKS -->
+<section id="packs">
+  <div class="container">
+    <div class="section-label">Extensibility</div>
+    <h2>Packs</h2>
+    <p class="section-desc">Packs bundle agent prompts, persona seeds, skills, and routing rules into installable modules. The framework ships with 8 built-in packs. You can create and install your own.</p>
+
+    <div class="grid-4 reveal" style="margin-bottom:2rem">
+      <div class="card" style="padding:1.25rem;border-top:3px solid var(--accent)">
+        <h4 style="font-size:.9rem;font-weight:700;margin-bottom:.3rem">Core</h4>
+        <p style="font-size:.78rem;color:var(--text-2);line-height:1.55">Developer, Architect, Reviewer, Planner prompts. The foundation every project uses.</p>
+      </div>
+      <div class="card" style="padding:1.25rem;border-top:3px solid var(--green)">
+        <h4 style="font-size:.9rem;font-weight:700;margin-bottom:.3rem">Testing</h4>
+        <p style="font-size:.78rem;color:var(--text-2);line-height:1.55">QA Engineer prompts. Test strategy, coverage tracking, Playwright E2E.</p>
+      </div>
+      <div class="card" style="padding:1.25rem;border-top:3px solid var(--amber)">
+        <h4 style="font-size:.9rem;font-weight:700;margin-bottom:.3rem">Quality</h4>
+        <p style="font-size:.78rem;color:var(--text-2);line-height:1.55">Guardian audit, blind card reviewer, quality rubric. Scoring and gates.</p>
+      </div>
+      <div class="card" style="padding:1.25rem;border-top:3px solid var(--cyan)">
+        <h4 style="font-size:.9rem;font-weight:700;margin-bottom:.3rem">Infrastructure</h4>
+        <p style="font-size:.78rem;color:var(--text-2);line-height:1.55">DevOps Engineer. Docker, CI/CD, migrations, deployment pipelines.</p>
+      </div>
+      <div class="card" style="padding:1.25rem;border-top:3px solid var(--purple)">
+        <h4 style="font-size:.9rem;font-weight:700;margin-bottom:.3rem">Frontend</h4>
+        <p style="font-size:.78rem;color:var(--text-2);line-height:1.55">Designer prompts. UI/UX, accessibility, component patterns, responsive design.</p>
+      </div>
+      <div class="card" style="padding:1.25rem;border-top:3px solid var(--red)">
+        <h4 style="font-size:.9rem;font-weight:700;margin-bottom:.3rem">Security</h4>
+        <p style="font-size:.78rem;color:var(--text-2);line-height:1.55">Security review prompts. OWASP scanning, auth patterns, vulnerability assessment.</p>
+      </div>
+      <div class="card" style="padding:1.25rem;border-top:3px solid var(--green)">
+        <h4 style="font-size:.9rem;font-weight:700;margin-bottom:.3rem">Research</h4>
+        <p style="font-size:.78rem;color:var(--text-2);line-height:1.55">Researcher prompts. External API docs, endpoint mapping, library evaluation.</p>
+      </div>
+      <div class="card" style="padding:1.25rem;border-top:3px solid var(--amber)">
+        <h4 style="font-size:.9rem;font-weight:700;margin-bottom:.3rem">Languages</h4>
+        <p style="font-size:.78rem;color:var(--text-2);line-height:1.55">Python, .NET, Mobile, AI/ML specialist personas and prompts.</p>
+      </div>
+    </div>
+
+    <div class="grid-2 reveal">
+      <div class="card">
+        <h3 style="font-size:1rem;color:var(--cyan)">What's in a Pack?</h3>
+        <p style="color:var(--text-2);font-size:.85rem;line-height:1.65">Each pack contains a <code>pack.json</code> manifest with: agent prompt templates, persona seed definitions, skill declarations, and routing rules. On install, persona seeds are written to the database with <code>source='pack'</code> so the three-tier discovery knows their priority.</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:1rem;color:var(--amber)">Build Your Own</h3>
+        <p style="color:var(--text-2);font-size:.85rem;line-height:1.65">Create a directory under <code>framework/packs/</code> with a <code>pack.json</code>, prompt templates in <code>prompts/</code>, and persona definitions. Install via the <code>/vldr-pack install</code> command. Your pack's personas will override built-in ones with the same ID.</p>
       </div>
     </div>
   </div>
