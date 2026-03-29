@@ -60,17 +60,18 @@ router.post('/quality', (req, res) => {
     }
   }
 
-  const C = completeness ?? 0;
-  const Q = codeQuality ?? 0;
-  const F = formatCompliance ?? 0;
-  const R = effectiveCorrectness ?? 0;
-  const weightedScore = (C * 3 + Q * 3 + F * 2 + R * 2) / 10;
-
   const effectiveReviewType = reviewType ?? 'self';
 
   // Match on (cardId, reviewType) — allows both self and reviewer scores per card
   const [existing] = db.select().from(schema.qualityScores)
     .where(and(eq(schema.qualityScores.cardId, cardId), eq(schema.qualityScores.reviewType, effectiveReviewType))).all();
+
+  // Preserve existing values on partial update — don't coerce undefined to 0
+  const C = completeness ?? (existing?.completeness as number | undefined) ?? 0;
+  const Q = codeQuality ?? (existing?.codeQuality as number | undefined) ?? 0;
+  const F = formatCompliance ?? (existing?.formatCompliance as number | undefined) ?? 0;
+  const R = effectiveCorrectness ?? (existing?.correctness as number | undefined) ?? 0;
+  const weightedScore = (C * 3 + Q * 3 + F * 2 + R * 2) / 10;
 
   const now = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
 
@@ -106,18 +107,12 @@ router.post('/quality', (req, res) => {
 
   // Gate 6: optimization cycle nudge every 5 done cards in the project
   try {
-    const doneCards = db.select({ id: schema.cards.id })
-      .from(schema.cards)
+    const scoredCards = db.selectDistinct({ cardId: schema.qualityScores.cardId })
+      .from(schema.qualityScores)
+      .innerJoin(schema.cards, eq(schema.qualityScores.cardId, schema.cards.id))
       .where(eq(schema.cards.projectId, card.projectId))
-      .all()
-      .filter(c => {
-        const qs = db.select({ id: schema.qualityScores.id })
-          .from(schema.qualityScores)
-          .where(eq(schema.qualityScores.cardId, c.id))
-          .all();
-        return qs.length > 0;
-      });
-    const doneCount = doneCards.length;
+      .all();
+    const doneCount = scoredCards.length;
     if (doneCount > 0 && doneCount % 5 === 0) {
       db.insert(schema.commands).values({
         id: uuid(),
