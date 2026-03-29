@@ -68,21 +68,25 @@ export function scoreSkill(
   }
 
   let rawScore = 0;
-  const matchedTriggers: string[] = [];
+  const matchedSet = new Set<string>();
+
+  // Precompute lowercase fields once per skill
+  const triggersLower = skill.triggers.map(t => ({ original: t, lower: t.toLowerCase() }));
+  const nameLower = skill.name.toLowerCase();
+  const descLower = skill.description.toLowerCase();
 
   for (const term of queryTerms) {
     // Trigger matches weighted 2x
-    for (const trigger of skill.triggers) {
-      const triggerLower = trigger.toLowerCase();
-      if (triggerLower.includes(term) || term.includes(triggerLower)) {
+    for (const { original, lower } of triggersLower) {
+      if (lower.includes(term) || term.includes(lower)) {
         rawScore += 2;
-        if (!matchedTriggers.includes(trigger)) matchedTriggers.push(trigger);
+        matchedSet.add(original);
       }
     }
     // Name match 1x
-    if (skill.name.toLowerCase().includes(term)) rawScore += 1;
+    if (nameLower.includes(term)) rawScore += 1;
     // Description match 1x
-    if (skill.description.toLowerCase().includes(term)) rawScore += 1;
+    if (descLower.includes(term)) rawScore += 1;
   }
 
   if (rawScore === 0) return null;
@@ -90,7 +94,7 @@ export function scoreSkill(
   const weight = CONFIDENCE_WEIGHT[skill.confidence] ?? 1.0;
   const score = rawScore * weight;
 
-  return { skill, score, matchedTriggers };
+  return { skill, score, matchedTriggers: [...matchedSet] };
 }
 
 /**
