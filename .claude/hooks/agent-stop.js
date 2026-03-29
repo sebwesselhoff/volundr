@@ -149,25 +149,36 @@ async function main() {
     log.info('late_registration', `No mapping for ${input.agent_id} — registering on stop (SubagentStart may not have fired)`);
 
     // Try to extract card/persona from team config
+    // The agent_id may be "name@team" (teammates) or a plain UUID (some agent types)
+    // Scan all team configs and match by agent_id or agent_type name
     let cardId = null;
     let personaId = null;
+    let agentDetailName = input.agent_type || input.agent_id || 'unknown';
     const nameFromId = input.agent_id ? input.agent_id.split('@')[0] : null;
-    const teamFromId = input.agent_id ? input.agent_id.split('@')[1] : null;
-    if (nameFromId && teamFromId) {
-      try {
-        const configPath = path.join(process.env.HOME || process.env.USERPROFILE || '', '.claude', 'teams', teamFromId, 'config.json');
-        if (fs.existsSync(configPath)) {
-          const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-          const member = (config.members || []).find(m => m.name === nameFromId);
-          if (member && member.prompt) {
-            const cardMatch = member.prompt.match(/CARD-[A-Z0-9]+-\d{3}/);
-            if (cardMatch) cardId = cardMatch[0];
-            const personaMatch = member.prompt.match(/personaId[:\s]+["']?([a-z0-9-]+)["']?/i);
-            if (personaMatch) personaId = personaMatch[1];
-          }
+    const teamFromId = input.agent_id && input.agent_id.includes('@') ? input.agent_id.split('@')[1] : null;
+    try {
+      const teamsDir = path.join(process.env.HOME || process.env.USERPROFILE || '', '.claude', 'teams');
+      const teamDirs = fs.readdirSync(teamsDir).filter(d => d !== 'default');
+      for (const teamDir of teamDirs) {
+        const configPath = path.join(teamsDir, teamDir, 'config.json');
+        if (!fs.existsSync(configPath)) continue;
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        // Match by agent_id (exact or prefix), or by name from agent_id
+        const member = (config.members || []).find(m =>
+          m.agentId === input.agent_id ||
+          (nameFromId && m.name === nameFromId) ||
+          (m.agentId && input.agent_id && m.agentId.startsWith(input.agent_id.split('@')[0]))
+        );
+        if (member && member.prompt) {
+          agentDetailName = member.name || agentDetailName;
+          const cardMatch = member.prompt.match(/CARD-[A-Z0-9]+-\d{3}/);
+          if (cardMatch) cardId = cardMatch[0];
+          const personaMatch = member.prompt.match(/personaId[:\s]+["']?([a-z0-9-]+)["']?/i);
+          if (personaMatch) personaId = personaMatch[1];
+          break;
         }
-      } catch (e) { /* ignore */ }
-    }
+      }
+    } catch (e) { /* ignore */ }
 
     const agentType = input.agent_type || 'developer';
     const agent = await apiPost('/api/agents', {
@@ -176,10 +187,17 @@ async function main() {
       model: normalizedModel || 'sonnet-4',
       ...(cardId ? { cardId } : {}),
       ...(personaId ? { personaId } : {}),
-      detail: nameFromId || agentType,
+      detail: agentDetailName,
     });
 
     if (agent) {
+      // Log spawn event so it shows in the dashboard feed
+      await apiPost('/api/events', {
+        projectId: PROJECT_ID,
+        type: 'agent_spawned',
+        detail: `${agent.type} spawned: ${agentDetailName}`,
+      });
+
       // Immediately complete with token data
       await apiPatch(`/api/agents/${agent.id}`, {
         status: 'completed',

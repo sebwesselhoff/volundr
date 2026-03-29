@@ -150,6 +150,10 @@ async function main() {
   // pre-agent-tool.js queues by the Agent tool's subagent_type, but agent-start
   // receives input.agent_type which may be the teammate name, not the subagent type.
   // Try the exact key first, then scan ALL queue entries for the oldest match.
+  // Effective agent name — declared early because queue pop needs it
+  const rawAgentName = input.agent_type || input.agent_id || 'subagent';
+  const nameFromAgentId = input.agent_id ? input.agent_id.split('@')[0] : null;
+
   let preToolData = popDescriptionFromQueue(input.agent_type);
   if (!preToolData && agentType !== input.agent_type) {
     preToolData = popDescriptionFromQueue(agentType);
@@ -157,23 +161,15 @@ async function main() {
   if (!preToolData) {
     // Fallback: pop by agent name — handles teammates where input.agent_type
     // doesn't match the queued subagent_type but the name is consistent
-    // Try rawAgentName first, then input.agent_id (which for teammates is "name@team")
     preToolData = popByNameFromQueue(rawAgentName);
-    if (!preToolData && input.agent_id) {
-      // For teammates: agent_id is "name@team", extract the name part
-      const nameFromId = input.agent_id.split('@')[0];
-      if (nameFromId !== rawAgentName) {
-        preToolData = popByNameFromQueue(nameFromId);
-      }
+    if (!preToolData && nameFromAgentId && nameFromAgentId !== rawAgentName) {
+      preToolData = popByNameFromQueue(nameFromAgentId);
     }
   }
   const preToolDescription = preToolData ? preToolData.description : null;
   const preToolName = preToolData ? preToolData.name : null;
   let preToolCardId = preToolData ? preToolData.cardId : null;
   let preToolPersonaId = preToolData ? preToolData.personaId : null;
-
-  // Effective agent name: prefer user-given name from Agent tool, fall back to type/id
-  const rawAgentName = input.agent_type || input.agent_id || 'subagent';
 
   // Fallback for teammates: if queue had no card/persona, try reading from the team config
   // Teammates have their prompt stored in ~/.claude/teams/{team}/config.json
