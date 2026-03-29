@@ -267,6 +267,22 @@ async function main() {
         }
       }
 
+      // Suppress reactivation event if agent was completed very recently (shutdown bounce).
+      // Check if completedAt is within the last 60 seconds — if so, this is a zombie wake, not real work.
+      const reactivatedAgent = reopened;
+      const completedAt = reactivatedAgent.completedAt ? new Date(reactivatedAgent.completedAt).getTime() : 0;
+      const secondsSinceCompletion = completedAt ? (Date.now() - completedAt) / 1000 : Infinity;
+
+      if (secondsSinceCompletion < 60) {
+        log.info('zombie_bounce_suppressed', `Agent ${existingDashboardId} completed ${secondsSinceCompletion.toFixed(0)}s ago — suppressing reactivation event`, {
+          agentId: existingDashboardId,
+        });
+        // Set it back to completed immediately
+        await apiPatch(`/api/agents/${existingDashboardId}`, { status: 'completed' });
+        emitAdditionalContext();
+        return;
+      }
+
       log.info('agent_reactivated', `Reactivated ${agentType} as ${existingDashboardId} (idle/wake cycle)`, {
         agentId: existingDashboardId,
       });
