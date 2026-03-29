@@ -2,6 +2,7 @@
 // All hooks import this for dashboard communication
 // Errors are swallowed - hooks must never block agent work
 
+const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
@@ -75,14 +76,20 @@ function readStdin() {
 }
 
 // Auto-heartbeat: debounced 5s, fires on any hook activity
+// Uses the mapped volundr agent ID from agent-map, not a synthetic ID
 let lastHeartbeat = 0;
 function touchHeartbeat() {
   const now = Date.now();
   if (now - lastHeartbeat < 5000) return; // debounce 5s
   lastHeartbeat = now;
   if (!PROJECT_ID) return;
+  // Read the actual agent ID from the mapping file written by session-start.js
+  const mapFile = path.join(os.tmpdir(), 'mc-agent-map', 'volundr-lead');
+  let agentId;
+  try { agentId = fs.readFileSync(mapFile, 'utf8').trim(); } catch { return; }
+  if (!agentId) return;
   // Fire and forget - non-blocking
-  apiPatch(`/api/agents/volundr-${PROJECT_ID}`, { detail: `heartbeat:${new Date().toISOString()}` }).catch(() => {});
+  apiPatch(`/api/agents/${agentId}`, { detail: `heartbeat:${new Date().toISOString()}` }).catch(() => {});
 }
 
 // Auto-touch on module load (every hook import triggers this)
