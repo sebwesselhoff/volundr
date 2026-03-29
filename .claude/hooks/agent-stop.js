@@ -167,6 +167,7 @@ async function main() {
         const member = (config.members || []).find(m =>
           m.agentId === input.agent_id ||
           (nameFromId && m.name === nameFromId) ||
+          (input.agent_type && m.name === input.agent_type) ||
           (m.agentId && input.agent_id && m.agentId.startsWith(input.agent_id.split('@')[0]))
         );
         if (member && member.prompt) {
