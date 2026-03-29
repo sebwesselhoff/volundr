@@ -182,14 +182,26 @@ async function main() {
     } catch (e) { /* ignore */ }
 
     const agentType = input.agent_type || 'developer';
-    const agent = await apiPost('/api/agents', {
+    const inferredType = agentType.includes('architect') ? 'architect' : agentType.includes('review') ? 'review' : agentType.includes('qa') ? 'qa-engineer' : 'developer';
+
+    // Try with full metadata first, fall back without personaId/cardId if FK fails
+    let agent = await apiPost('/api/agents', {
       projectId: PROJECT_ID,
-      type: agentType.includes('architect') ? 'architect' : agentType.includes('review') ? 'review' : agentType.includes('qa') ? 'qa-engineer' : 'developer',
+      type: inferredType,
       model: normalizedModel || 'sonnet-4',
       ...(cardId ? { cardId } : {}),
       ...(personaId ? { personaId } : {}),
       detail: agentDetailName,
     });
+    if (!agent && (cardId || personaId)) {
+      // FK constraint likely failed — retry without optional refs
+      agent = await apiPost('/api/agents', {
+        projectId: PROJECT_ID,
+        type: inferredType,
+        model: normalizedModel || 'sonnet-4',
+        detail: agentDetailName,
+      });
+    }
 
     if (agent) {
       // Log spawn event so it shows in the dashboard feed

@@ -303,7 +303,8 @@ async function main() {
   }
 
   // Register in dashboard - BLOCKING if this fails
-  const agent = await apiPost('/api/agents', {
+  // Register in dashboard — retry without optional FK refs if constraint fails
+  let agent = await apiPost('/api/agents', {
     projectId: PROJECT_ID,
     type: agentType,
     model: 'sonnet-4', // Default - corrected by agent-stop via transcript parsing
@@ -312,6 +313,16 @@ async function main() {
     ...(preToolPersonaId ? { personaId: preToolPersonaId } : {}),
     detail: agentLabel,
   });
+  if (!agent && (preToolCardId || preToolPersonaId)) {
+    // FK constraint likely failed (card/persona not in DB) — retry without
+    agent = await apiPost('/api/agents', {
+      projectId: PROJECT_ID,
+      type: agentType,
+      model: 'sonnet-4',
+      ...(parentAgentId ? { parentAgentId } : {}),
+      detail: agentLabel,
+    });
+  }
 
   if (!agent) {
     log.fatal('agent_registration_failed', `Failed to register ${agentType}: ${agentLabel} - dashboard tracking broken for this agent`, {
