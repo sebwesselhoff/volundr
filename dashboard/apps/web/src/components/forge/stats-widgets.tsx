@@ -77,9 +77,9 @@ export function StatsWidgets() {
   const { data: personas } = useApiQuery<Persona[]>('/api/personas');
   const { data: skills } = useApiQuery<Skill[]>('/api/skills');
 
-  // Compliance: % of quality scores >= 3.0 from the trend
+  // Compliance: % of quality scores >= 5.0 from the trend (1-10 scale)
   const trend = metrics?.qualityTrend ?? [];
-  const compliant = trend.filter(d => d.score >= 3.0).length;
+  const compliant = trend.filter(d => d.score >= 5.0).length;
   const compliancePct = trend.length > 0 ? Math.round((compliant / trend.length) * 100) : null;
 
   const activePersonas = personas?.filter(p => p.status === 'active').length ?? null;
