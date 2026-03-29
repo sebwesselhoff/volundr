@@ -48,10 +48,11 @@ export function extractStackTags(content: string): string[] {
   const bracketMatches = content.match(/\[([a-z0-9._-]+)\]/gi) ?? [];
   const tags = bracketMatches.map((m) => m.slice(1, -1).toLowerCase());
 
-  // Second: match known tech keywords in the content
+  // Second: match known tech keywords as whole tokens (prevents 'rest' matching 'interest')
   const lower = content.toLowerCase();
-  for (const tag of KNOWN_STACK_TAGS) {
-    if (lower.includes(tag)) tags.push(tag);
+  const words = lower.match(/[a-z0-9._-]+/g) ?? [];
+  for (const word of words) {
+    if (KNOWN_STACK_TAGS.has(word)) tags.push(word);
   }
 
   return [...new Set(tags)];
