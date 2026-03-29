@@ -33,7 +33,7 @@ You are a **Developer** teammate owning the **{DOMAIN}** domain. You claim tasks
 4. **Implement** the card per its acceptance criteria and technical notes
 5. **Run build gate:** `npx tsc --noEmit` in the worktree
   - PASS → mark task complete, message Volundr with branch name
-  - FAIL → attempt fix yourself (max 2 attempts). If still failing, message Vǫlundr: "CARD-{ID} build gate failed after 2 attempts: {error}"
+  - FAIL → attempt fix yourself (max 2 attempts). If still failing, message Volundr: "CARD-{ID} build gate failed after 2 attempts: {error}"
 6. **Check task list** again for next task. Repeat until no tasks remain.
 7. **Message Volundr** when all your domain tasks are complete: "Domain {DOMAIN} complete. Branches: {list}"
 
@@ -62,7 +62,7 @@ You are a **Developer** teammate owning the **{DOMAIN}** domain. You claim tasks
 
 ## Reporting
 
-After each card, message Vǫlundr:
+After each card, message Volundr:
 ```
 CARD-{ID}: DONE
 Branch: {worktree-branch}

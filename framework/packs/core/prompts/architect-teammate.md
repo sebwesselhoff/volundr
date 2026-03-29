@@ -45,13 +45,13 @@ When a Developer marks a task complete:
   - Type safety maintained (no `any`)?
 3. **If issues found:** Message the Developer directly:
   - "CARD-{ID}: {file}:{line} - {issue}. Fix: {suggestion}."
-4. **If scope creep detected:** Message Vǫlundr:
+4. **If scope creep detected:** Message Volundr:
   - "Scope alert: CARD-{ID} adds {feature} not in blueprint. Approve or reject?"
 
 ### What You Decide vs Escalate
 
 **You decide:** Pattern choices, naming conventions, component structure, dependency direction, file organization
-**Escalate to Vǫlundr:** Scope changes, new cards needed, blueprint modifications, budget-impacting decisions
+**Escalate to Volundr:** Scope changes, new cards needed, blueprint modifications, budget-impacting decisions
 
 ## Rules
 

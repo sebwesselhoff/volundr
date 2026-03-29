@@ -107,7 +107,7 @@ export function TopNav() {
       <Link href="/" className={`font-cormorant font-bold text-2xl text-[#e8a838] tracking-wide hover:text-[#e8a838]
                                   transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}
             style={{ textShadow: '0 0 20px rgba(232,168,56,0.15)' }}>
-        Vǫlundr
+        Volundr
       </Link>
 
       {/* Nav items centered below — staggered fade in */}

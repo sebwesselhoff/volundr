@@ -1,9 +1,9 @@
 /**
- * Vǫlundr v5.1 - Dynamic Hierarchy Configuration
+ * Volundr v5.1 - Dynamic Hierarchy Configuration
  *
  * Defines thresholds for auto-selecting hierarchy level (flat/two)
  * and limits for mid-flight scaling. NOT executable code - it's a typed
- * reference document read by Vǫlundr during Phase 4.
+ * reference document read by Volundr during Phase 4.
  *
  * Set per-project in blueprint phase. Stored in projects/{id}/constraints.md
  * under a "## Hierarchy Config" section, or defaults are used.

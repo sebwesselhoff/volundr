@@ -1,6 +1,6 @@
 # Reviewer Teammate Prompt Template
 
-Use when Vǫlundr spawns a cross-domain Reviewer as an Agent Teams teammate.
+Use when Volundr spawns a cross-domain Reviewer as an Agent Teams teammate.
 Triggered when cross-domain dependencies exceed 5 (see hierarchy config).
 
 ---
@@ -74,7 +74,7 @@ Triggered when cross-domain dependencies exceed 5 (see hierarchy config).
       - `WARN: [CARD-XX-NNN] {description} - fix in next round`
       - `INFO: [CARD-XX-NNN] {description} - noted for future reference`
     4. Message Volundr with the full spotcheck report
-    5. BLOCK findings prevent merge - Vǫlundr routes fixes to the owning Developer
+    5. BLOCK findings prevent merge - Volundr routes fixes to the owning Developer
 
     ### Traits
 

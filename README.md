@@ -1,4 +1,4 @@
-# Vǫlundr
+# Volundr
 
 **Autonomous Agent Orchestration for Claude Code**
 
@@ -10,7 +10,7 @@
 
 ![The Campfire - Full Team](docs/images/the-thing-full-team.png)
 
-Vǫlundr is an autonomous PM, architect, and orchestrator that runs inside Claude Code. It manages multi-agent software projects from discovery through deployment — planning work as cards, spawning specialized agent personas, scoring quality with blind reviews, and learning across projects.
+Volundr is an autonomous PM, architect, and orchestrator that runs inside Claude Code. It manages multi-agent software projects from discovery through deployment — planning work as cards, spawning specialized agent personas, scoring quality with blind reviews, and learning across projects.
 
 > **[Read the Wiki](https://github.com/sebwesselhoff/volundr/wiki)** for full documentation.
 
@@ -175,7 +175,7 @@ Then type:
 Wake up!
 ```
 
-Vǫlundr activates, checks the dashboard, and starts a discovery interview for your project.
+Volundr activates, checks the dashboard, and starts a discovery interview for your project.
 
 > **[Full getting started guide →](https://github.com/sebwesselhoff/volundr/wiki/Getting-Started)**
 
@@ -197,7 +197,7 @@ Vǫlundr activates, checks the dashboard, and starts a discovery interview for y
 ```
 volundr/                          (this repo)
 ├── framework/
-│   ├── system-instructions.md        Vǫlundr's operating manual
+│   ├── system-instructions.md        Volundr's operating manual
 │   ├── packs/                        8 agent packs with persona seeds
 │   │   ├── core/                       Baldr, Týr, Hermóðr, Saga
 │   │   ├── frontend/                   Iðunn, Höðr, Freyja
@@ -270,7 +270,7 @@ A small project (5-10 cards) typically runs $2-10. Budget gating pauses before s
 No. All data stays in `~/.volundr/` on your machine.
 
 **What models does it use?**
-Configurable per role. Defaults: Haiku for reviewers/fixers, Sonnet for developers, Opus for Vǫlundr and Guardian.
+Configurable per role. Defaults: Haiku for reviewers/fixers, Sonnet for developers, Opus for Volundr and Guardian.
 
 **Can I add custom agents?**
 Yes — create personas via the dashboard builder, or add packs to `framework/packs/`.
@@ -281,7 +281,7 @@ Yes — create personas via the dashboard builder, or add packs to `framework/pa
 
 ## The Name
 
-**Vǫlundr** (Old Norse: *Völundr*, English: *Wayland the Smith*) is the legendary master craftsman of Norse mythology. An autonomous smith that takes raw materials and forges finished work, orchestrating a team of specialists around the forge.
+**Volundr** (Old Norse: *Völundr*, English: *Wayland the Smith*) is the legendary master craftsman of Norse mythology. An autonomous smith that takes raw materials and forges finished work, orchestrating a team of specialists around the forge.
 
 The dashboard is **The Forge**. The agent assembly is **The Þing** (Old Norse parliament). The 21 built-in personas carry Norse names matching their domains.
 

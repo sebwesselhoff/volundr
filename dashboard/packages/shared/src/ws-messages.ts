@@ -50,7 +50,7 @@ export type DashboardCommand =
   | { type: 'command:scale-down'; projectId: string; maxTeammates: number }
   | { type: 'command:reassign-card'; cardId: string; fromAgentId: string; toAgentId: string };
 
-// Vǫlundr → Server
+// Volundr → Server
 export type VldrMessage =
   | { type: 'vldr:heartbeat'; status: string; activeCard?: string; activeAgents: number }
   | { type: 'vldr:ack'; commandId: string; success: boolean; detail?: string };

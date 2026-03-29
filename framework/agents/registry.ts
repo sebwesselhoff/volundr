@@ -1,8 +1,8 @@
 /**
- * Vǫlundr v5 - Agent Type Registry
+ * Volundr v5 - Agent Type Registry
  *
  * Reference file defining all agent types, their capabilities, and constraints.
- * Used by Vǫlundr and SubOrchestrators when spawning agents.
+ * Used by Volundr and SubOrchestrators when spawning agents.
  * This is NOT executable code - it's a typed reference document.
  */
 

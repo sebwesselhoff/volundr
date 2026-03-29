@@ -1,4 +1,4 @@
-# Advanced Features - Vǫlundr v5.0
+# Advanced Features - Volundr v5.0
 
 Read at startup alongside CLAUDE.md.
 
@@ -48,11 +48,11 @@ cd dashboard && npx turbo dev &
 # → API: http://localhost:3141  |  Web UI: http://localhost:3000
 ```
 
-Enterprise dashboard with real-time monitoring. SQLite-backed via Drizzle ORM. WebSocket for live updates. 7 pages: Dashboard overview, Kanban board, Agent tracker, Agent tree, Metrics/charts, Event log, Settings. Interactive - pause/resume, skip/retry cards from the UI. Vǫlundr and SubOrchestrators write data via the `@vldr/sdk` client library.
+Enterprise dashboard with real-time monitoring. SQLite-backed via Drizzle ORM. WebSocket for live updates. 7 pages: Dashboard overview, Kanban board, Agent tracker, Agent tree, Metrics/charts, Event log, Settings. Interactive - pause/resume, skip/retry cards from the UI. Volundr and SubOrchestrators write data via the `@vldr/sdk` client library.
 
 **v5 Agent Hierarchy - visible in real-time on the Agent Tree page:**
 ```
-Vǫlundr (opus) - project lifecycle, git, cross-domain deps
+Volundr (opus) - project lifecycle, git, cross-domain deps
   ├── Planner (opus) - card breakdown per domain
   ├── SubOrchestrator (opus) - domain executor, spawns workers
   │   ├── Developer (sonnet) - code, worktree isolation
@@ -79,7 +79,7 @@ See `system-instructions.md` "State Persistence" section for details.
 
 ## 12. Worktree Isolation
 Use `isolation: "worktree"` in Agent tool calls for parallel developer agents.
-Each agent gets an isolated copy of the repo. Vǫlundr merges after completion.
+Each agent gets an isolated copy of the repo. Volundr merges after completion.
 Use for: parallel cards, retry branches. Skip for: sequential cards, shared config files.
 
 ## 13. Sub-Orchestrator Model

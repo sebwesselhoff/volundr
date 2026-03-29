@@ -1,8 +1,8 @@
-# Graceful Shutdown Protocol - Vǫlundr v6
+# Graceful Shutdown Protocol - Volundr v6
 
 ## Overview
 
-The shutdown protocol is a structured pre-exit ritual that Vǫlundr executes while she still has full context, SDK access, and reasoning capacity. It runs BEFORE the SessionEnd hook (which has only 5 seconds and no LLM context). The protocol captures session work, performs self-assessment, writes persistence artifacts, and hands off cleanly to the hook-based cleanup.
+The shutdown protocol is a structured pre-exit ritual that Volundr executes while she still has full context, SDK access, and reasoning capacity. It runs BEFORE the SessionEnd hook (which has only 5 seconds and no LLM context). The protocol captures session work, performs self-assessment, writes persistence artifacts, and hands off cleanly to the hook-based cleanup.
 
 **Design principle:** The SessionEnd hook handles mechanical cleanup (complete agents, clear registry). The shutdown protocol handles cognitive work (summarize, reflect, learn, checkpoint). They are complementary, not competing.
 
@@ -15,7 +15,7 @@ The shutdown protocol is a structured pre-exit ritual that Vǫlundr executes whi
 | Trigger | How it works | Reliability |
 |---------|-------------|-------------|
 | **`/vldr-shutdown` slash command** | User explicitly types `/vldr-shutdown`. Claude Code loads the command file from `.claude/commands/vldr-shutdown.md`, which instructs Volundr to execute the shutdown sequence. | Highest - explicit intent |
-| **Natural language detection** | User says "let's stop", "goodnight", "pause the project", "I'm done for today", "shut it down", "wrap up". Volundr recognizes intent and initiates the protocol. | High - Vǫlundr is already instructed to handle "Pause" in the intervention protocol |
+| **Natural language detection** | User says "let's stop", "goodnight", "pause the project", "I'm done for today", "shut it down", "wrap up". Volundr recognizes intent and initiates the protocol. | High - Volundr is already instructed to handle "Pause" in the intervention protocol |
 | **End-of-work detection** | All cards for the current round are done, no more unblocked work exists, and Volundr would normally report "nothing left to do." Volundr proactively offers: "All current work is complete. Shall I run the shutdown protocol?" | Medium - requires Volundr to check |
 
 ### Why NOT a hook?
@@ -26,7 +26,7 @@ Hooks run in child Node.js processes with no LLM context, no SDK client, and str
 - Making judgment calls about lesson promotion
 - Presenting a status report to the developer
 
-None of this is possible in a hook. The shutdown protocol MUST run as Vǫlundr's final act within the conversation, using her full tool access.
+None of this is possible in a hook. The shutdown protocol MUST run as Volundr's final act within the conversation, using her full tool access.
 
 ### Why NOT modify SessionEnd?
 
@@ -39,7 +39,7 @@ The `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` is set to 5000ms. Even if raised, 
 ### Phase 0: Acknowledge intent (< 1 second)
 
 ```
-Vǫlundr: "Starting shutdown protocol. This will take 30-60 seconds."
+Volundr: "Starting shutdown protocol. This will take 30-60 seconds."
 ```
 
 Update heartbeat to signal shutdown is in progress:
@@ -160,7 +160,7 @@ Entry types to write at shutdown:
 
 ### Phase 5: Self-learning feedback loop (10-20 seconds)
 
-This is the core cognitive work of the shutdown protocol. Vǫlundr reviews her own performance.
+This is the core cognitive work of the shutdown protocol. Volundr reviews her own performance.
 
 #### 5a. Quality trend analysis
 
@@ -387,7 +387,7 @@ When the session actually ends, the SessionEnd hook fires and performs mechanica
 Create `.claude/commands/vldr-shutdown.md`:
 
 ```markdown
-Execute the Vǫlundr graceful shutdown protocol.
+Execute the Volundr graceful shutdown protocol.
 
 Steps:
 1. Commit any in-progress work on card branches (WIP commits)
@@ -538,7 +538,7 @@ Content:
 Stack: [typescript | react | general | ...]
 ```
 
-### Metrics Vǫlundr reviews
+### Metrics Volundr reviews
 
 | Metric | Source | What to look for |
 |--------|--------|-----------------|
@@ -653,7 +653,7 @@ The command file and system-instructions update are the only items needed to mak
 A: Hooks are Node.js scripts with no LLM context. The shutdown protocol requires reasoning, writing narratives, and making judgment calls about lesson promotion. These are inherently LLM tasks.
 
 **Q: Why not extend the SessionEnd timeout to 60 seconds?**
-A: Even with more time, the SessionEnd hook is a child process. It cannot write summaries, reason about quality trends, or create lessons. It would need the full SDK, metrics analysis logic, and narrative generation - essentially reimplementing Vǫlundr in Node.js. The shutdown protocol runs in Volundr's existing context for free.
+A: Even with more time, the SessionEnd hook is a child process. It cannot write summaries, reason about quality trends, or create lessons. It would need the full SDK, metrics analysis logic, and narrative generation - essentially reimplementing Volundr in Node.js. The shutdown protocol runs in Volundr's existing context for free.
 
 **Q: Should Volundr clear activeProject itself?**
 A: No. The SessionEnd hook owns this. If Volundr clears it and then the hook fires, the hook would see null and skip cleanup - but if there were any edge cases (agents that became running between Volundr's check and the hook), they'd be orphaned. Letting the hook always clear ensures the safety net works.

@@ -44,7 +44,7 @@ export interface DiscoverPersonasInput {
 // ---- Built-in Persona Roster ------------------------------------------------
 //
 // The default lineup — curated, battle-tested, always available.
-// Named in Old Norse tradition to match the Vǫlundr framework theme.
+// Named in Old Norse tradition to match the Volundr framework theme.
 // Users can override any of these by creating a persona with the same ID.
 
 export const PERSONA_SEEDS: PersonaSeedDefinition[] = [

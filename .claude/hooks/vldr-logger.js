@@ -1,4 +1,4 @@
-// Structured logger for Vǫlundr hooks
+// Structured logger for Volundr hooks
 // Dual output: synchronous file + fire-and-forget API POST
 
 const fs = require('fs');

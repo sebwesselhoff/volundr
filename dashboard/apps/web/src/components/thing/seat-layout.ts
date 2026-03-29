@@ -33,7 +33,7 @@ const FIRE_Y = 55;
 //                [7]                ← reserve
 //
 export const SEATS: SeatPosition[] = [
-  // Index 0 — conductor (Vǫlundr) — center, well above fire
+  // Index 0 — conductor (Volundr) — center, well above fire
   { x: FIRE_X,      y: FIRE_Y - 28, side: 'left'  },
 
   // Index 1 — inner right (lowest point of smile, below fire)
@@ -87,7 +87,7 @@ export function assignSeat(agentId: string, occupiedSeats: Set<number>, agentTyp
     return -1;
   }
 
-  // Vǫlundr / team-lead always gets the conductor seat
+  // Volundr / team-lead always gets the conductor seat
   if ((agentType === 'volundr' || agentType === 'team-lead') && !occupiedSeats.has(0)) {
     return 0;
   }

@@ -96,7 +96,7 @@ export default function AboutPage() {
       </section>
 
       <footer className="pt-8 text-[0.75rem] text-[#8899b3] font-mono">
-        Volundr v4.0
+        Volundr v5.0
       </footer>
     </div>
   );

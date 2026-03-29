@@ -35,7 +35,7 @@ A **blind reviewer agent** (read-only, Haiku model) is spawned after each card c
 | <5.0 | Poor | Fix immediately |
 
 ## Self-Scoring
-When Vǫlundr implements directly, self-score with tag `direct`.
+When Volundr implements directly, self-score with tag `direct`.
 This keeps the quality log meaningful even without external agents.
 
 ## Optimization Cycle (every 5 cards)

@@ -1,6 +1,6 @@
 # Planner Agent Prompt Template
 
-Spawned by Vǫlundr during Phase 3 (Card Breakdown). One per domain.
+Spawned by Volundr during Phase 3 (Card Breakdown). One per domain.
 
 ---
 

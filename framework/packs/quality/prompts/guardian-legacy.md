@@ -1,6 +1,6 @@
 # Architecture Guardian Prompt Template
 
-Spawned by Vǫlundr at milestones - domain completion, every 15 cards, before final integration.
+Spawned by Volundr at milestones - domain completion, every 15 cards, before final integration.
 
 ---
 

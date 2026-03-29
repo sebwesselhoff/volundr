@@ -17,7 +17,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Vǫlundr — The Forge',
+  title: 'Volundr — The Forge',
   description: 'Autonomous Agent Framework',
 };
 
