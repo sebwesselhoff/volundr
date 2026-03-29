@@ -250,10 +250,23 @@ async function main() {
   } catch (e) { /* no existing mapping - first spawn */ }
 
   if (existingDashboardId) {
-    // Try to reactivate existing agent (normal idle/wake cycle).
-    // If the agent was completed (by cleanup), the PATCH will set it back to running —
-    // but since the name mapping was cleaned by agent-stop on shutdown, we shouldn't
-    // reach here for completed agents. If we do, fall through to fresh creation.
+    // Check agent state BEFORE reactivating — if completed recently, suppress the zombie bounce
+    const allAgents = await apiGet(`/api/projects/${PROJECT_ID}/agents`);
+    const prePatchAgent = allAgents?.find(a => a.id === existingDashboardId);
+    if (prePatchAgent && prePatchAgent.status === 'completed' && prePatchAgent.completedAt) {
+      const completedAt = new Date(prePatchAgent.completedAt).getTime();
+      const secondsSinceCompletion = (Date.now() - completedAt) / 1000;
+      if (secondsSinceCompletion < 60) {
+        log.info('zombie_bounce_suppressed', `Agent ${existingDashboardId} completed ${secondsSinceCompletion.toFixed(0)}s ago — suppressing reactivation`, {
+          agentId: existingDashboardId,
+        });
+        // Don't reactivate, don't log event — just emit context and return
+        emitAdditionalContext();
+        return;
+      }
+    }
+
+    // Reactivate existing agent (normal idle/wake cycle)
     const reopened = await apiPatch(`/api/agents/${existingDashboardId}`, {
       status: 'running',
     });
@@ -265,22 +278,6 @@ async function main() {
         try { fs.writeFileSync(mapFile, existingDashboardId); } catch (e) {
           log.warn('mapping_file_write_failed', `Could not write agent mapping for ${input.agent_id}`, { error: e.message });
         }
-      }
-
-      // Suppress reactivation event if agent was completed very recently (shutdown bounce).
-      // Check if completedAt is within the last 60 seconds — if so, this is a zombie wake, not real work.
-      const reactivatedAgent = reopened;
-      const completedAt = reactivatedAgent.completedAt ? new Date(reactivatedAgent.completedAt).getTime() : 0;
-      const secondsSinceCompletion = completedAt ? (Date.now() - completedAt) / 1000 : Infinity;
-
-      if (secondsSinceCompletion < 60) {
-        log.info('zombie_bounce_suppressed', `Agent ${existingDashboardId} completed ${secondsSinceCompletion.toFixed(0)}s ago — suppressing reactivation event`, {
-          agentId: existingDashboardId,
-        });
-        // Set it back to completed immediately
-        await apiPatch(`/api/agents/${existingDashboardId}`, { status: 'completed' });
-        emitAdditionalContext();
-        return;
       }
 
       log.info('agent_reactivated', `Reactivated ${agentType} as ${existingDashboardId} (idle/wake cycle)`, {
