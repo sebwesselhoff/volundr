@@ -15,7 +15,7 @@ function inferAgentType(name) {
   if (!name) return 'developer';
   const lower = name.toLowerCase();
   // v6 teammate types — check specific roles first
-  if (lower.includes('architect')) return 'architect';
+  if (lower.includes('architect') || lower.match(/\barch\b/) || lower.endsWith('-arch') || lower.startsWith('arch-')) return 'architect';
   if (lower.includes('qa-eng') || lower.includes('qa_eng')) return 'qa-engineer';
   if (lower.includes('devops') || lower.includes('infra')) return 'devops-engineer';
   if (lower.includes('design')) return 'designer';
@@ -171,6 +171,10 @@ async function main() {
   let preToolCardId = preToolData ? preToolData.cardId : null;
   let preToolPersonaId = preToolData ? preToolData.personaId : null;
 
+  // Override agentType with the actual subagent_type from the queue if available
+  // This is more accurate than inferring from the teammate name
+  const effectiveAgentType = (preToolData?.subagentType) ? inferAgentType(preToolData.subagentType) : agentType;
+
   // Fallback for teammates: if queue had no card/persona, try reading from the team config
   // Teammates have their prompt stored in ~/.claude/teams/{team}/config.json
   if (!preToolCardId || !preToolPersonaId) {
@@ -215,7 +219,7 @@ async function main() {
     ? (isGenericType ? preToolDescription : `${effectiveName}: ${preToolDescription}`)
     : effectiveName;
 
-  log.info('hook_started', `Registering ${agentType}: ${agentLabel} (raw input.agent_type=${input.agent_type}, preToolName=${preToolName})`, {
+  log.info('hook_started', `Registering ${effectiveAgentType}: ${agentLabel} (raw input.agent_type=${input.agent_type}, preToolName=${preToolName})`, {
     agentId: input.agent_id,
     rawAgentType: input.agent_type,
     effectiveName,
@@ -280,14 +284,14 @@ async function main() {
         }
       }
 
-      log.info('agent_reactivated', `Reactivated ${agentType} as ${existingDashboardId} (idle/wake cycle)`, {
+      log.info('agent_reactivated', `Reactivated ${effectiveAgentType} as ${existingDashboardId} (idle/wake cycle)`, {
         agentId: existingDashboardId,
       });
 
       await apiPost('/api/events', {
         projectId: PROJECT_ID,
         type: 'agent_spawned',
-        detail: `${agentType} reactivated: ${agentLabel}`,
+        detail: `${effectiveAgentType} reactivated: ${agentLabel}`,
       });
       emitAdditionalContext();
       return;
@@ -319,7 +323,7 @@ async function main() {
   // Register in dashboard — retry without optional FK refs if constraint fails
   let agent = await apiPost('/api/agents', {
     projectId: PROJECT_ID,
-    type: agentType,
+    type: effectiveAgentType,
     model: 'sonnet-4', // Default - corrected by agent-stop via transcript parsing
     ...(parentAgentId ? { parentAgentId } : {}),
     ...(preToolCardId ? { cardId: preToolCardId } : {}),
@@ -330,7 +334,7 @@ async function main() {
     // FK constraint likely failed (card/persona not in DB) — retry without
     agent = await apiPost('/api/agents', {
       projectId: PROJECT_ID,
-      type: agentType,
+      type: effectiveAgentType,
       model: 'sonnet-4',
       ...(parentAgentId ? { parentAgentId } : {}),
       detail: agentLabel,
@@ -338,13 +342,13 @@ async function main() {
   }
 
   if (!agent) {
-    log.fatal('agent_registration_failed', `Failed to register ${agentType}: ${agentLabel} - dashboard tracking broken for this agent`, {
+    log.fatal('agent_registration_failed', `Failed to register ${effectiveAgentType}: ${agentLabel} - dashboard tracking broken for this agent`, {
       agentId: input.agent_id,
     });
     process.exit(1);
   }
 
-  log.info('agent_registered', `Registered ${agentType} as ${agent.id}`, {
+  log.info('agent_registered', `Registered ${effectiveAgentType} as ${agent.id}`, {
     agentId: agent.id,
   });
 
@@ -366,7 +370,7 @@ async function main() {
   const eventResult = await apiPost('/api/events', {
     projectId: PROJECT_ID,
     type: 'agent_spawned',
-    detail: `${agentType} spawned: ${agentLabel}`,
+    detail: `${effectiveAgentType} spawned: ${agentLabel}`,
   });
   if (!eventResult) {
     log.warn('event_post_failed', 'Failed to log agent_spawned event');
