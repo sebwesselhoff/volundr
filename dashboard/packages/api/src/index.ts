@@ -12,6 +12,7 @@ import { setupWebSocket, getClients } from './ws/server.js';
 import { handleIncomingMessage } from './ws/handlers.js';
 import { broadcastToBrowsers } from './ws/broadcast.js';
 import { seedCommunityLessons } from './seed-lessons.js';
+import { seedRoutingRules } from './seed-routing-rules.js';
 import { TeamSyncService } from './services/team-sync.js';
 import projectsRouter from './routes/projects.js';
 import epicsRouter from './routes/epics.js';
@@ -206,6 +207,7 @@ server.listen(API_PORT, () => {
   initDb().then((db) => {
     // Seed community lessons from framework seed file
     seedCommunityLessons();
+    seedRoutingRules();
     // Start TeamSyncService with graceful degradation
     teamSync = new TeamSyncService(db, broadcastToBrowsers);
     teamSync.start().then(() => {

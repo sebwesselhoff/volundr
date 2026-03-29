@@ -1,0 +1,149 @@
+[
+  {
+    "workType": "architecture",
+    "personaId": "architect",
+    "examples": ["architecture","design","structure","pattern","refactor","decompose","modular","monolith","microservice","schema-design"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "authentication",
+    "personaId": "auth-specialist",
+    "examples": ["oauth","jwt","auth","token","login","sign in","sign-in","session","sso","single sign-on","saml","oidc","mfa","two-factor","2fa","password","credentials","rbac","role-based","permissions","acl","access control","identity","authentication","authorization"],
+    "confidence": "high",
+    "priority": 10
+  },
+  {
+    "workType": "database",
+    "personaId": "database-engineer",
+    "examples": ["database","sql","migration","schema","postgres","postgresql","mysql","sqlite","drizzle","prisma","typeorm","sequelize","query","index","foreign-key","join","transaction","seed","orm"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "data-engineering",
+    "personaId": "data-engineer",
+    "examples": ["etl","pipeline","data-pipeline","transform","csv","parquet","streaming","kafka","rabbitmq","queue","batch","ingest","warehouse","analytics","data-lake","spark"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "devops",
+    "personaId": "devops-infra",
+    "examples": ["docker","dockerfile","compose","ci","cd","pipeline","github-actions","deploy","deployment","nginx","terraform","ansible","kubernetes","k8s","helm","monitoring","prometheus","grafana","env","environment"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "documentation",
+    "personaId": "documentation-engineer",
+    "examples": ["docs","documentation","readme","wiki","guide","tutorial","changelog","jsdoc","typedoc","api-docs","swagger","openapi","storybook"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "fullstack",
+    "personaId": "fullstack-web",
+    "examples": ["fullstack","full-stack","webapp","web-app","next.js","nextjs","nuxt","remix","sveltekit","express","fastify","crud","dashboard","admin-panel","graphql"],
+    "confidence": "high",
+    "priority": 3
+  },
+  {
+    "workType": "migration",
+    "personaId": "migration-engineer",
+    "examples": ["migration","migrate","upgrade","port","convert","legacy","v2","breaking-change","backwards-compat","data-migration","schema-migration","platform-migration"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "security",
+    "personaId": "security-reviewer",
+    "examples": ["security","vulnerability","owasp","xss","csrf","injection","sanitize","escape","csp","cors","audit","penetration","pentest","encryption","tls","ssl","certificate"],
+    "confidence": "high",
+    "priority": 8
+  },
+  {
+    "workType": "testing",
+    "personaId": "test-engineer",
+    "examples": ["test","testing","unit-test","integration-test","e2e","playwright","cypress","jest","vitest","mocha","coverage","tdd","fixture","mock","stub","assertion","qa"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "frontend",
+    "personaId": "frontend-ui",
+    "examples": ["frontend","ui","ux","component","react","vue","svelte","angular","css","tailwind","responsive","animation","layout","design-system","theme","dark-mode","modal","form","input","button","sidebar","navbar"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "api",
+    "personaId": "api-designer",
+    "examples": ["api","rest","restful","endpoint","route","middleware","controller","request","response","status-code","pagination","webhook","websocket","grpc","trpc","openapi","swagger","rate-limit"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "python",
+    "personaId": "python-developer",
+    "examples": ["python","django","flask","fastapi","pip","poetry","pandas","numpy","pytest","celery","asyncio","pydantic","sqlalchemy","virtualenv","conda"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "mobile",
+    "personaId": "mobile-developer",
+    "examples": ["mobile","ios","android","react-native","flutter","swift","kotlin","expo","capacitor","ionic","push-notification","app-store","play-store","responsive-mobile","pwa"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "cloud",
+    "personaId": "cloud-serverless",
+    "examples": ["cloud","aws","azure","gcp","lambda","serverless","s3","blob","cdn","cloudfront","api-gateway","dynamodb","cosmosdb","functions","iam","vpc","ec2","ecs","fargate","amplify"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "performance",
+    "personaId": "performance-engineer",
+    "examples": ["performance","optimize","optimization","cache","caching","redis","memcached","lazy-load","bundle-size","lighthouse","profiling","bottleneck","latency","throughput","benchmark","memory-leak","n+1","debounce","throttle"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "ai-ml",
+    "personaId": "ai-ml-engineer",
+    "examples": ["ai","ml","machine-learning","machine learning","artificial intelligence","model","llm","large language model","embedding","vector","rag","retrieval augmented","fine-tune","fine tune","prompt","openai","anthropic","langchain","tensorflow","pytorch","huggingface","classification","nlp","natural language","computer-vision","computer vision","neural network"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "accessibility",
+    "personaId": "accessibility-specialist",
+    "examples": ["accessibility","a11y","aria","screen-reader","screen reader","wcag","contrast","keyboard-nav","keyboard navigation","focus","alt-text","alt text","semantic","landmark","skip-link","tab-order","color-blind","color blind","assistive technology"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "research",
+    "personaId": "researcher",
+    "examples": ["research","investigate","evaluate","compare","library","package","spike","proof-of-concept","poc","prototype","feasibility","benchmark","third-party","external-api","vendor","integration-research"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "dotnet",
+    "personaId": "dotnet-developer",
+    "examples": ["dotnet",".net","csharp","c#","asp.net","blazor","entity-framework","nuget","visual-studio","razor","maui","wpf","winforms","linq","middleware-dotnet"],
+    "confidence": "high",
+    "priority": 5
+  },
+  {
+    "workType": "seo",
+    "personaId": "seo-growth",
+    "examples": ["seo","search-engine","search engine optimization","meta-tags","sitemap","robots.txt","structured-data","schema.org","open-graph","og-tags","canonical","lighthouse-seo","page-speed","core-web-vitals","crawl","indexing","keyword","backlink","rich-snippet","search optimization","google","bing"],
+    "confidence": "high",
+    "priority": 8
+  }
+]
