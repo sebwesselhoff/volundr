@@ -144,7 +144,55 @@ async function main() {
       agentId: dashboardAgentId,
     });
   } else {
-    log.warn('no_dashboard_agent', `No dashboard agent ID found for ${input.agent_id} - completion not tracked`);
+    // No mapping found — SubagentStart may not have fired (happens for read-only agent types like architect).
+    // Register the agent now with completion data so it appears on the dashboard.
+    log.info('late_registration', `No mapping for ${input.agent_id} — registering on stop (SubagentStart may not have fired)`);
+
+    // Try to extract card/persona from team config
+    let cardId = null;
+    let personaId = null;
+    const nameFromId = input.agent_id ? input.agent_id.split('@')[0] : null;
+    const teamFromId = input.agent_id ? input.agent_id.split('@')[1] : null;
+    if (nameFromId && teamFromId) {
+      try {
+        const configPath = path.join(process.env.HOME || process.env.USERPROFILE || '', '.claude', 'teams', teamFromId, 'config.json');
+        if (fs.existsSync(configPath)) {
+          const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+          const member = (config.members || []).find(m => m.name === nameFromId);
+          if (member && member.prompt) {
+            const cardMatch = member.prompt.match(/CARD-[A-Z0-9]+-\d{3}/);
+            if (cardMatch) cardId = cardMatch[0];
+            const personaMatch = member.prompt.match(/personaId[:\s]+["']?([a-z0-9-]+)["']?/i);
+            if (personaMatch) personaId = personaMatch[1];
+          }
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    const agentType = input.agent_type || 'developer';
+    const agent = await apiPost('/api/agents', {
+      projectId: PROJECT_ID,
+      type: agentType.includes('architect') ? 'architect' : agentType.includes('review') ? 'review' : agentType.includes('qa') ? 'qa-engineer' : 'developer',
+      model: normalizedModel || 'sonnet-4',
+      ...(cardId ? { cardId } : {}),
+      ...(personaId ? { personaId } : {}),
+      detail: nameFromId || agentType,
+    });
+
+    if (agent) {
+      // Immediately complete with token data
+      await apiPatch(`/api/agents/${agent.id}`, {
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+        promptTokens: tokenData.inputTokens,
+        completionTokens: tokenData.completionTokens,
+        cacheCreationTokens: tokenData.cacheCreationTokens,
+        cacheReadTokens: tokenData.cacheReadTokens,
+        model: normalizedModel || agent.model,
+      });
+      dashboardAgentId = agent.id;
+      log.info('late_agent_registered', `Late-registered ${agent.type} as ${agent.id} with ${totalTokens} tokens`, { agentId: agent.id });
+    }
   }
 
   // Use the dashboard agent's detail (set by agent-start with rich description) if available
