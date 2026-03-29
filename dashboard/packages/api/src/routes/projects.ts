@@ -101,11 +101,15 @@ router.patch('/:id', (req, res) => {
   // Gate 5: session summary required before phase transition (skip for discovery start)
   if (phase != null && phase !== existing.phase && phase !== 'discovery') {
     const TWO_HOURS_AGO = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const recentSummaries = db.select({ id: schema.sessionSummaries.id })
+    const recentSummaries = db.select({
+        id: schema.sessionSummaries.id,
+        startedAt: schema.sessionSummaries.startedAt,
+        endedAt: schema.sessionSummaries.endedAt,
+      })
       .from(schema.sessionSummaries)
       .where(eq(schema.sessionSummaries.projectId, req.params.id))
       .all()
-      .filter((s: any) => s.endedAt > TWO_HOURS_AGO || s.startedAt > TWO_HOURS_AGO);
+      .filter((s) => (s.endedAt && s.endedAt > TWO_HOURS_AGO) || (s.startedAt && s.startedAt > TWO_HOURS_AGO));
     if (recentSummaries.length === 0) {
       throw new ApiError(400, `Phase transition to "${phase}" requires a session summary from the last 2 hours. Create one via POST /api/session-summaries first.`);
     }
