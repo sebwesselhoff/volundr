@@ -79,17 +79,19 @@ function AgentRow({ agent }: { agent: Agent }) {
         {agent.model ? agent.model.split('-').slice(-2).join('-') : '—'}
       </span>
 
-      {/* Card ID */}
-      {agent.cardId && (
-        <span style={{
-          fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
-          fontSize: '0.7rem',
-          color: '#60a5fa',
-          minWidth: 80,
-        }}>
-          {agent.cardId}
-        </span>
-      )}
+      {/* Card ID or detail */}
+      <span style={{
+        fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+        fontSize: '0.7rem',
+        color: agent.cardId ? '#60a5fa' : '#8899b3',
+        minWidth: 80,
+        maxWidth: 260,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }} title={agent.detail || agent.cardId || ''}>
+        {agent.cardId || agent.detail || ''}
+      </span>
 
       {/* Status dot + label */}
       <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 90 }}>

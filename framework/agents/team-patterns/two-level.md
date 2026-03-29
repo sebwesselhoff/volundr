@@ -27,8 +27,8 @@ Developer teammates use `framework/agents/prompts/suborc-teammate.md` template.
 ## Execution Loop
 
 1. Volundr partitions cards by domain
-2. Vǫlundr creates tasks in shared task list (one per card, `CARD-XX-NNN: title`)
-3. Vǫlundr spawns teammates: Developers + Architect + any applicable conditionals
+2. Volundr creates tasks in shared task list (one per card, `CARD-XX-NNN: title`)
+3. Volundr spawns teammates: Developers + Architect + any applicable conditionals
 4. Teammates claim tasks and work independently
 5. Developers implement in worktrees, run build gates (`npx tsc --noEmit` per worktree)
 6. Architect reviews specs before implementation begins and reviews completed work after

@@ -53,6 +53,7 @@ export const AgentType = {
   'devops-engineer': 'devops-engineer',
   designer: 'designer',
   'roundtable-voice': 'roundtable-voice',
+  'chaos-engine-voice': 'chaos-engine-voice',
   tester: 'tester',
   content: 'content',
   review: 'review',
@@ -103,6 +104,13 @@ export const ImplementationType = {
 } as const;
 export type ImplementationType = (typeof ImplementationType)[keyof typeof ImplementationType];
 
+export const ReviewType = {
+  self: 'self',
+  reviewer: 'reviewer',
+  human: 'human',
+} as const;
+export type ReviewType = (typeof ReviewType)[keyof typeof ReviewType];
+
 export const JournalEntryType = {
   decision: 'decision',
   feedback: 'feedback',
@@ -124,3 +132,43 @@ export type TeamMemberStatus = (typeof TeamMemberStatus)[keyof typeof TeamMember
 
 export const TeamTaskStatus = { pending: 'pending', in_progress: 'in_progress', completed: 'completed' } as const;
 export type TeamTaskStatus = (typeof TeamTaskStatus)[keyof typeof TeamTaskStatus];
+
+// --- Personas ---
+
+export const PersonaStatus = {
+  active: 'active',
+  inactive: 'inactive',
+  retired: 'retired',
+} as const;
+export type PersonaStatus = (typeof PersonaStatus)[keyof typeof PersonaStatus];
+
+export const PersonaRole = {
+  developer: 'developer',
+  architect: 'architect',
+  'qa-engineer': 'qa-engineer',
+  'devops-engineer': 'devops-engineer',
+  designer: 'designer',
+  reviewer: 'reviewer',
+  guardian: 'guardian',
+  researcher: 'researcher',
+  content: 'content',
+} as const;
+export type PersonaRole = (typeof PersonaRole)[keyof typeof PersonaRole];
+
+export const HistorySection = {
+  learnings: 'learnings',
+  decisions: 'decisions',
+  patterns: 'patterns',
+} as const;
+export type HistorySection = (typeof HistorySection)[keyof typeof HistorySection];
+
+// --- Sprint 2 additions ---
+
+export const RoutingConfidence = { low: 'low', medium: 'medium', high: 'high' } as const;
+export type RoutingConfidence = (typeof RoutingConfidence)[keyof typeof RoutingConfidence];
+
+export const DirectiveSource = { confirmed: 'confirmed', manual: 'manual', imported: 'imported' } as const;
+export type DirectiveSource = (typeof DirectiveSource)[keyof typeof DirectiveSource];
+
+export const DirectiveStatus = { active: 'active', suppressed: 'suppressed', superseded: 'superseded' } as const;
+export type DirectiveStatus = (typeof DirectiveStatus)[keyof typeof DirectiveStatus];

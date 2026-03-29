@@ -15,7 +15,7 @@ export VLDR_HOME="${VLDR_HOME:-$HOME/.volundr}"
 
 # --- Initialize VLDR_HOME on first run ---
 if [ ! -f "$VLDR_HOME/projects/registry.json" ]; then
-    echo "Initializing Vǫlundr home at $VLDR_HOME..."
+    echo "Initializing Volundr home at $VLDR_HOME..."
     mkdir -p "$VLDR_HOME/projects" "$VLDR_HOME/global/patterns" "$VLDR_HOME/data"
 
     # Migrate existing data from repo if present

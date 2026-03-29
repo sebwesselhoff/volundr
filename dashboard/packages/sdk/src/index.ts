@@ -10,13 +10,34 @@ import { EventsResource } from './resources/events.js';
 import { QualityResource } from './resources/quality.js';
 import { MetricsResource } from './resources/metrics.js';
 import { LessonsResource } from './resources/lessons.js';
+import { PersonasResource } from './resources/personas.js';
+import { SkillsResource } from './resources/skills.js';
+import { RoutingRulesResource } from './resources/routing-rules.js';
+import { DirectivesResource } from './resources/directives.js';
+import { PacksResource } from './resources/packs.js';
+import { CommandsResource } from './resources/commands.js';
+import { LogsResource } from './resources/logs.js';
+import { JournalResource } from './resources/journal.js';
+import { SessionSummariesResource } from './resources/session-summaries.js';
+import { TeamsResource } from './resources/teams.js';
+import { EconomyResource } from './resources/economy.js';
+import { ReviewerLockoutsResource } from './resources/reviewer-lockouts.js';
+import { CeremoniesResource } from './resources/ceremonies.js';
 
 export type { CardFilters } from './resources/cards.js';
 export type { AgentFilters } from './resources/agents.js';
 export type { EventFilters } from './resources/events.js';
 export type { LessonFilters } from './resources/lessons.js';
+export type { PersonaFilters, PersonaHistoryFilters, CompileCharterInput, CompileCharterResult, ExtractSkillsInput, ExtractSkillsResult, DiscoverPersonasInput, PersonaDiscoveryResult, DiscoverPersonasResult } from './resources/personas.js';
+export type { SkillFilters, SkillMatchInput, CorrelateBuildInput, CorrelateBuildResult, SkillBuildHistory } from './resources/skills.js';
 export type { TimeRange } from './resources/metrics.js';
 export type { HeartbeatState } from './ws.js';
+export type { RoutingRuleTestInput } from './resources/routing-rules.js';
+export type { DirectiveFilters } from './resources/directives.js';
+export type { LogFilters } from './resources/logs.js';
+export type { JournalFilters } from './resources/journal.js';
+export type { TeamFilters, TeamMessageFilters } from './resources/teams.js';
+export type { LockoutCheckResult } from './resources/reviewer-lockouts.js';
 
 export { HttpClient } from './http.js';
 export { WsClient } from './ws.js';
@@ -28,6 +49,20 @@ export { EventsResource } from './resources/events.js';
 export { QualityResource } from './resources/quality.js';
 export { MetricsResource } from './resources/metrics.js';
 export { LessonsResource } from './resources/lessons.js';
+export { PersonasResource } from './resources/personas.js';
+export { SkillsResource } from './resources/skills.js';
+export { RoutingRulesResource } from './resources/routing-rules.js';
+export { DirectivesResource } from './resources/directives.js';
+export { PacksResource } from './resources/packs.js';
+export { CommandsResource } from './resources/commands.js';
+export { LogsResource } from './resources/logs.js';
+export { JournalResource } from './resources/journal.js';
+export { SessionSummariesResource } from './resources/session-summaries.js';
+export { TeamsResource } from './resources/teams.js';
+export { EconomyResource } from './resources/economy.js';
+export { ReviewerLockoutsResource } from './resources/reviewer-lockouts.js';
+export { CeremoniesResource } from './resources/ceremonies.js';
+export type { PackManifest, PackPersonaSeed, InstallPackInput, InstallPackResult, InstalledPack } from './resources/packs.js';
 
 export interface VolundrClientConfig {
   apiUrl?: string;
@@ -47,6 +82,19 @@ export class VolundrClient {
   public readonly quality: QualityResource;
   public readonly metrics: MetricsResource;
   public readonly lessons: LessonsResource;
+  public readonly personas: PersonasResource;
+  public readonly skills: SkillsResource;
+  public readonly routingRules: RoutingRulesResource;
+  public readonly directives: DirectivesResource;
+  public readonly packs: PacksResource;
+  public readonly commands: CommandsResource;
+  public readonly logs: LogsResource;
+  public readonly journal: JournalResource;
+  public readonly sessionSummaries: SessionSummariesResource;
+  public readonly teams: TeamsResource;
+  public readonly economy: EconomyResource;
+  public readonly reviewerLockouts: ReviewerLockoutsResource;
+  public readonly ceremonies: CeremoniesResource;
 
   constructor(config: VolundrClientConfig) {
     const apiUrl = config.apiUrl ?? `http://localhost:${API_PORT}`;
@@ -63,6 +111,19 @@ export class VolundrClient {
     this.quality = new QualityResource(this.http, config.projectId);
     this.metrics = new MetricsResource(this.http, config.projectId);
     this.lessons = new LessonsResource(this.http, config.projectId);
+    this.personas = new PersonasResource(this.http);
+    this.skills = new SkillsResource(this.http);
+    this.routingRules = new RoutingRulesResource(this.http);
+    this.directives = new DirectivesResource(this.http, config.projectId);
+    this.packs = new PacksResource(this.http);
+    this.commands = new CommandsResource(this.http, config.projectId);
+    this.logs = new LogsResource(this.http, config.projectId);
+    this.journal = new JournalResource(this.http, config.projectId);
+    this.sessionSummaries = new SessionSummariesResource(this.http, config.projectId);
+    this.teams = new TeamsResource(this.http);
+    this.economy = new EconomyResource(this.http, config.projectId);
+    this.reviewerLockouts = new ReviewerLockoutsResource(this.http);
+    this.ceremonies = new CeremoniesResource(this.http, config.projectId);
 
     // Forward commands to registered handlers
     this.ws.on('command', (msg: ServerMessage) => {

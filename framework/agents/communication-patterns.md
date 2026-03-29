@@ -78,14 +78,14 @@ When multiple agents may edit the same file, follow this protocol:
 If a merge conflict occurs during Volundr's merge phase:
 
 1. Volundr identifies conflicting files and cards
-2. Vǫlundr reads both versions and the base
+2. Volundr reads both versions and the base
 3. If the conflict is additive (both add to the same file but different sections) → Volundr resolves manually
 4. If the conflict is contradictory (both modify the same lines differently) → Volundr re-implements the later card against the updated main
 
 ### Recovery
 
 1. Volundr keeps the earlier card's changes (already merged)
-2. Vǫlundr creates a new worktree from updated main
+2. Volundr creates a new worktree from updated main
 3. Volundr re-spawns the later card's developer subagent with updated context
 4. The re-spawned agent implements against the current state
 
@@ -102,7 +102,7 @@ When a card in domain A depends on a card in domain B:
 
 ### At runtime
 - If SubOrc-A encounters a blocked card:
-  1. SubOrc-A messages Vǫlundr: "CARD-A-003 blocked on CARD-B-001 (different domain)"
+  1. SubOrc-A messages Volundr: "CARD-A-003 blocked on CARD-B-001 (different domain)"
   2. Volundr checks CARD-B-001 status
   3. If done → Volundr tells SubOrc-A: "CARD-B-001 is done, proceed with CARD-A-003"
   4. If not done → Volundr tells SubOrc-A: "Skip CARD-A-003 for now, work on other unblocked cards"
@@ -156,7 +156,7 @@ Agent({
 1. Teammate reads the card specs and codebase
 2. Teammate writes a plan (which files to create/modify, approach)
 3. Teammate sends `plan_approval_request` → goes idle waiting for approval
-4. Vǫlundr receives the plan in her inbox automatically
+4. Volundr receives the plan in her inbox automatically
 5. Volundr uses `approvePlan` or `rejectPlan` (with feedback) via TeammateTool
 6. On approve → teammate proceeds with implementation
 7. On reject → teammate revises based on feedback and re-submits
@@ -174,12 +174,12 @@ Agent({
 Volundr uses the TeammateTool to gracefully shut down teammates:
 
 ```
-1. Vǫlundr: requestShutdown({ target_agent_id: "suborc-backend@team", reason: "Domain complete" })
+1. Volundr: requestShutdown({ target_agent_id: "suborc-backend@team", reason: "Domain complete" })
 2. Teammate receives shutdown_request in inbox
 3. Teammate finishes current card (won't abandon mid-work)
 4. Teammate: approveShutdown({ request_id: "..." })
    OR: rejectShutdown({ request_id: "...", reason: "Still have 2 cards remaining" })
-5. If approved: teammate shuts down. If rejected: Vǫlundr decides whether to re-request or wait.
+5. If approved: teammate shuts down. If rejected: Volundr decides whether to re-request or wait.
 ```
 
 **When to shut down:**

@@ -4,6 +4,7 @@
 
 const { apiGet, apiPatch, apiPost, readStdin, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
+const { updateHeartbeat } = require('./vldr-heartbeat');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -90,10 +91,10 @@ async function main() {
     }
   }
 
+  let existing = null;
   if (dashboardAgentId) {
     // Fetch existing agent to accumulate tokens across idle/wake cycles
     // Use project agents list and filter - single-agent GET may not be available yet
-    let existing = null;
     if (PROJECT_ID) {
       const allAgents = await apiGet(`/api/projects/${PROJECT_ID}/agents`);
       if (allAgents) existing = allAgents.find(a => a.id === dashboardAgentId);
@@ -143,7 +144,86 @@ async function main() {
       agentId: dashboardAgentId,
     });
   } else {
-    log.warn('no_dashboard_agent', `No dashboard agent ID found for ${input.agent_id} - completion not tracked`);
+    // No mapping found — SubagentStart may not have fired (happens for read-only agent types like architect).
+    // Register the agent now with completion data so it appears on the dashboard.
+    log.info('late_registration', `No mapping for ${input.agent_id} — registering on stop (SubagentStart may not have fired)`);
+
+    // Try to extract card/persona from team config
+    // The agent_id may be "name@team" (teammates) or a plain UUID (some agent types)
+    // Scan all team configs and match by agent_id or agent_type name
+    let cardId = null;
+    let personaId = null;
+    let agentDetailName = input.agent_type || input.agent_id || 'unknown';
+    const nameFromId = input.agent_id ? input.agent_id.split('@')[0] : null;
+    const teamFromId = input.agent_id && input.agent_id.includes('@') ? input.agent_id.split('@')[1] : null;
+    try {
+      const teamsDir = path.join(process.env.HOME || process.env.USERPROFILE || '', '.claude', 'teams');
+      const teamDirs = fs.readdirSync(teamsDir).filter(d => d !== 'default');
+      for (const teamDir of teamDirs) {
+        const configPath = path.join(teamsDir, teamDir, 'config.json');
+        if (!fs.existsSync(configPath)) continue;
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        // Match by agent_id (exact or prefix), or by name from agent_id
+        const member = (config.members || []).find(m =>
+          m.agentId === input.agent_id ||
+          (nameFromId && m.name === nameFromId) ||
+          (input.agent_type && m.name === input.agent_type) ||
+          (m.agentId && input.agent_id && m.agentId.startsWith(input.agent_id.split('@')[0]))
+        );
+        if (member && member.prompt) {
+          agentDetailName = member.name || agentDetailName;
+          const cardMatch = member.prompt.match(/CARD-[A-Z0-9]+-\d{3}/);
+          if (cardMatch) cardId = cardMatch[0];
+          const personaMatch = member.prompt.match(/personaId[:\s]+["']?([a-z0-9-]+)["']?/i);
+          if (personaMatch) personaId = personaMatch[1];
+          break;
+        }
+      }
+    } catch (e) { /* ignore */ }
+
+    const agentType = input.agent_type || 'developer';
+    const inferredType = agentType.includes('architect') ? 'architect' : agentType.includes('review') ? 'review' : agentType.includes('qa') ? 'qa-engineer' : 'developer';
+
+    // Try with full metadata first, fall back without personaId/cardId if FK fails
+    let agent = await apiPost('/api/agents', {
+      projectId: PROJECT_ID,
+      type: inferredType,
+      model: normalizedModel || 'sonnet-4',
+      ...(cardId ? { cardId } : {}),
+      ...(personaId ? { personaId } : {}),
+      detail: agentDetailName,
+    });
+    if (!agent && (cardId || personaId)) {
+      // FK constraint likely failed — retry without optional refs
+      agent = await apiPost('/api/agents', {
+        projectId: PROJECT_ID,
+        type: inferredType,
+        model: normalizedModel || 'sonnet-4',
+        detail: agentDetailName,
+      });
+    }
+
+    if (agent) {
+      // Log spawn event so it shows in the dashboard feed
+      await apiPost('/api/events', {
+        projectId: PROJECT_ID,
+        type: 'agent_spawned',
+        detail: `${agent.type} spawned: ${agentDetailName}`,
+      });
+
+      // Immediately complete with token data
+      await apiPatch(`/api/agents/${agent.id}`, {
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+        promptTokens: tokenData.inputTokens,
+        completionTokens: tokenData.completionTokens,
+        cacheCreationTokens: tokenData.cacheCreationTokens,
+        cacheReadTokens: tokenData.cacheReadTokens,
+        model: normalizedModel || agent.model,
+      });
+      dashboardAgentId = agent.id;
+      log.info('late_agent_registered', `Late-registered ${agent.type} as ${agent.id} with ${totalTokens} tokens`, { agentId: agent.id });
+    }
   }
 
   // Use the dashboard agent's detail (set by agent-start with rich description) if available
@@ -157,6 +237,36 @@ async function main() {
   if (!eventResult) {
     log.warn('event_post_failed', 'Failed to log agent_completed event');
   }
+
+  // Clean name mappings for teammates whose team no longer exists
+  // This prevents agent-start from reactivating completed agents after TeamDelete
+  if (input.agent_id) {
+    const nameFromId = input.agent_id.split('@')[0];
+    const teamFromId = input.agent_id.split('@')[1];
+    if (teamFromId) {
+      const teamDir = path.join(process.env.HOME || process.env.USERPROFILE || '', '.claude', 'teams', teamFromId);
+      if (!fs.existsSync(teamDir)) {
+        // Team was deleted — clean all name mappings for this agent
+        const mapDir = getMapDir();
+        try {
+          const files = fs.readdirSync(mapDir).filter(f => f.startsWith('name-'));
+          for (const f of files) {
+            const mapPath = path.join(mapDir, f);
+            try {
+              const mappedId = fs.readFileSync(mapPath, 'utf8').trim();
+              if (mappedId === dashboardAgentId) {
+                fs.unlinkSync(mapPath);
+                log.info('name_mapping_cleaned', `Cleaned name mapping for ${nameFromId} (team ${teamFromId} deleted)`);
+              }
+            } catch (e) { /* ignore */ }
+          }
+        } catch (e) { /* ignore */ }
+      }
+    }
+  }
+
+  // Update Volundr heartbeat — reflect agent completion on dashboard
+  await updateHeartbeat('active').catch(() => {});
 }
 
 main().catch((e) => {

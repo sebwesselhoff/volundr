@@ -1,4 +1,4 @@
-Execute the Vǫlundr graceful shutdown protocol. This runs BEFORE the session ends, while you still have full context and SDK access.
+Execute the Volundr graceful shutdown protocol. This runs BEFORE the session ends, while you still have full context and SDK access.
 
 Read `framework/shutdown-protocol.md` for the full specification, then execute this sequence:
 
@@ -12,7 +12,7 @@ Read `framework/shutdown-protocol.md` for the full specification, then execute t
 ### Phase 1: Save in-progress work
 - Query all cards: `vldr.cards.list()`
 - For each `in_progress` card: if you were actively working, commit WIP to the card branch
-- Complete all running agents EXCEPT the Vǫlundr agent
+- Complete all running agents EXCEPT the Volundr agent
 - Log: `vldr.events.log({ type: 'state_saved', detail: 'WIP saved at shutdown' })`
 
 ### Phase 2: Gather session metrics
@@ -22,7 +22,7 @@ Read `framework/shutdown-protocol.md` for the full specification, then execute t
 - `vldr.agents.list()` for agent data
 - `vldr.events.list({ limit: 50 })` for recent events
 - `vldr.quality.list()` for quality scores
-- Determine session start time from the Vǫlundr agent's `startedAt` field
+- Determine session start time from the Volundr agent's `startedAt` field
 
 ### Phase 3: Write session summary
 - POST to `/api/session-summaries` with:
@@ -52,7 +52,7 @@ Review your own performance this session:
 - Git tag: `git tag checkpoint-{N} -m "Session shutdown"`
 - Log: `vldr.events.log({ type: 'checkpoint_created', detail: 'Shutdown checkpoint' })`
 
-### Phase 7: Complete Vǫlundr agent
+### Phase 7: Complete Volundr agent
 - `vldr.agents.update(volundrAgentId, { status: 'completed', completedAt: now })`
 - `vldr.events.log({ type: 'session_ended', detail: 'Graceful shutdown complete' })`
 - Do NOT clear activeProject - the SessionEnd hook handles that

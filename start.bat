@@ -1,5 +1,5 @@
 @echo off
-title Vǫlundr — The Forge
+title Volundr — The Forge
 cd /d "%~dp0"
 
 REM --- Display ASCII banner via PowerShell (reliable ANSI support) ---

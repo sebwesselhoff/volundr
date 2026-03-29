@@ -88,6 +88,36 @@ async function main() {
         log.info('agent_maps_cleaned', `Cleaned ${files.length} stale agent mapping(s) from prior session`);
       }
     } catch (e) { /* map dir doesn't exist yet - fine */ }
+
+    // Clean up stale team directories from prior sessions
+    // Teams that weren't properly deleted (crash, timeout, etc.) leave directories in ~/.claude/teams/
+    // The 'default' directory is Claude Code's internal — never delete it.
+    const teamsDir = path.join(process.env.HOME || process.env.USERPROFILE || '', '.claude', 'teams');
+    try {
+      const teamDirs = fs.readdirSync(teamsDir).filter(d => d !== 'default');
+      let cleanedTeams = 0;
+      for (const teamDir of teamDirs) {
+        const teamPath = path.join(teamsDir, teamDir);
+        try {
+          // Recursively remove the team directory and all contents
+          const removeDir = (dir) => {
+            for (const entry of fs.readdirSync(dir)) {
+              const entryPath = path.join(dir, entry);
+              if (fs.statSync(entryPath).isDirectory()) removeDir(entryPath);
+              else fs.unlinkSync(entryPath);
+            }
+            fs.rmdirSync(dir);
+          };
+          removeDir(teamPath);
+          cleanedTeams++;
+        } catch (e) {
+          log.debug('team_cleanup_failed', `Could not remove stale team dir ${teamDir}: ${e.message}`);
+        }
+      }
+      if (cleanedTeams > 0) {
+        log.info('stale_teams_cleaned', `Cleaned ${cleanedTeams} stale team director(ies) from prior session`);
+      }
+    } catch (e) { /* teams dir doesn't exist - fine */ }
   }
 
   // HOT tier context injection - assemble and output as additionalContext
@@ -141,9 +171,37 @@ async function main() {
   // For now, set it manually in settings.json when starting a project:
   //   "CLAUDE_CODE_TASK_LIST_ID": "{project-id}"
 
-  // NOTE: Do NOT create a volundr agent here.
-  // Volundr agent is created when the user picks a project during the boot sequence.
-  // The system-instructions.md boot flow handles: ask project → set activeProject → register volundr.
+  // Register Volundr agent for the active project
+  // This replaces manual POST /api/agents calls in the boot sequence
+  if (PROJECT_ID) {
+    // Check if a running volundr agent already exists
+    const existingAgents = await apiGet(`/api/projects/${PROJECT_ID}/agents?type=volundr&status=running`);
+    if (!existingAgents || existingAgents.length === 0) {
+      const agent = await apiPost('/api/agents', {
+        projectId: PROJECT_ID,
+        type: 'volundr',
+        model: 'opus-4',
+        detail: 'Volundr orchestrator',
+      });
+      if (agent) {
+        log.info('volundr_registered', `Volundr agent registered: ${agent.id}`, { agentId: agent.id });
+        // Write mapping so agent-stop can find it
+        const mapDir = path.join(os.tmpdir(), 'mc-agent-map');
+        try {
+          fs.mkdirSync(mapDir, { recursive: true });
+          fs.writeFileSync(path.join(mapDir, 'volundr-lead'), agent.id);
+        } catch (e) { /* ignore */ }
+      }
+    } else {
+      log.info('volundr_exists', `Volundr agent already running: ${existingAgents[0].id}`);
+    }
+
+    await apiPost('/api/events', {
+      projectId: PROJECT_ID,
+      type: 'session_started',
+      detail: 'Session started — Volundr online',
+    });
+  }
 }
 
 main().catch((e) => { log.error('unhandled_error', e.message, { error: e.stack }); });

@@ -27,7 +27,21 @@ async function main() {
   const agentName = toolInput.name || '';
   const subagentType = toolInput.subagent_type || 'general-purpose';
 
-  if (description || agentName) {
+  // Extract cardId and personaId from the prompt text if present
+  // Convention: Volundr includes "# CARD-XX-NNN:" in the prompt header
+  // and "personaId: xxx" or "Persona: xxx" in the prompt
+  const prompt = toolInput.prompt || '';
+  let cardId = null;
+  let personaId = null;
+
+  const cardMatch = prompt.match(/CARD-[A-Z0-9]+-\d{3}/);
+  if (cardMatch) cardId = cardMatch[0];
+
+  const personaMatch = prompt.match(/personaId[:\s]+["']?([a-z0-9-]+)["']?/i)
+    || prompt.match(/## Persona[:\s]+\S+\s+\(([a-z0-9-]+)\)/i);
+  if (personaMatch) personaId = personaMatch[1];
+
+  if (description || agentName || cardId) {
     // Write to FIFO queue: filename = {subagentType}-{timestamp}-{random}
     // agent-start.js matches by subagent_type prefix and pops the oldest entry
     const typeKey = subagentType.replace(/[^a-z0-9-]/gi, '_');
@@ -39,6 +53,8 @@ async function main() {
         description,
         name: agentName,
         subagentType,
+        cardId,
+        personaId,
       }));
     } catch (e) {
       log.warn('desc_write_failed', `Could not write agent description: ${e.message}`);

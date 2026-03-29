@@ -4,6 +4,7 @@
 
 const { apiGet, apiPatch, apiPost, readStdin, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
+const { updateHeartbeat } = require('./vldr-heartbeat');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -13,21 +14,23 @@ const log = createLogger('agent-start');
 function inferAgentType(name) {
   if (!name) return 'developer';
   const lower = name.toLowerCase();
-  // v6 teammate types
-  if (lower.includes('domain-dev') || lower.includes('domaindev')) return 'developer';
-  if (lower.includes('architect')) return 'architect';
+  // v6 teammate types — check specific roles first
+  if (lower.includes('architect') || lower.match(/\barch\b/) || lower.endsWith('-arch') || lower.startsWith('arch-')) return 'architect';
   if (lower.includes('qa-eng') || lower.includes('qa_eng')) return 'qa-engineer';
   if (lower.includes('devops') || lower.includes('infra')) return 'devops-engineer';
   if (lower.includes('design')) return 'designer';
+  if (lower.includes('chaos-engine') || lower.includes('chaos_engine')) return 'chaos-engine-voice';
   if (lower.includes('roundtable') || lower.includes('voice-')) return 'roundtable-voice';
-  // Legacy types
-  if (lower.includes('orchestrat') || lower.includes('suborc')) return 'developer';
   if (lower.includes('review') || lower.includes('guardian')) return 'review';
-  if (lower.includes('test')) return 'tester';
+  if (lower.includes('research')) return 'researcher';
   if (lower.includes('content') || lower.includes('doc')) return 'content';
+  // Developer check BEFORE test — "test-dev" should be developer, not tester
+  if (lower.includes('dev') || lower.includes('domain-dev') || lower.includes('domaindev')) return 'developer';
+  if (lower.includes('orchestrat') || lower.includes('suborc')) return 'developer';
   if (lower.includes('fix')) return 'developer';
   if (lower.includes('explore')) return 'developer';
-  if (lower.includes('research')) return 'researcher';
+  // Tester only if no dev match
+  if (lower.includes('test')) return 'tester';
   return 'developer';
 }
 
@@ -56,6 +59,33 @@ function getNameKey(agentLabel) {
 // Matches by subagent_type prefix, pops the oldest non-stale entry
 // Entries older than 5 minutes are considered stale and deleted
 const QUEUE_TTL_MS = 5 * 60 * 1000;
+
+// Pop the oldest non-stale entry from the queue that matches the agent name
+// Only consumes entries whose name matches the agent being registered
+function popByNameFromQueue(agentName) {
+  if (!agentName) return null;
+  const queueDir = getQueueDir();
+  const now = Date.now();
+  try {
+    const files = fs.readdirSync(queueDir).sort(); // oldest first
+    for (const file of files) {
+      const filePath = path.join(queueDir, file);
+      const parts = file.split('-');
+      const tsCandidate = parts.find(p => /^\d{13}$/.test(p));
+      if (tsCandidate && (now - parseInt(tsCandidate, 10)) > QUEUE_TTL_MS) {
+        try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+        continue;
+      }
+      // Peek at the data to check the name
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      if (data.name === agentName) {
+        fs.unlinkSync(filePath); // consume only if name matches
+        return data;
+      }
+    }
+  } catch (e) { /* queue empty or doesn't exist */ }
+  return null;
+}
 
 function popDescriptionFromQueue(agentType) {
   const queueDir = getQueueDir();
@@ -116,13 +146,71 @@ async function main() {
 
   const agentType = inferAgentType(input.agent_type);
 
-  // Pop description + name from FIFO queue (written by pre-agent-tool.js)
-  const preToolData = popDescriptionFromQueue(input.agent_type);
+  // Pop description + name + cardId + personaId from FIFO queue (written by pre-agent-tool.js)
+  // pre-agent-tool.js queues by the Agent tool's subagent_type, but agent-start
+  // receives input.agent_type which may be the teammate name, not the subagent type.
+  // Try the exact key first, then scan ALL queue entries for the oldest match.
+  // Effective agent name — declared early because queue pop needs it
+  const rawAgentName = input.agent_type || input.agent_id || 'subagent';
+  const nameFromAgentId = input.agent_id ? input.agent_id.split('@')[0] : null;
+
+  let preToolData = popDescriptionFromQueue(input.agent_type);
+  if (!preToolData && agentType !== input.agent_type) {
+    preToolData = popDescriptionFromQueue(agentType);
+  }
+  if (!preToolData) {
+    // Fallback: pop by agent name — handles teammates where input.agent_type
+    // doesn't match the queued subagent_type but the name is consistent
+    preToolData = popByNameFromQueue(rawAgentName);
+    if (!preToolData && nameFromAgentId && nameFromAgentId !== rawAgentName) {
+      preToolData = popByNameFromQueue(nameFromAgentId);
+    }
+  }
   const preToolDescription = preToolData ? preToolData.description : null;
   const preToolName = preToolData ? preToolData.name : null;
+  let preToolCardId = preToolData ? preToolData.cardId : null;
+  let preToolPersonaId = preToolData ? preToolData.personaId : null;
 
-  // Effective agent name: prefer user-given name from Agent tool, fall back to type/id
-  const rawAgentName = input.agent_type || input.agent_id || 'subagent';
+  // Override agentType with the actual subagent_type from the queue if available
+  // This is more accurate than inferring from the teammate name
+  const effectiveAgentType = (preToolData?.subagentType) ? inferAgentType(preToolData.subagentType) : agentType;
+
+  // Fallback for teammates: if queue had no card/persona, try reading from the team config
+  // Teammates have their prompt stored in ~/.claude/teams/{team}/config.json
+  if (!preToolCardId || !preToolPersonaId) {
+    try {
+      const teamsDir = path.join(process.env.HOME || process.env.USERPROFILE || '', '.claude', 'teams');
+      const teamDirs = fs.readdirSync(teamsDir).filter(d => {
+        try { return fs.statSync(path.join(teamsDir, d)).isDirectory(); } catch { return false; }
+      });
+      for (const teamDir of teamDirs) {
+        const configPath = path.join(teamsDir, teamDir, 'config.json');
+        if (!fs.existsSync(configPath)) continue;
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        const nameToFind = preToolName || rawAgentName || input.agent_type || '';
+        const member = (config.members || []).find(m =>
+          m.agentId === input.agent_id ||
+          m.name === nameToFind ||
+          m.name === input.agent_type ||
+          (input.agent_id && m.agentId.startsWith(input.agent_id))
+        );
+        if (member && member.prompt) {
+          if (!preToolCardId) {
+            const cardMatch = member.prompt.match(/CARD-[A-Z0-9]+-\d{3}/);
+            if (cardMatch) preToolCardId = cardMatch[0];
+          }
+          if (!preToolPersonaId) {
+            const personaMatch = member.prompt.match(/personaId[:\s]+["']?([a-z0-9-]+)["']?/i);
+            if (personaMatch) preToolPersonaId = personaMatch[1];
+          }
+          break;
+        }
+      }
+    } catch (e) {
+      log.debug('team_config_read_failed', `Could not read team config for card/persona fallback: ${e.message}`);
+    }
+  }
+
   const effectiveName = preToolName || rawAgentName;
 
   // Build label: prefer PreToolUse description, fall back to agent name
@@ -131,8 +219,9 @@ async function main() {
     ? (isGenericType ? preToolDescription : `${effectiveName}: ${preToolDescription}`)
     : effectiveName;
 
-  log.info('hook_started', `Registering ${agentType}: ${agentLabel}`, {
+  log.info('hook_started', `Registering ${effectiveAgentType}: ${agentLabel} (raw input.agent_type=${input.agent_type}, preToolName=${preToolName})`, {
     agentId: input.agent_id,
+    rawAgentType: input.agent_type,
     effectiveName,
     preToolName: preToolName || '(none)',
   });
@@ -165,7 +254,23 @@ async function main() {
   } catch (e) { /* no existing mapping - first spawn */ }
 
   if (existingDashboardId) {
-    // Reactivate existing agent instead of creating a duplicate
+    // Check agent state BEFORE reactivating — if completed recently, suppress the zombie bounce
+    const allAgents = await apiGet(`/api/projects/${PROJECT_ID}/agents`);
+    const prePatchAgent = allAgents?.find(a => a.id === existingDashboardId);
+    if (prePatchAgent && prePatchAgent.status === 'completed' && prePatchAgent.completedAt) {
+      const completedAt = new Date(prePatchAgent.completedAt).getTime();
+      const secondsSinceCompletion = (Date.now() - completedAt) / 1000;
+      if (secondsSinceCompletion < 60) {
+        log.info('zombie_bounce_suppressed', `Agent ${existingDashboardId} completed ${secondsSinceCompletion.toFixed(0)}s ago — suppressing reactivation`, {
+          agentId: existingDashboardId,
+        });
+        // Don't reactivate, don't log event — just emit context and return
+        emitAdditionalContext();
+        return;
+      }
+    }
+
+    // Reactivate existing agent (normal idle/wake cycle)
     const reopened = await apiPatch(`/api/agents/${existingDashboardId}`, {
       status: 'running',
     });
@@ -179,14 +284,14 @@ async function main() {
         }
       }
 
-      log.info('agent_reactivated', `Reactivated ${agentType} as ${existingDashboardId} (idle/wake cycle)`, {
+      log.info('agent_reactivated', `Reactivated ${effectiveAgentType} as ${existingDashboardId} (idle/wake cycle)`, {
         agentId: existingDashboardId,
       });
 
       await apiPost('/api/events', {
         projectId: PROJECT_ID,
         type: 'agent_spawned',
-        detail: `${agentType} reactivated: ${agentLabel}`,
+        detail: `${effectiveAgentType} reactivated: ${agentLabel}`,
       });
       emitAdditionalContext();
       return;
@@ -215,22 +320,35 @@ async function main() {
   }
 
   // Register in dashboard - BLOCKING if this fails
-  const agent = await apiPost('/api/agents', {
+  // Register in dashboard — retry without optional FK refs if constraint fails
+  let agent = await apiPost('/api/agents', {
     projectId: PROJECT_ID,
-    type: agentType,
+    type: effectiveAgentType,
     model: 'sonnet-4', // Default - corrected by agent-stop via transcript parsing
     ...(parentAgentId ? { parentAgentId } : {}),
+    ...(preToolCardId ? { cardId: preToolCardId } : {}),
+    ...(preToolPersonaId ? { personaId: preToolPersonaId } : {}),
     detail: agentLabel,
   });
+  if (!agent && (preToolCardId || preToolPersonaId)) {
+    // FK constraint likely failed (card/persona not in DB) — retry without
+    agent = await apiPost('/api/agents', {
+      projectId: PROJECT_ID,
+      type: effectiveAgentType,
+      model: 'sonnet-4',
+      ...(parentAgentId ? { parentAgentId } : {}),
+      detail: agentLabel,
+    });
+  }
 
   if (!agent) {
-    log.fatal('agent_registration_failed', `Failed to register ${agentType}: ${agentLabel} - dashboard tracking broken for this agent`, {
+    log.fatal('agent_registration_failed', `Failed to register ${effectiveAgentType}: ${agentLabel} - dashboard tracking broken for this agent`, {
       agentId: input.agent_id,
     });
     process.exit(1);
   }
 
-  log.info('agent_registered', `Registered ${agentType} as ${agent.id}`, {
+  log.info('agent_registered', `Registered ${effectiveAgentType} as ${agent.id}`, {
     agentId: agent.id,
   });
 
@@ -252,13 +370,16 @@ async function main() {
   const eventResult = await apiPost('/api/events', {
     projectId: PROJECT_ID,
     type: 'agent_spawned',
-    detail: `${agentType} spawned: ${agentLabel}`,
+    detail: `${effectiveAgentType} spawned: ${agentLabel}`,
   });
   if (!eventResult) {
     log.warn('event_post_failed', 'Failed to log agent_spawned event');
   }
 
   emitAdditionalContext();
+
+  // Update Volundr heartbeat — show agent spawn on dashboard
+  await updateHeartbeat('spawning agents', preToolCardId).catch(() => {});
 }
 
 main().catch((e) => {

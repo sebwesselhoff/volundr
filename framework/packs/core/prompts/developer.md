@@ -1,6 +1,6 @@
 # Developer Agent Prompt Template
 
-Use this template when a SubOrchestrator or Vǫlundr spawns a developer agent.
+Use this template when a SubOrchestrator or Volundr spawns a developer agent.
 
 ---
 

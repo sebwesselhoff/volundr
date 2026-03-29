@@ -1,8 +1,8 @@
 /**
- * Vǫlundr v5.1 - Dynamic Hierarchy Assessor
+ * Volundr v5.1 - Dynamic Hierarchy Assessor
  *
  * Decision logic for selecting and adjusting the agent hierarchy level.
- * NOT executable code - Vǫlundr reads this and follows the logic.
+ * NOT executable code - Volundr reads this and follows the logic.
  *
  * Called at:
  * 1. Start of Phase 4 (initial assessment)

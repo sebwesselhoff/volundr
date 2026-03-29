@@ -24,10 +24,10 @@ async function main() {
 
   // Skip root-level tsc in Turborepo monorepos - root tsconfig can't resolve
   // per-package path aliases (@/), so tsc --noEmit always fails from the root.
-  // Vǫlundr runs the real build gate (turbo run build) after merging worktrees.
+  // Volundr runs the real build gate (turbo run build) after merging worktrees.
   const hasTurboJson = fs.existsSync(path.join(cwd, 'turbo.json'));
   if (hasTurboJson) {
-    log.info('turbo_skip', `Skipping tsc build gate for ${input.teammate_name || 'teammate'} - Turborepo root (Vǫlundr handles build gate after merge)`);
+    log.info('turbo_skip', `Skipping tsc build gate for ${input.teammate_name || 'teammate'} - Turborepo root (Volundr handles build gate after merge)`);
     return;
   }
 
@@ -67,7 +67,7 @@ async function main() {
 
   // --- Team cleanup check ---
   // After build gate passes, check if ALL teammates in this team are idle/done.
-  // If so, nudge Vǫlundr to call TeamDelete via stderr prompt (exit 0, not exit 2).
+  // If so, nudge Volundr to call TeamDelete via stderr prompt (exit 0, not exit 2).
   await checkTeamCompletion(input);
 
   // Exit 0 = teammate can go idle
@@ -76,7 +76,7 @@ async function main() {
 /**
  * Check if all teammates in the team have completed their tasks.
  * If every task is completed and no teammates are actively working,
- * write a nudge to stdout so Vǫlundr knows to clean up the team.
+ * write a nudge to stdout so Volundr knows to clean up the team.
  * This does NOT block the teammate (always exits 0 after).
  */
 async function checkTeamCompletion(input) {
@@ -113,7 +113,7 @@ async function checkTeamCompletion(input) {
     }
 
     if (allDone && totalTasks > 0) {
-      log.info('team_all_tasks_done', `All ${totalTasks} tasks completed in team "${teamName}". Nudging Vǫlundr to clean up.`);
+      log.info('team_all_tasks_done', `All ${totalTasks} tasks completed in team "${teamName}". Nudging Volundr to clean up.`);
 
       await apiPost('/api/events', {
         projectId: PROJECT_ID,
@@ -121,7 +121,7 @@ async function checkTeamCompletion(input) {
         detail: `Team "${teamName}": all ${totalTasks} tasks completed. All teammates idle. Team can be deleted.`,
       });
 
-      // Write to stdout - this shows up as context for Vǫlundr
+      // Write to stdout - this shows up as context for Volundr
       process.stdout.write(
         `\n[team-cleanup] All ${totalTasks} tasks in team "${teamName}" are completed and all teammates are idle. ` +
         `Call TeamDelete to clean up the team.\n`

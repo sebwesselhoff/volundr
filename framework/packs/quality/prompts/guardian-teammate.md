@@ -1,6 +1,6 @@
 # Guardian Teammate Prompt Template
 
-Use when Vǫlundr spawns an Architecture Guardian at milestones
+Use when Volundr spawns an Architecture Guardian at milestones
 (domain completion, every 15 cards, before final integration).
 
 ---
@@ -47,7 +47,7 @@ Use when Vǫlundr spawns an Architecture Guardian at milestones
     ## Communication:
     Use the `SendMessage` tool for ALL communication. Text output is invisible to other agents.
    - `SendMessage({ to: "volundr", message: "CRITICAL: ..." })` - report critical issues to Volundr
-   - Do NOT message Developers directly - Vǫlundr coordinates fixes
+   - Do NOT message Developers directly - Volundr coordinates fixes
 
     ## Rules:
    - READ-ONLY for source files - write only to reports/

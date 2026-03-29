@@ -1,6 +1,6 @@
 'use client';
 
-import type { MetricsResponse } from '@vldr/shared';
+import { SCORE_SCALE, type MetricsResponse } from '@vldr/shared';
 import { useApiQuery } from '@/hooks/use-api';
 import { useProject } from '@/contexts/project-context';
 
@@ -124,7 +124,7 @@ export function ProgressBar() {
             <div
               className="h-full rounded-full"
               style={{
-                width: `${Math.min(100, (qualityAvg / 5) * 100)}%`,
+                width: `${Math.min(100, (qualityAvg / SCORE_SCALE) * 100)}%`,
                 background: '#3b82f6',
               }}
             />

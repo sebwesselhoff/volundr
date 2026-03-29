@@ -1,8 +1,8 @@
 /**
- * Vǫlundr v5 - Agent Type Registry
+ * Volundr v5 - Agent Type Registry
  *
  * Reference file defining all agent types, their capabilities, and constraints.
- * Used by Vǫlundr and SubOrchestrators when spawning agents.
+ * Used by Volundr and SubOrchestrators when spawning agents.
  * This is NOT executable code - it's a typed reference document.
  */
 
@@ -26,6 +26,7 @@ export interface AgentTypeDefinition {
   description: string;
   teammate?: boolean;         // true = spawned as Agent Teams teammate, not Agent tool subagent
   promptTemplate?: string;    // path to prompt template file
+  personaTemplate?: string;   // default persona ID from framework/personas/seeds/
   // --- Routing metadata (Card 7: Registry Routing Hub) ---
   type?: string;              // Agent type key (mirrored for iteration convenience)
   triggerSignals?: string[];  // Keywords that trigger this agent type
@@ -45,7 +46,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     model: 'opus-4',
     tools: ['Agent', 'Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep'],
     spawnedBy: null,
-    canSpawn: ['planner', 'developer', 'architect', 'qa-engineer', 'devops-engineer', 'designer', 'roundtable-voice', 'guardian', 'tester', 'review', 'content', 'fixer', 'researcher'],
+    canSpawn: ['planner', 'developer', 'architect', 'qa-engineer', 'devops-engineer', 'designer', 'roundtable-voice', 'chaos-engine-voice', 'guardian', 'tester', 'review', 'content', 'fixer', 'researcher'],
     sdkAccess: true,
     description: 'Project lifecycle owner. Git, merges, build gates, cross-domain coordination.',
     triggerSignals: [],
@@ -88,6 +89,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     description: 'Claims tasks and implements directly. No spawning subagents. Full file + shell access.',
     teammate: true,
     promptTemplate: 'framework/packs/core/prompts/developer-teammate.md',
+    personaTemplate: 'fullstack-web',
     triggerSignals: ['implementation', 'feature', 'refactor', 'migration'],
     taskDepthTiers: {
       small:    { model: 'sonnet', maxCards: 2 },
@@ -108,6 +110,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     description: 'Continuous design alignment, pattern enforcement, scope control',
     teammate: true,
     promptTemplate: 'framework/packs/core/prompts/architect-teammate.md',
+    personaTemplate: 'architect',
     triggerSignals: ['architecture', 'design', 'pattern'],
     taskDepthTiers: {
       small:    { model: 'sonnet', maxCards: 3 },
@@ -128,6 +131,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     description: 'Test strategy, coverage tracking, test execution',
     teammate: true,
     promptTemplate: 'framework/packs/testing/prompts/qa-engineer-teammate.md',
+    personaTemplate: 'test-engineer',
     triggerSignals: ['test', 'coverage', 'e2e', 'integration test', 'qa', 'quality'],
     taskDepthTiers: {
       small:    { model: 'sonnet', maxCards: 2 },
@@ -151,6 +155,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     description: 'Infrastructure, CI/CD, deployment, database migrations',
     teammate: true,
     promptTemplate: 'framework/packs/infrastructure/prompts/devops-engineer-teammate.md',
+    personaTemplate: 'devops-infra',
     triggerSignals: ['infra', 'deploy', 'docker', 'ci', 'pipeline', 'kubernetes'],
     taskDepthTiers: {
       small:    { model: 'sonnet', maxCards: 2 },
@@ -174,6 +179,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     description: 'UI/UX quality, component patterns, visual consistency',
     teammate: true,
     promptTemplate: 'framework/packs/frontend/prompts/designer-teammate.md',
+    personaTemplate: 'fullstack-web',
     triggerSignals: ['frontend', 'ui', 'ux', 'css', 'design', 'component', 'tailwind'],
     taskDepthTiers: {
       small:    { model: 'sonnet', maxCards: 2 },
@@ -206,17 +212,38 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     defaultTraits: [],
     conditionalSpawn: null,
     customizationKey: 'roundtable-voice',
-    pack: 'core',
+    pack: 'roundtable',
   },
-  developer: {
+  'chaos-engine-voice': {
+    model: 'sonnet-4',
+    tools: ['Read', 'Glob', 'Grep'],
+    spawnedBy: ['volundr'],
+    canSpawn: [],
+    sdkAccess: false,
+    description: 'Chaos Engine voice - high-intensity idea evolution (temporary, roundtable alternative)',
+    teammate: true,
+    promptTemplate: 'framework/packs/roundtable/prompts/chaos-engine-teammate.md',
+    triggerSignals: ['chaos-engine', 'breakthrough', 'innovation', 'creative'],
+    taskDepthTiers: {
+      small:    { model: 'sonnet', maxCards: 1 },
+      standard: { model: 'sonnet', maxCards: 1 },
+      deep:     { model: 'sonnet', maxCards: 1 },
+    },
+    defaultTraits: [],
+    conditionalSpawn: null,
+    customizationKey: 'chaos-engine-voice',
+    pack: 'roundtable',
+  },
+  'developer-subagent': {
     model: 'sonnet-4',
     tools: ['Read', 'Write', 'Edit', 'Glob', 'Grep'],
     spawnedBy: ['volundr'],
     canSpawn: [],
     sdkAccess: false,
     isolation: 'worktree',
-    description: 'Writes code files. Edit for modifying existing, Write for new. No Bash, no Agent.',
+    description: 'Subagent developer. Writes code files. No Bash, no Agent. For flat hierarchy direct spawns.',
     promptTemplate: 'framework/packs/core/prompts/developer.md',
+    personaTemplate: 'fullstack-web',
     triggerSignals: ['implementation', 'feature', 'refactor', 'migration'],
     taskDepthTiers: {
       small:    { model: 'sonnet', maxCards: 2 },
@@ -236,6 +263,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     sdkAccess: false,
     description: 'Writes and modifies test files. Returns test files + expected results.',
     promptTemplate: 'framework/packs/testing/prompts/tester.md',
+    personaTemplate: 'test-engineer',
     triggerSignals: ['test', 'spec', 'coverage', 'unit test', 'integration test'],
     taskDepthTiers: {
       small:    { model: 'sonnet', maxCards: 2 },
@@ -275,6 +303,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     sdkAccess: false,
     description: 'Docs, READMEs, markdown content. No code files.',
     promptTemplate: 'framework/packs/infrastructure/prompts/content.md',
+    personaTemplate: 'documentation-engineer',
     triggerSignals: ['docs', 'readme', 'documentation', 'content', 'markdown'],
     taskDepthTiers: {
       small:    { model: 'sonnet', maxCards: 2 },
@@ -314,6 +343,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     description: 'Architecture review at milestones. Spawned as teammate.',
     teammate: true,
     promptTemplate: 'framework/packs/quality/prompts/guardian-teammate.md',
+    personaTemplate: 'security-reviewer',
     triggerSignals: ['architecture', 'milestone', 'review', 'security', 'quality'],
     taskDepthTiers: {
       small:    { model: 'opus', maxCards: 2 },
@@ -333,6 +363,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     sdkAccess: false,
     teammate: true,
     promptTemplate: 'framework/packs/research/prompts/researcher-teammate.md',
+    personaTemplate: 'architect',
     description: 'Pre-study researcher. Web search, API docs, wiki, Playwright browser, curl probing. Produces reports + typed mappings.',
     triggerSignals: ['api', 'integration', 'webhook', 'oauth', 'third-party', 'external'],
     taskDepthTiers: {

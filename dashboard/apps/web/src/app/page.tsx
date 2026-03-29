@@ -68,7 +68,7 @@ export default function LandingPage() {
               letterSpacing: '-0.02em',
               animationDuration: '800ms',
             }}>
-          Vǫlundr
+          Volundr
         </h1>
       </div>
 
@@ -81,7 +81,7 @@ export default function LandingPage() {
       {/* Version */}
       <p className={`font-mono text-xs text-[#8899b3] mt-3 kindle kindle-3 transition-all duration-400 ${transitioning ? 'opacity-0 translate-y-4' : ''}`}
          style={{ animationDuration: '600ms' }}>
-        v4.0
+        v5.0
       </p>
 
       {/* Enter link */}

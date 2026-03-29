@@ -1,1 +1,22 @@
-{"name":"security","version":"1.0.0","description":"Security-focused traits","alwaysLoad":false,"agentTypes":[],"signals":["security","auth","encryption"]}
+{
+  "name": "security",
+  "version": "1.1.0",
+  "description": "Security review and auth specialization",
+  "alwaysLoad": false,
+  "agentTypes": [],
+  "signals": ["security", "auth", "encryption", "owasp", "jwt", "oauth"],
+  "personas": [
+    {
+      "id": "security-reviewer",
+      "name": "Víðarr Silentward",
+      "role": "reviewer",
+      "expertise": "owasp, jwt security, xss, csrf, sql injection, cors, csp, secret, pii, vulnerability, dependency audit, snyk, sonarqube"
+    },
+    {
+      "id": "auth-specialist",
+      "name": "Heimdall Watchfire",
+      "role": "developer",
+      "expertise": "oauth2, oidc, jwt, rbac, abac, msal, session, pkce, mfa, saml, auth, authentication, authorization, sso, next-auth"
+    }
+  ]
+}

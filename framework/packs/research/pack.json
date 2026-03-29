@@ -1,1 +1,28 @@
-{"name":"research","version":"1.0.0","description":"External API research","alwaysLoad":false,"agentTypes":["researcher"],"signals":["api","integration","webhook","oauth"]}
+{
+  "name": "research",
+  "version": "1.1.0",
+  "description": "External API research and data engineering",
+  "alwaysLoad": false,
+  "agentTypes": ["researcher"],
+  "signals": ["api", "integration", "webhook", "oauth", "etl", "pipeline"],
+  "personas": [
+    {
+      "id": "researcher",
+      "name": "Muninn Farseeker",
+      "role": "researcher",
+      "expertise": "api research, documentation, endpoint mapping, sdk analysis, postman, curl, api exploration, protocol analysis"
+    },
+    {
+      "id": "data-engineer",
+      "name": "Skuld Threadweaver",
+      "role": "developer",
+      "expertise": "etl, pipeline, csv, xml, json, mapping, validation, transformation, data flow, airflow, dbt, data quality"
+    },
+    {
+      "id": "database-engineer",
+      "name": "Mímir Deepwell",
+      "role": "developer",
+      "expertise": "sql, sqlite, postgresql, mysql, drizzle, prisma, query, schema, migration, index, orm, database, mongodb, redis"
+    }
+  ]
+}

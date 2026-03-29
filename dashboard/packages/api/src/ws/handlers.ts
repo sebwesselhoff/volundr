@@ -27,7 +27,7 @@ export function handleIncomingMessage(client: WsClient, msg: IncomingWsMessage) 
         if (msg.success) {
           broadcastToBrowsers({ type: 'command:acknowledged', data: { commandId: msg.commandId } });
         } else {
-          broadcastToBrowsers({ type: 'command:failed', data: { commandId: msg.commandId, reason: msg.detail || 'Rejected by Vǫlundr' } });
+          broadcastToBrowsers({ type: 'command:failed', data: { commandId: msg.commandId, reason: msg.detail || 'Rejected by Volundr' } });
         }
       }
       break;

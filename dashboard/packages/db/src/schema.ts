@@ -8,6 +8,7 @@ export const projects = sqliteTable('projects', {
   status: text('status').notNull().default('active'),
   phase: text('phase').notNull().default('discovery'),
   reviewGateLevel: integer('review_gate_level').notNull().default(1),
+  economyMode: integer('economy_mode', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });
@@ -37,6 +38,9 @@ export const cards = sqliteTable('cards', {
   filesModified: text('files_modified'),
   branch: text('branch'),
   isc: text('isc'),  // JSON array: [{ criterion, evidence, passed }]
+  assignedPersonaId: text('assigned_persona_id'),
+  routingConfidence: text('routing_confidence'),  // low|medium|high
+  routingReason: text('routing_reason'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
   completedAt: text('completed_at'),
@@ -49,6 +53,7 @@ export const agents = sqliteTable(
     projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
     cardId: text('card_id').references(() => cards.id, { onDelete: 'cascade' }),
     parentAgentId: text('parent_agent_id').references((): any => agents.id, { onDelete: 'cascade' }),
+    personaId: text('persona_id'),
     type: text('type').notNull(),
     model: text('model').notNull(),
     status: text('status').notNull().default('running'),
@@ -81,13 +86,14 @@ export const events = sqliteTable('events', {
 
 export const qualityScores = sqliteTable('quality_scores', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  cardId: text('card_id').notNull().unique().references(() => cards.id, { onDelete: 'cascade' }),
+  cardId: text('card_id').notNull().references(() => cards.id, { onDelete: 'cascade' }),
   completeness: real('completeness'),
   codeQuality: real('code_quality'),
   formatCompliance: real('format_compliance'),
-  independence: real('independence'),
+  correctness: real('correctness'),
   weightedScore: real('weighted_score'),
   implementationType: text('implementation_type'),
+  reviewType: text('review_type').default('self'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });
@@ -156,4 +162,13 @@ export const sessionSummaries = sqliteTable('session_summaries', {
   cardsStarted: text('cards_started'), // JSON array
 });
 
+// --- Schema Version (migration tracking) ---
+export const schemaVersion = sqliteTable('schema_version', {
+  version: integer('version').primaryKey(),
+  appliedAt: text('applied_at').notNull().default(sql`(datetime('now'))`),
+  description: text('description'),
+});
+
 export { teams, teamMembers, teamMessages, teamTasks } from './team-schema.js';
+export { personas, personaHistory, personaStats, personaSkills } from './persona-schema.js';
+export { routingRules, directives, skills, reviewerLockouts, skillBuildEvents } from './routing-governance-schema.js';

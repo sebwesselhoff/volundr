@@ -11,6 +11,11 @@ const NAV_ITEMS = [
   { href: '/board', label: 'Board' },
   { href: '/events', label: 'Events' },
   { href: '/insights', label: 'Insights' },
+  { href: '/personas', label: 'Personas' },
+  { href: '/skills', label: 'Skills' },
+  { href: '/compliance', label: 'Compliance' },
+  { href: '/routing', label: 'Routing' },
+  { href: '/directives', label: 'Directives' },
   { href: '/thing', label: 'The Þing' },
 ];
 
@@ -102,7 +107,7 @@ export function TopNav() {
       <Link href="/" className={`font-cormorant font-bold text-2xl text-[#e8a838] tracking-wide hover:text-[#e8a838]
                                   transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}
             style={{ textShadow: '0 0 20px rgba(232,168,56,0.15)' }}>
-        Vǫlundr
+        Volundr
       </Link>
 
       {/* Nav items centered below — staggered fade in */}

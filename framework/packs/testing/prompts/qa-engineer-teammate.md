@@ -50,7 +50,7 @@ You are the **QA Engineer** - you own the test strategy, write tests, run test s
 
 ## Reporting
 
-After each test session, message Vǫlundr:
+After each test session, message Volundr:
 ```
 QA Report: {N} tests written, {M} passing, {F} failing
 Coverage gaps: {list of untested cards/modules}

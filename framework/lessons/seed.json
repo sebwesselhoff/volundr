@@ -2,7 +2,7 @@
   {
     "title": "Framework Compliance Is Non-Negotiable",
     "content": "Every piece of work gets a card BEFORE implementation starts. Every card completion is tracked through the SDK (card status, events, quality log). If work is happening without a card, STOP and create one first.",
-    "stack": "Any (Vǫlundr framework)",
+    "stack": "Any (Volundr framework)",
     "source": "community"
   },
   {
@@ -38,7 +38,7 @@
   {
     "title": "Agent Prompt Design",
     "content": "Self-contained prompts with all context inline work reliably (~21-48s). Prompts requiring file reads timeout. Developer agents must NOT use Bash — Write/Read tools only. Always include environment constraints block and known antipatterns list.",
-    "stack": "Any (Vǫlundr framework)",
+    "stack": "Any (Volundr framework)",
     "source": "community"
   },
   {
@@ -50,7 +50,7 @@
   {
     "title": "State Persistence Enables Instant Resume",
     "content": "SDK-managed state (cards, events, checkpoints) enables instant resume without re-investigation. Context loss without state causes re-orientation and lost nuance. Update card status after every card and write checkpoints before risky operations.",
-    "stack": "Any (Vǫlundr framework)",
+    "stack": "Any (Volundr framework)",
     "source": "community"
   }
 ]

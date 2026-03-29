@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb, schema } from '@vldr/db';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
+import { v4 as uuid } from 'uuid';
 import { ApiError } from '../middleware/error-handler.js';
 
 const router = Router();
@@ -14,9 +15,10 @@ router.get('/projects/:projectId/quality', (req, res) => {
     completeness: schema.qualityScores.completeness,
     codeQuality: schema.qualityScores.codeQuality,
     formatCompliance: schema.qualityScores.formatCompliance,
-    independence: schema.qualityScores.independence,
+    correctness: schema.qualityScores.correctness,
     weightedScore: schema.qualityScores.weightedScore,
     implementationType: schema.qualityScores.implementationType,
+    reviewType: schema.qualityScores.reviewType,
     createdAt: schema.qualityScores.createdAt,
     updatedAt: schema.qualityScores.updatedAt,
   })
@@ -30,57 +32,99 @@ router.get('/projects/:projectId/quality', (req, res) => {
 
 // POST /quality — upsert quality score
 router.post('/quality', (req, res) => {
-  const { cardId, completeness, codeQuality, formatCompliance, independence, implementationType } = req.body as {
+  const { cardId, completeness, codeQuality, formatCompliance, correctness, independence, implementationType, reviewType } = req.body as {
     cardId?: string;
     completeness?: number;
     codeQuality?: number;
     formatCompliance?: number;
-    independence?: number;
+    correctness?: number;
+    independence?: number; // backward compat — maps to correctness
     implementationType?: string;
+    reviewType?: string;
   };
   if (!cardId) throw new ApiError(400, 'cardId is required');
 
   const db = getDb();
-  const [card] = db.select({ id: schema.cards.id }).from(schema.cards).where(eq(schema.cards.id, cardId)).all();
+  const [card] = db.select({ id: schema.cards.id, projectId: schema.cards.projectId })
+    .from(schema.cards).where(eq(schema.cards.id, cardId)).all();
   if (!card) throw new ApiError(404, `Card ${cardId} not found`);
 
-  const C = completeness ?? 0;
-  const Q = codeQuality ?? 0;
-  const F = formatCompliance ?? 0;
-  const I = independence ?? 0;
-  const weightedScore = (C * 3 + Q * 3 + F * 2 + I * 2) / 10;
+  // Accept either correctness or independence (backward compat)
+  const effectiveCorrectness = correctness ?? independence;
 
-  const [existing] = db.select().from(schema.qualityScores).where(eq(schema.qualityScores.cardId, cardId)).all();
+  // Validate score ranges (1-10 scale)
+  const SCORE_MIN = 1, SCORE_MAX = 10;
+  for (const [key, val] of Object.entries({ completeness, codeQuality, formatCompliance, correctness: effectiveCorrectness })) {
+    if (val != null && (typeof val !== 'number' || val < SCORE_MIN || val > SCORE_MAX)) {
+      throw new ApiError(400, `${key} must be between ${SCORE_MIN} and ${SCORE_MAX}, got ${val}`);
+    }
+  }
+
+  const effectiveReviewType = reviewType ?? 'self';
+
+  // Match on (cardId, reviewType) — allows both self and reviewer scores per card
+  const [existing] = db.select().from(schema.qualityScores)
+    .where(and(eq(schema.qualityScores.cardId, cardId), eq(schema.qualityScores.reviewType, effectiveReviewType))).all();
+
+  // Preserve existing values on partial update — don't coerce undefined to 0
+  const C = completeness ?? (existing?.completeness as number | undefined) ?? 0;
+  const Q = codeQuality ?? (existing?.codeQuality as number | undefined) ?? 0;
+  const F = formatCompliance ?? (existing?.formatCompliance as number | undefined) ?? 0;
+  const R = effectiveCorrectness ?? (existing?.correctness as number | undefined) ?? 0;
+  const weightedScore = (C * 3 + Q * 3 + F * 2 + R * 2) / 10;
 
   const now = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+
+  let scoreRow: typeof schema.qualityScores.$inferSelect;
 
   if (existing) {
     db.update(schema.qualityScores).set({
       completeness: C,
       codeQuality: Q,
       formatCompliance: F,
-      independence: I,
+      correctness: R,
       weightedScore,
       ...(implementationType != null ? { implementationType } : {}),
       updatedAt: now,
-    }).where(eq(schema.qualityScores.cardId, cardId)).run();
+    }).where(and(eq(schema.qualityScores.cardId, cardId), eq(schema.qualityScores.reviewType, effectiveReviewType))).run();
 
-    const [updated] = db.select().from(schema.qualityScores).where(eq(schema.qualityScores.cardId, cardId)).all();
-    return res.json(updated);
+    [scoreRow] = db.select().from(schema.qualityScores)
+      .where(and(eq(schema.qualityScores.cardId, cardId), eq(schema.qualityScores.reviewType, effectiveReviewType))).all();
+  } else {
+    const result = db.insert(schema.qualityScores).values({
+      cardId,
+      completeness: C,
+      codeQuality: Q,
+      formatCompliance: F,
+      correctness: R,
+      weightedScore,
+      implementationType: implementationType ?? 'unknown',
+      reviewType: effectiveReviewType,
+    }).run();
+
+    [scoreRow] = db.select().from(schema.qualityScores).where(eq(schema.qualityScores.id, Number(result.lastInsertRowid))).all();
   }
 
-  const result = db.insert(schema.qualityScores).values({
-    cardId,
-    completeness: C,
-    codeQuality: Q,
-    formatCompliance: F,
-    independence: I,
-    weightedScore,
-    implementationType: implementationType ?? 'unknown',
-  }).run();
+  // Gate 6: optimization cycle nudge every 5 done cards in the project
+  try {
+    const scoredCards = db.selectDistinct({ cardId: schema.qualityScores.cardId })
+      .from(schema.qualityScores)
+      .innerJoin(schema.cards, eq(schema.qualityScores.cardId, schema.cards.id))
+      .where(eq(schema.cards.projectId, card.projectId))
+      .all();
+    const doneCount = scoredCards.length;
+    if (doneCount > 0 && doneCount % 5 === 0) {
+      db.insert(schema.commands).values({
+        id: uuid(),
+        projectId: card.projectId,
+        type: 'optimization_cycle_due',
+        detail: `${doneCount} cards scored — time for an optimization review`,
+        status: 'pending',
+      }).run();
+    }
+  } catch { /* nudge failure must not block the response */ }
 
-  const [created] = db.select().from(schema.qualityScores).where(eq(schema.qualityScores.id, Number(result.lastInsertRowid))).all();
-  res.status(201).json(created);
+  res.status(existing ? 200 : 201).json(scoreRow!);
 });
 
 export default router;

@@ -80,11 +80,12 @@ router.patch('/:id', (req, res) => {
   const [existing] = db.select().from(schema.projects).where(eq(schema.projects.id, req.params.id)).all();
   if (!existing) throw new ApiError(404, `Project ${req.params.id} not found`);
 
-  const { name, status, phase, reviewGateLevel } = req.body as {
+  const { name, status, phase, reviewGateLevel, economyMode } = req.body as {
     name?: string;
     status?: string;
     phase?: string;
     reviewGateLevel?: number;
+    economyMode?: boolean;
   };
 
   const validPhases = ['discovery', 'planning', 'implementation', 'testing', 'maintenance', 'complete'];
@@ -97,6 +98,23 @@ router.patch('/:id', (req, res) => {
     throw new ApiError(400, `Invalid status "${status}". Must be one of: ${validStatuses.join(', ')}`);
   }
 
+  // Gate 5: session summary required before phase transition (skip for discovery start)
+  if (phase != null && phase !== existing.phase && phase !== 'discovery') {
+    const TWO_HOURS_AGO = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const recentSummaries = db.select({
+        id: schema.sessionSummaries.id,
+        startedAt: schema.sessionSummaries.startedAt,
+        endedAt: schema.sessionSummaries.endedAt,
+      })
+      .from(schema.sessionSummaries)
+      .where(eq(schema.sessionSummaries.projectId, req.params.id))
+      .all()
+      .filter((s) => (s.endedAt && s.endedAt > TWO_HOURS_AGO) || (s.startedAt && s.startedAt > TWO_HOURS_AGO));
+    if (recentSummaries.length === 0) {
+      throw new ApiError(400, `Phase transition to "${phase}" requires a session summary from the last 2 hours. Create one via POST /api/session-summaries first.`);
+    }
+  }
+
   const updates: Record<string, unknown> = {
     updatedAt: new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, ''),
   };
@@ -104,6 +122,7 @@ router.patch('/:id', (req, res) => {
   if (status != null) updates.status = status;
   if (phase != null) updates.phase = phase;
   if (reviewGateLevel != null) updates.reviewGateLevel = reviewGateLevel;
+  if (economyMode != null) updates.economyMode = economyMode;
 
   db.update(schema.projects).set(updates).where(eq(schema.projects.id, req.params.id)).run();
 

@@ -6,7 +6,9 @@ import {
   BarChart, Bar,
   Cell,
 } from 'recharts';
-import type { MetricsResponse } from '@vldr/shared';
+import { SCORE_SCALE, type MetricsResponse, type Persona, type Skill } from '@vldr/shared';
+import { useApiQuery } from '@/hooks/use-api';
+import { useProject } from '@/contexts/project-context';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -126,8 +128,8 @@ function QualityTrend({ data }: { data: MetricsResponse['qualityTrend'] }) {
           tickLine={false}
         />
         <YAxis
-          domain={[0, 4]}
-          ticks={[0, 1, 2, 3, 4]}
+          domain={[0, SCORE_SCALE]}
+          ticks={[0, 2, 4, 6, 8, SCORE_SCALE]}
           tick={{ ...AXIS_STYLE }}
           axisLine={false}
           tickLine={false}
@@ -385,6 +387,208 @@ function CostSummary({ metrics }: { metrics: MetricsResponse }) {
   );
 }
 
+// ── Persona Comparison ────────────────────────────────────────────────────────
+
+const ROLE_COLORS: Record<string, string> = {
+  developer: '#3b82f6',
+  architect: '#8b5cf6',
+  'qa-engineer': '#22c55e',
+  'devops-engineer': '#f59e0b',
+  designer: '#ec4899',
+  reviewer: '#14b8a6',
+  guardian: '#ef4444',
+  researcher: '#6366f1',
+  content: '#f97316',
+};
+
+function PersonaComparison({ personas }: { personas: Persona[] | null }) {
+  if (!personas || personas.length === 0) {
+    return <div style={EMPTY_STYLE}>no personas</div>;
+  }
+  const top = [...personas]
+    .filter(p => p.cardsCompleted > 0)
+    .sort((a, b) => b.qualityAverage - a.qualityAverage)
+    .slice(0, 8);
+
+  if (top.length === 0) return <div style={EMPTY_STYLE}>no persona data</div>;
+
+  const chartData = top.map(p => ({
+    name: p.name.length > 14 ? p.name.slice(0, 12) + '…' : p.name,
+    quality: Math.round(p.qualityAverage * 100) / 100,
+    cards: p.cardsCompleted,
+    color: ROLE_COLORS[p.role] ?? '#8899b3',
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height={180}>
+      <BarChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+        <XAxis
+          dataKey="name"
+          tick={{ ...AXIS_STYLE, fontSize: '0.62rem' }}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis
+          domain={[0, 5]}
+          ticks={[0, 1, 2, 3, 4, 5]}
+          tick={{ ...AXIS_STYLE }}
+          axisLine={false}
+          tickLine={false}
+          width={20}
+        />
+        <Tooltip
+          content={(props) => {
+            if (!props.active || !props.payload?.length) return null;
+            const d = props.payload[0]?.payload;
+            return (
+              <div style={{
+                background: 'transparent',
+                border: 'none',
+                fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+                fontSize: '0.7rem',
+                pointerEvents: 'none',
+              }}>
+                <p style={{ color: '#8899b3', marginBottom: 2 }}>{props.label}</p>
+                <p style={{ color: d?.color ?? '#c5d0e6' }}>quality {d?.quality?.toFixed(2)}</p>
+                <p style={{ color: '#8899b3' }}>{d?.cards} cards</p>
+              </div>
+            );
+          }}
+          cursor={{ fill: 'rgba(59,130,246,0.05)' }}
+        />
+        <Bar dataKey="quality" radius={[2, 2, 0, 0]}>
+          {chartData.map((entry, i) => (
+            <Cell key={i} fill={entry.color} fillOpacity={0.85} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── Skill Heatmap ─────────────────────────────────────────────────────────────
+
+const DOMAIN_COLORS = [
+  '#3b82f6', '#8b5cf6', '#22c55e', '#f59e0b',
+  '#ec4899', '#14b8a6', '#ef4444', '#6366f1', '#f97316',
+];
+
+function SkillHeatmap({ skills }: { skills: Skill[] | null }) {
+  if (!skills || skills.length === 0) {
+    return <div style={EMPTY_STYLE}>no skills</div>;
+  }
+
+  const CONF_VALUE: Record<string, number> = { high: 3, medium: 2, low: 1 };
+  const domains = [...new Set(skills.map(s => s.domain))].sort();
+
+  const domainSkills = domains.map((domain, di) => {
+    const ds = skills.filter(s => s.domain === domain);
+    const avgConf = ds.reduce((sum, s) => sum + (CONF_VALUE[s.confidence] ?? 0), 0) / ds.length;
+    return {
+      domain: domain.length > 12 ? domain.slice(0, 10) + '…' : domain,
+      count: ds.length,
+      avgConf,
+      color: DOMAIN_COLORS[di % DOMAIN_COLORS.length] ?? '#8899b3',
+    };
+  }).slice(0, 9);
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', padding: '0.5rem 0' }}>
+      {domainSkills.map(({ domain, count, avgConf, color }) => {
+        const opacity = 0.3 + (avgConf / 3) * 0.7;
+        const size = Math.max(48, Math.min(96, 36 + count * 12));
+        return (
+          <div
+            key={domain}
+            style={{
+              width: size,
+              height: size,
+              background: `${color}`,
+              opacity,
+              borderRadius: 4,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: `1px solid ${color}44`,
+            }}
+          >
+            <span style={{
+              fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+              fontSize: '0.75rem',
+              color: '#e8ecf4',
+              fontWeight: 600,
+            }}>{count}</span>
+            <span style={{
+              fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace',
+              fontSize: '0.55rem',
+              color: 'rgba(232,236,244,0.8)',
+              textAlign: 'center',
+              padding: '0 4px',
+              wordBreak: 'break-word',
+            }}>{domain}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Compliance Trend ──────────────────────────────────────────────────────────
+
+function ComplianceTrend({ qualityTrend }: { qualityTrend: MetricsResponse['qualityTrend'] }) {
+  if (!qualityTrend || qualityTrend.length === 0) {
+    return <div style={EMPTY_STYLE}>no compliance data</div>;
+  }
+
+  // Compliance = quality >= 3.0 (pass threshold)
+  const WINDOW = 5;
+  const chartData = qualityTrend.map((d, i) => {
+    const window = qualityTrend.slice(Math.max(0, i - WINDOW + 1), i + 1);
+    const compliant = window.filter(w => w.score >= 6.0).length;
+    const rate = Math.round((compliant / window.length) * 100);
+    return { index: i + 1, rate, score: Math.round(d.score * 100) / 100 };
+  });
+
+  return (
+    <ResponsiveContainer width="100%" height={180}>
+      <LineChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+        <XAxis
+          dataKey="index"
+          tick={{ ...AXIS_STYLE }}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis
+          domain={[0, 100]}
+          ticks={[0, 25, 50, 75, 100]}
+          tick={{ ...AXIS_STYLE }}
+          axisLine={false}
+          tickLine={false}
+          width={28}
+          tickFormatter={(v: number) => `${v}%`}
+        />
+        <Tooltip
+          content={<MinimalTooltip
+            labelPrefix="Card #"
+            formatter={(v) => `compliance ${v}%`}
+          />}
+          cursor={{ stroke: 'rgba(34,197,94,0.15)', strokeWidth: 1 }}
+        />
+        <Line
+          type="monotone"
+          dataKey="rate"
+          stroke="#22c55e"
+          strokeWidth={1.5}
+          dot={false}
+          activeDot={{ r: 4, fill: '#22c55e', stroke: 'none' }}
+          isAnimationActive={false}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export interface MetricsTabProps {
@@ -393,6 +597,12 @@ export interface MetricsTabProps {
 }
 
 export function MetricsTab({ metrics, loading }: MetricsTabProps) {
+  const { projectId } = useProject();
+  const { data: personas } = useApiQuery<Persona[]>('/api/personas');
+  const { data: skills } = useApiQuery<Skill[]>(
+    projectId ? `/api/projects/${projectId}/skills` : '/api/skills'
+  );
+
   if (loading) {
     return (
       <div style={{ ...EMPTY_STYLE, height: 300 }}>
@@ -449,6 +659,24 @@ export function MetricsTab({ metrics, loading }: MetricsTabProps) {
           <p style={TITLE_STYLE}>Agents by Type</p>
           <AgentBreakdown agentsByType={metrics.agentsByType} />
         </div>
+
+        {/* Persona Comparison */}
+        <div>
+          <p style={TITLE_STYLE}>Persona Comparison</p>
+          <PersonaComparison personas={personas} />
+        </div>
+
+        {/* Compliance Trend */}
+        <div>
+          <p style={TITLE_STYLE}>Compliance Trend</p>
+          <ComplianceTrend qualityTrend={metrics.qualityTrend} />
+        </div>
+      </div>
+
+      {/* Skill Heatmap — full width */}
+      <div style={{ marginTop: '2.5rem' }}>
+        <p style={TITLE_STYLE}>Skill Heatmap</p>
+        <SkillHeatmap skills={skills} />
       </div>
     </div>
   );

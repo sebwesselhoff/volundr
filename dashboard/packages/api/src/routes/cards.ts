@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import { getDb, schema } from '@vldr/db';
+import { getDb, getRawSqlite, schema } from '@vldr/db';
 import { eq } from 'drizzle-orm';
 import type { Card } from '@vldr/shared';
 import { ApiError } from '../middleware/error-handler.js';
 import { broadcastToAll } from '../ws/broadcast.js';
 import { validateDeps } from '../lib/dep-validation.js';
+import { autoRouteCard, buildRoutingDescription } from '../lib/auto-routing.js';
 
 const router = Router();
 
@@ -15,6 +16,9 @@ function parseCardJsonFields(card: typeof schema.cards.$inferSelect) {
     filesCreated: card.filesCreated ? JSON.parse(card.filesCreated) : [],
     filesModified: card.filesModified ? JSON.parse(card.filesModified) : [],
     isc: parseIsc(card.isc),
+    assignedPersonaId: card.assignedPersonaId ?? null,
+    routingConfidence: card.routingConfidence ?? null,
+    routingReason: card.routingReason ?? null,
   };
 }
 
@@ -72,6 +76,21 @@ router.post('/projects/:projectId/cards', (req, res) => {
   const depsArr = deps ?? [];
   validateDeps(req.params.projectId, id, depsArr);
 
+  // Auto-route: assign persona from routing rules
+  let assignedPersonaId: string | null = null;
+  let routingConfidence: string | null = null;
+  let routingReason: string | null = null;
+  try {
+    const routingResult = autoRouteCard(getRawSqlite(), {
+      description: buildRoutingDescription(title, description ?? ''),
+    });
+    assignedPersonaId = routingResult.personaId;
+    routingConfidence = routingResult.confidence;
+    routingReason = routingResult.reason;
+  } catch {
+    // Non-fatal: proceed without routing assignment
+  }
+
   const db = getDb();
   db.insert(schema.cards).values({
     id,
@@ -89,6 +108,9 @@ router.post('/projects/:projectId/cards', (req, res) => {
     filesModified: JSON.stringify(filesModified ?? []),
     branch: branch ?? '',
     ...(isc ? { isc: JSON.stringify(isc) } : {}),
+    assignedPersonaId,
+    routingConfidence,
+    routingReason,
   }).run();
 
   const [card] = db.select().from(schema.cards).where(eq(schema.cards.id, id)).all();
@@ -149,7 +171,7 @@ router.patch('/cards/:id/isc', (req, res) => {
   }
 
   if (req.body.index !== undefined) {
-    const isc: any[] = card.isc ? JSON.parse(card.isc) : [];
+    const isc: any[] = card.isc ? (() => { try { return JSON.parse(card.isc!); } catch { return []; } })() : [];
     const idx = req.body.index;
     if (idx < 0 || idx >= isc.length) {
       return res.status(400).json({ error: `Index ${idx} out of range (0-${isc.length - 1})` });
@@ -179,7 +201,7 @@ router.patch('/cards/:id', (req, res) => {
     status, branch, priority, completedAt,
     filesCreated, filesModified, deps,
     epicId, title, description, size,
-    criteria, technicalNotes, quality,
+    criteria, technicalNotes, quality, isc,
   } = req.body as {
     status?: string;
     branch?: string;
@@ -194,32 +216,96 @@ router.patch('/cards/:id', (req, res) => {
     size?: string;
     criteria?: string;
     technicalNotes?: string;
+    isc?: Array<{ criterion: string; evidence: string | null; passed: boolean | null }>;
     quality?: {
       completeness: number;
       codeQuality: number;
       formatCompliance: number;
-      independence: number;
+      correctness?: number;
+      independence?: number; // backward compat → maps to correctness
       implementationType: string;
+      reviewType?: string;
     };
   };
+
+  if (status != null && status !== existing.status) {
+    // Gate 1: deps must be done before in_progress
+    if (status === 'in_progress') {
+      const depsArr: string[] = existing.deps ? JSON.parse(existing.deps) : [];
+      if (depsArr.length > 0) {
+        const depCards = db.select({ id: schema.cards.id, status: schema.cards.status })
+          .from(schema.cards)
+          .all()
+          .filter(c => depsArr.includes(c.id));
+        const notDone = depCards.filter(c => c.status !== 'done');
+        if (notDone.length > 0) {
+          return res.status(409).json({
+            error: 'Unresolved dependencies',
+            detail: `Card ${req.params.id} cannot move to in_progress: ${notDone.length} dep(s) not done`,
+            unresolved: notDone.map(c => c.id),
+          });
+        }
+      }
+    }
+
+    // Gate 2: ISC criteria required before leaving backlog
+    if (existing.status === 'backlog') {
+      const isc2 = existing.isc ? (() => { try { return JSON.parse(existing.isc!); } catch { return []; } })() : [];
+      if (isc2.length === 0) {
+        throw new ApiError(400, `Card ${req.params.id} cannot leave backlog: ISC criteria are required before starting work`);
+      }
+    }
+
+    // Gate 4: CARD-000 must be done before any other card starts
+    if (status === 'in_progress' && !req.params.id.includes('000')) {
+      const card000 = db.select({ id: schema.cards.id, status: schema.cards.status })
+        .from(schema.cards)
+        .where(eq(schema.cards.projectId, existing.projectId))
+        .all()
+        .find(c => c.id.includes('000') || c.id.endsWith('-000'));
+      if (card000 && card000.status !== 'done') {
+        return res.status(409).json({
+          error: 'Setup card not done',
+          detail: `Card ${card000.id} (setup/CARD-000) must be done before starting other cards. Current status: ${card000.status}`,
+        });
+      }
+    }
+  }
 
   // Enforce quality scoring when marking a card as done
   if (status === 'done' && existing.status !== 'done') {
     if (!quality) {
-      throw new ApiError(400, 'Quality scoring required when marking card as done. Include a "quality" object with: completeness, codeQuality, formatCompliance, independence, implementationType (each 1-5)');
+      throw new ApiError(400, 'Quality scoring required when marking card as done. Include a "quality" object with: completeness, codeQuality, formatCompliance, correctness, implementationType (each 1-10)');
     }
+    // Accept either correctness or independence (backward compat)
+    const effectiveCorrectness = quality.correctness ?? quality.independence;
     if (
       quality.completeness == null || quality.codeQuality == null ||
-      quality.formatCompliance == null || quality.independence == null ||
+      quality.formatCompliance == null || effectiveCorrectness == null ||
       !quality.implementationType
     ) {
-      throw new ApiError(400, 'Quality object must include: completeness, codeQuality, formatCompliance, independence (1-5), and implementationType (agent|direct|human)');
+      throw new ApiError(400, 'Quality object must include: completeness, codeQuality, formatCompliance, correctness (1-10), and implementationType (agent|direct|human)');
+    }
+  }
+
+  // Validate score ranges when quality is provided
+  if (quality) {
+    const SCORE_MIN = 1, SCORE_MAX = 10;
+    for (const [key, val] of Object.entries({
+      completeness: quality.completeness,
+      codeQuality: quality.codeQuality,
+      formatCompliance: quality.formatCompliance,
+      independence: quality.independence,
+    })) {
+      if (val != null && (typeof val !== 'number' || val < SCORE_MIN || val > SCORE_MAX)) {
+        throw new ApiError(400, `quality.${key} must be between ${SCORE_MIN} and ${SCORE_MAX}, got ${val}`);
+      }
     }
   }
 
   // Enforce ISC gate when marking a card as done
   if (status === 'done' && existing.status !== 'done') {
-    const isc = existing.isc ? JSON.parse(existing.isc) : [];
+    const isc = existing.isc ? (() => { try { return JSON.parse(existing.isc!); } catch { return []; } })() : [];
     if (isc.length > 0) {
       const unverified = isc.filter((c: any) => c.passed === null);
       if (unverified.length > 0) {
@@ -253,6 +339,7 @@ router.patch('/cards/:id', (req, res) => {
   if (size != null) updates.size = size;
   if (criteria != null) updates.criteria = criteria;
   if (technicalNotes != null) updates.technicalNotes = technicalNotes;
+  if (isc !== undefined) updates.isc = JSON.stringify(isc);
 
   db.update(schema.cards).set(updates).where(eq(schema.cards.id, req.params.id)).run();
 
@@ -261,25 +348,50 @@ router.patch('/cards/:id', (req, res) => {
     const C = quality.completeness;
     const Q = quality.codeQuality;
     const F = quality.formatCompliance;
-    const I = quality.independence;
-    const weightedScore = (C * 3 + Q * 3 + F * 2 + I * 2) / 10;
+    const R = quality.correctness ?? quality.independence ?? 0;
+    const weightedScore = (C * 3 + Q * 3 + F * 2 + R * 2) / 10;
+    const reviewType = quality.reviewType ?? 'self';
 
     const [existingScore] = db.select().from(schema.qualityScores)
       .where(eq(schema.qualityScores.cardId, req.params.id)).all();
 
     if (existingScore) {
       db.update(schema.qualityScores).set({
-        completeness: C, codeQuality: Q, formatCompliance: F, independence: I,
-        weightedScore, implementationType: quality.implementationType, updatedAt: now,
+        completeness: C, codeQuality: Q, formatCompliance: F, correctness: R,
+        weightedScore, implementationType: quality.implementationType, reviewType, updatedAt: now,
       }).where(eq(schema.qualityScores.cardId, req.params.id)).run();
     } else {
       db.insert(schema.qualityScores).values({
         cardId: req.params.id,
-        completeness: C, codeQuality: Q, formatCompliance: F, independence: I,
-        weightedScore, implementationType: quality.implementationType,
+        completeness: C, codeQuality: Q, formatCompliance: F, correctness: R,
+        weightedScore, implementationType: quality.implementationType, reviewType,
       }).run();
     }
   }
+
+  const [updated] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
+  const parsed = parseCardJsonFields(updated);
+  broadcastToAll({ type: 'card:updated', data: parsed as Card });
+  res.json(parsed);
+});
+
+// POST /cards/:id/route — re-run auto-routing for an existing card
+router.post('/cards/:id/route', (req, res) => {
+  const db = getDb();
+  const [card] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
+  if (!card) throw new ApiError(404, `Card ${req.params.id} not found`);
+
+  const routingResult = autoRouteCard(getRawSqlite(), {
+    description: buildRoutingDescription(card.title, card.description ?? ''),
+  });
+
+  const now = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+  db.update(schema.cards).set({
+    assignedPersonaId: routingResult.personaId,
+    routingConfidence: routingResult.confidence,
+    routingReason: routingResult.reason,
+    updatedAt: now,
+  }).where(eq(schema.cards.id, req.params.id)).run();
 
   const [updated] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
   const parsed = parseCardJsonFields(updated);

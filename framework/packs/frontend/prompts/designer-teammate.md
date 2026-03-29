@@ -54,7 +54,7 @@ When Volundr messages you with frontend card specs:
 
 ## Reporting
 
-After reviewing a batch of frontend cards, message Vǫlundr:
+After reviewing a batch of frontend cards, message Volundr:
 ```
 Design Review: Cards {list}
 Visual issues: {count}

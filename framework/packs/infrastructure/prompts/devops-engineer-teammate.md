@@ -66,7 +66,7 @@ For cards involving Docker, CI/CD, deployment, migrations:
 
 ## Reporting
 
-After infra cards, message Vǫlundr:
+After infra cards, message Volundr:
 ```
 Infra: CARD-{ID} complete
 Verified: {what was tested}

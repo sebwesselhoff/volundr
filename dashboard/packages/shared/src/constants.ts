@@ -54,3 +54,15 @@ export const GATE_LEVELS: ReadonlyArray<{ level: number; label: string; descript
   { level: 3, label: 'Card Review', description: 'Show each card before implementing' },
   { level: 4, label: 'Pair Mode', description: 'Discuss every decision' },
 ];
+
+// Quality scoring scale — all UI normalization and API validation references this
+export const SCORE_SCALE = 10;
+
+// Normalize model names to canonical keys that match MODEL_PRICING
+export function normalizeModel(raw: string): string {
+  const lower = raw.toLowerCase().trim();
+  if (lower.includes('opus')) return 'opus-4';
+  if (lower.includes('sonnet')) return 'sonnet-4';
+  if (lower.includes('haiku')) return 'haiku-4';
+  return raw;
+}
