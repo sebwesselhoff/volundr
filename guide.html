@@ -1160,24 +1160,56 @@ Wake up!</pre>
     <h2>Commands & Skills</h2>
     <p class="section-desc">Built-in slash commands you can type during a session. These are shortcuts for common operations - Volundr handles the API calls and formatting.</p>
 
-    <div class="grid-2 reveal">
+    <div class="grid-3 reveal" style="margin-bottom:1.5rem">
       <div class="card" style="padding:1.75rem">
         <h4 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--amber)"><code>/vldr-shutdown</code></h4>
-        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Graceful shutdown protocol. Saves all work-in-progress, writes a session summary, runs a self-review (quality trends, cost analysis, pattern identification), generates lessons, creates a checkpoint, and presents a final status report. Always run this before ending a session.</p>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Graceful shutdown protocol. Saves WIP, writes a session summary, runs self-review (quality trends, cost analysis, pattern identification), generates lessons, creates a checkpoint, and presents a final status report. Always run this before ending a session.</p>
       </div>
       <div class="card" style="padding:1.75rem">
         <h4 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--cyan)"><code>/vldr-journal</code></h4>
-        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Log a journal entry - decisions, insights, blockers, pivots. These provide cognitive context that helps future sessions understand what happened and why. Run without arguments to see recent entries.</p>
-        <pre style="margin-top:.75rem;font-size:.75rem;background:var(--bg-3);padding:.5rem .75rem;border-radius:6px;color:var(--text-2)">/vldr-journal decision Chose flat hierarchy - only 4 cards
-/vldr-journal blocker Migration failing on nullable columns
-/vldr-journal insight Build gate must run AFTER npm install</pre>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Log a journal entry - decisions, insights, blockers, pivots. These provide cognitive context that helps future sessions understand what happened and why.</p>
+        <pre style="margin-top:.75rem;font-size:.75rem;background:var(--bg-3);padding:.5rem .75rem;border-radius:6px;color:var(--text-2)">/vldr-journal decision Chose flat hierarchy
+/vldr-journal blocker Migration failing
+/vldr-journal insight Build gate after install</pre>
       </div>
       <div class="card" style="padding:1.75rem">
         <h4 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--green)"><code>/vldr-status</code></h4>
-        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Quick project status dashboard. Shows dashboard health, active project, card progress by status, running agents, and total cost. Useful for a quick check mid-session.</p>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Quick project status. Shows dashboard health, active project, card progress by status, running agents, and total cost. Useful for a quick check mid-session.</p>
+      </div>
+    </div>
+
+    <div class="grid-3 reveal" style="margin-bottom:1.5rem">
+      <div class="card" style="padding:1.75rem">
+        <h4 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--purple)"><code>/vldr-pack</code></h4>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Pack management. Install, list, and inspect agent packs. Packs bundle persona seeds, skills, agent prompts, and routing rules into installable modules.</p>
+        <pre style="margin-top:.75rem;font-size:.75rem;background:var(--bg-3);padding:.5rem .75rem;border-radius:6px;color:var(--text-2)">/vldr-pack list
+/vldr-pack install security
+/vldr-pack inspect core</pre>
       </div>
       <div class="card" style="padding:1.75rem">
-        <h4 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--purple)"><code>/vldr-compact</code></h4>
+        <h4 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--red)"><code>/vldr-doctor</code></h4>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Setup validation. Checks Docker, dashboard health, VLDR_HOME, project registry, database status, git version, Node.js, hooks, enforcement hooks, and settings. Reports pass/fail/warning for each.</p>
+      </div>
+      <div class="card" style="padding:1.75rem">
+        <h4 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--accent)"><code>/vldr-directive</code></h4>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Governance directives. List, add, suppress, or supersede active directives for a project. Directives are rules that persist across sessions and influence agent behavior.</p>
+        <pre style="margin-top:.75rem;font-size:.75rem;background:var(--bg-3);padding:.5rem .75rem;border-radius:6px;color:var(--text-2)">/vldr-directive list
+/vldr-directive add "No ORM - raw SQL only"</pre>
+      </div>
+    </div>
+
+    <div class="grid-3 reveal">
+      <div class="card" style="padding:1.75rem">
+        <h4 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--amber)"><code>/vldr-economy</code></h4>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Toggle economy mode on the active project. Downgrades agent models to cheaper tiers (Opus &rarr; Sonnet, Sonnet &rarr; Haiku) to reduce cost when budget is tight. Toggle off to restore default model assignments.</p>
+      </div>
+      <div class="card" style="padding:1.75rem">
+        <h4 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--cyan)"><code>/vldr-route</code></h4>
+        <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Test routing rules. Describe a piece of work and see which persona and agent tier Volundr would select. Useful for debugging persona matching or verifying routing rules behave as expected.</p>
+        <pre style="margin-top:.75rem;font-size:.75rem;background:var(--bg-3);padding:.5rem .75rem;border-radius:6px;color:var(--text-2)">/vldr-route "Add PostgreSQL migration"</pre>
+      </div>
+      <div class="card" style="padding:1.75rem">
+        <h4 style="font-size:1rem;font-weight:700;margin-bottom:.5rem;color:var(--green)"><code>/vldr-compact</code></h4>
         <p style="color:var(--text-2);font-size:.88rem;line-height:1.65">Context compaction with state preservation. When your conversation gets long, this compacts the context while retaining critical project state - active cards, teammate assignments, phase, and recovery instructions.</p>
       </div>
     </div>
