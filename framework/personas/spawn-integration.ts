@@ -14,7 +14,8 @@
  */
 
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import {
   CharterCompiler,
   IdentityLayer,
@@ -86,7 +87,7 @@ export function linkRegistryToPersona(agentType: string): string | null {
  */
 function resolveCharterPath(personaId: string): string {
   // __dirname equivalent for this file: framework/personas/
-  const dir = new URL('.', import.meta.url).pathname;
+  const dir = dirname(fileURLToPath(import.meta.url));
   return join(dir, 'seeds', personaId, 'charter.md');
 }
 
