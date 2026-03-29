@@ -58,9 +58,10 @@ export async function runMigrations(sqlite: Database.Database, dbPath: string): 
     return;
   }
 
-  const files = readdirSync(migrationsDir)
-    .filter((f) => f.endsWith('.js'))
-    .sort();
+  const dirEntries = readdirSync(migrationsDir).sort();
+  const jsFiles = dirEntries.filter((f) => f.endsWith('.js'));
+  const tsFiles = dirEntries.filter((f) => f.endsWith('.ts'));
+  const files = jsFiles.length > 0 ? jsFiles : tsFiles;
 
   for (const file of files) {
     const versionNum = parseInt(file.split('-')[0], 10);
