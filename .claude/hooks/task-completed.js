@@ -45,7 +45,8 @@ async function main() {
     // If gate fails, card stays in_progress and task completion is blocked
     const qualityRows = await apiGet(`/api/projects/${PROJECT_ID}/quality`);
     if (Array.isArray(qualityRows)) {
-      const match = qualityRows.find(r => r.cardId === cardId);
+      const cardRows = qualityRows.filter(r => r.cardId === cardId);
+      const match = cardRows.find(r => r.reviewType === 'reviewer') || cardRows.find(r => r.reviewType === 'self') || cardRows[0];
       if (!match) {
         await apiPost('/api/events', {
           projectId: PROJECT_ID,
@@ -76,7 +77,7 @@ async function main() {
       completeness: match.completeness,
       codeQuality: match.codeQuality,
       formatCompliance: match.formatCompliance,
-      independence: match.independence,
+      correctness: match.correctness,
       implementationType: match.implementationType || 'agent',
     } : undefined;
     const patchResult = await apiPatch(`/api/cards/${cardId}`, {
