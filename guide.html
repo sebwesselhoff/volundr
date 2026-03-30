@@ -372,6 +372,19 @@ code{font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--accent)}
 
 <div class="divider"></div>
 
+<!-- LANDING SCREENSHOT -->
+<section style="padding:3rem 2rem 0">
+  <div class="container">
+    <div class="screenshot-frame reveal" style="max-width:900px;margin:0 auto">
+      <div class="screenshot-titlebar">
+        <span class="dot-r"></span><span class="dot-a"></span><span class="dot-g"></span>
+        <span class="titlebar-label">localhost:3000 - Enter The Forge</span>
+      </div>
+      <img src="docs/images/landing.png" alt="Volundr v5 landing page - Enter The Forge" style="width:100%;display:block">
+    </div>
+  </div>
+</section>
+
 <!-- WHAT IS THIS -->
 <section id="what">
   <div class="container">
@@ -606,6 +619,23 @@ code{font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--accent)}
       </div>
     </div>
 
+    <div class="grid-2 reveal" style="margin-bottom:2rem">
+      <div class="screenshot-frame">
+        <div class="screenshot-titlebar">
+          <span class="dot-r"></span><span class="dot-a"></span><span class="dot-g"></span>
+          <span class="titlebar-label">Personas - Radar Chart, Stats &amp; Skill History</span>
+        </div>
+        <img src="docs/images/personas.png" alt="Persona detail page with radar chart, quality average, cards completed, and skill history" style="width:100%;display:block">
+      </div>
+      <div class="screenshot-frame">
+        <div class="screenshot-titlebar">
+          <span class="dot-r"></span><span class="dot-a"></span><span class="dot-g"></span>
+          <span class="titlebar-label">Skills Library - Extracted Learnings</span>
+        </div>
+        <img src="docs/images/skills.png" alt="Skills library with severity badges, tags, source tracking, and extracted learnings" style="width:100%;display:block">
+      </div>
+    </div>
+
     <div class="grid-3 reveal">
       <div class="card">
         <h3 style="font-size:1rem;color:var(--amber)">Three-Tier Discovery</h3>
@@ -678,6 +708,23 @@ code{font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--accent)}
       </div>
     </div>
 
+    <div class="grid-2 reveal" style="margin-bottom:2rem">
+      <div class="screenshot-frame">
+        <div class="screenshot-titlebar">
+          <span class="dot-r"></span><span class="dot-a"></span><span class="dot-g"></span>
+          <span class="titlebar-label">Compliance - Enforcement Score &amp; Heatmap</span>
+        </div>
+        <img src="docs/images/compliance.png" alt="Compliance page with enforcement score, rated averages, and per-card quality heatmap" style="width:100%;display:block">
+      </div>
+      <div class="screenshot-frame">
+        <div class="screenshot-titlebar">
+          <span class="dot-r"></span><span class="dot-a"></span><span class="dot-g"></span>
+          <span class="titlebar-label">Insights - Quality Trend, Cost &amp; Token Charts</span>
+        </div>
+        <img src="docs/images/insights.png" alt="Insights page with quality trend, card velocity, token usage, and agent breakdown" style="width:100%;display:block">
+      </div>
+    </div>
+
     <div class="card reveal" style="border-left:3px solid var(--accent)">
       <h3 style="font-size:1rem;margin-bottom:.75rem;color:var(--accent)">The Build Gate</h3>
       <p style="color:var(--text-2);font-size:.88rem;line-height:1.7;margin-bottom:.75rem">Every card runs through a six-step gate before it can be merged:</p>
@@ -707,15 +754,23 @@ code{font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--accent)}
         <span class="dot-r"></span><span class="dot-a"></span><span class="dot-g"></span>
         <span class="titlebar-label">localhost:3000 - The Forge</span>
       </div>
-      <img src="docs/images/forge-dashboard.png" alt="The Forge dashboard" onerror="this.parentElement.innerHTML='<div class=\'screenshot-titlebar\'><span class=\'dot-r\'></span><span class=\'dot-a\'></span><span class=\'dot-g\'></span><span class=\'titlebar-label\'>localhost:3000 - The Forge</span></div><div class=\'no-img\'>&#127381;<span>Screenshot: docs/images/forge-dashboard.png</span></div>'">
+      <img src="docs/images/the-forge.png" alt="The Forge dashboard - at a glance stats, live feed, progress" style="width:100%;display:block">
     </div>
 
     <div class="screenshot-frame reveal" style="margin-bottom:2.5rem">
       <div class="screenshot-titlebar">
         <span class="dot-r"></span><span class="dot-a"></span><span class="dot-g"></span>
-        <span class="titlebar-label">Board - Card Kanban</span>
+        <span class="titlebar-label">Board - Cards with ISC Criteria &amp; Dependencies</span>
       </div>
-      <img src="docs/images/board-kanban.png" alt="Kanban board with cards" style="width:100%;display:block">
+      <img src="docs/images/board.png" alt="Board view with acceptance criteria, ISC checks, and dependency graph" style="width:100%;display:block">
+    </div>
+
+    <div class="screenshot-frame reveal" style="margin-bottom:2.5rem">
+      <div class="screenshot-titlebar">
+        <span class="dot-r"></span><span class="dot-a"></span><span class="dot-g"></span>
+        <span class="titlebar-label">Events - Filterable Audit Log</span>
+      </div>
+      <img src="docs/images/events.png" alt="Events page with filterable audit log and expandable detail rows" style="width:100%;display:block">
     </div>
 
     <div class="grid-2 reveal">
@@ -960,15 +1015,15 @@ code{font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--accent)}
 <section id="start">
   <div class="container">
     <div class="section-label">Getting Started</div>
-    <h2>Start in 5 Steps</h2>
-    <p class="section-desc">Prerequisites: Docker, Node.js 20+, and the Claude Code CLI. The dashboard runs in Docker so there is nothing to install locally beyond the CLI.</p>
+    <h2>Start in 3 Steps</h2>
+    <p class="section-desc">Prerequisites: Docker and the Claude Code CLI. The launcher script handles everything else — Docker startup, dashboard container, browser, and launching Claude with the "Wake up!" prompt.</p>
 
     <div class="step-list reveal">
       <div class="step-item">
         <div class="step-num-circle" style="background:var(--accent-glow);color:var(--accent);border:2px solid var(--accent)">1</div>
         <div class="step-body">
           <h4>Install Prerequisites</h4>
-          <p>You need Docker, Node.js 20+, and the Claude Code CLI. If you already have Claude Code installed, you can skip the last line.</p>
+          <p>You need Docker and the Claude Code CLI. That's it.</p>
           <pre>npm install -g @anthropic-ai/claude-code</pre>
         </div>
       </div>
@@ -976,7 +1031,7 @@ code{font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--accent)}
         <div class="step-num-circle" style="background:var(--cyan-glow);color:var(--cyan);border:2px solid var(--cyan)">2</div>
         <div class="step-body">
           <h4>Clone the Repository</h4>
-          <p>Clone Volundr and enter the directory. The framework lives here - your project data stays in <code>~/.volundr/</code> and never touches this repo.</p>
+          <p>Clone Volundr and enter the directory. The framework lives here — your project data stays in <code>~/.volundr/</code> and never touches this repo.</p>
           <p style="margin-bottom:.5rem"><a href="https://github.com/sebwesselhoff/volundr" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none;border-bottom:1px solid var(--cyan)">github.com/sebwesselhoff/volundr</a></p>
           <pre>git clone https://github.com/sebwesselhoff/volundr.git
 cd volundr</pre>
@@ -985,35 +1040,15 @@ cd volundr</pre>
       <div class="step-item">
         <div class="step-num-circle" style="background:var(--amber-glow);color:var(--amber);border:2px solid var(--amber)">3</div>
         <div class="step-body">
-          <h4>Start the Dashboard</h4>
-          <p>Run the launcher script. It starts the Docker containers for The Forge (Next.js + Express API + SQLite) and opens the dashboard in your browser.</p>
+          <h4>Run the Launcher</h4>
+          <p>The launcher does everything automatically: starts Docker if needed, initializes <code>~/.volundr/</code> on first run, pulls and starts the dashboard container, waits for the API health check, opens The Forge in your browser, and launches Claude Code with the "Wake up!" prompt.</p>
           <pre># macOS / Linux
 ./start.sh
 
 # Windows
 start.bat</pre>
-          <p style="margin-top:.75rem;margin-bottom:0">The dashboard will be at <code>http://localhost:3000</code>. The API runs at <code>http://localhost:3141</code>.</p>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-num-circle" style="background:var(--green-glow);color:var(--green);border:2px solid var(--green)">4</div>
-        <div class="step-body">
-          <h4>Start Claude Code</h4>
-          <p>Open Claude Code <strong>from the volundr directory</strong> - this is where the framework files, hooks, and CLAUDE.md live. Volundr will navigate to your project path automatically.</p>
-          <pre>cd volundr
-claude
-
-# Or for fully autonomous operation (no permission prompts):
-claude --dangerously-skip-permissions</pre>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-num-circle" style="background:var(--purple-glow);color:var(--purple);border:2px solid var(--purple)">5</div>
-        <div class="step-body">
-          <h4>Say "Wake up!"</h4>
-          <p>That is it. Volundr activates, checks the dashboard connection, loads or creates a project, and starts the discovery interview. You describe what you want to build - Volundr does the rest.</p>
-          <pre># In Claude Code, just type:
-Wake up!</pre>
+          <p style="margin-top:.75rem;margin-bottom:.75rem">That's it. Volundr activates, checks the dashboard connection, loads or creates a project, and starts the discovery interview. You describe what you want to build — Volundr does the rest.</p>
+          <p style="color:var(--text-3);font-size:.85rem;margin-bottom:0">The dashboard runs at <code>http://localhost:3000</code>, the API at <code>http://localhost:3141</code>. If you prefer to start Claude manually instead, just run <code>claude</code> from the volundr directory and type "Wake up!". Add <code>--dangerously-skip-permissions</code> for fully autonomous operation without permission prompts.</p>
         </div>
       </div>
     </div>

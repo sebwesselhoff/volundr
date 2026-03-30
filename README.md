@@ -8,7 +8,7 @@
 [![Node 24+](https://img.shields.io/badge/node-24%2B-green.svg)](https://nodejs.org)
 [![Docker](https://img.shields.io/badge/docker-required-blue.svg)](https://www.docker.com)
 
-![The Campfire - Full Team](docs/images/the-thing-full-team.png)
+![Volundr - Autonomous Agent Framework](docs/images/landing.png)
 
 Volundr is an autonomous PM, architect, and orchestrator that runs inside Claude Code. It manages multi-agent software projects from discovery through deployment — planning work as cards, spawning specialized agent personas, scoring quality with blind reviews, and learning across projects.
 
@@ -112,9 +112,13 @@ Create your own via the dashboard's **Persona Builder** or install persona packs
 
 ## Screenshots
 
-| The Forge - Board | The Campfire |
+| The Forge - Home | Board |
 |---|---|
-| ![Board](docs/images/board-kanban.png) | ![Campfire](docs/images/the-thing-full-team.png) |
+| ![The Forge](docs/images/the-forge.png) | ![Board](docs/images/board.png) |
+
+| Insights & Metrics | Personas |
+|---|---|
+| ![Insights](docs/images/insights.png) | ![Personas](docs/images/personas.png) |
 
 ---
 
@@ -122,60 +126,35 @@ Create your own via the dashboard's **Persona Builder** or install persona packs
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| **Node.js** | 24+ | Required for the dashboard |
 | **Docker** | Any recent | Required for the dashboard container |
 | **Claude Code** | Latest | `npm install -g @anthropic-ai/claude-code` |
-| **Git** | 2.30+ | Worktree support required |
-
----
-
-## Installation
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/sebwesselhoff/volundr.git
-cd volundr
-```
-
-### 2. Start the dashboard
-
-**macOS / Linux:**
-```bash
-./start.sh
-```
-
-**Windows:**
-```bash
-start.bat
-```
-
-This will:
-- Initialize `~/.volundr/` (VLDR_HOME) if it doesn't exist
-- Start Docker Desktop if not running
-- Pull the pre-built dashboard image from `ghcr.io`
-- Wait for API health check at `http://localhost:3141`
-- Open the dashboard at `http://localhost:3000`
 
 ---
 
 ## Quick Start
 
 ```bash
-# From the volundr directory:
-claude
+git clone https://github.com/sebwesselhoff/volundr.git
+cd volundr
 
-# Or for fully autonomous mode:
-claude --dangerously-skip-permissions
+# macOS / Linux
+./start.sh
+
+# Windows
+start.bat
 ```
 
-Then type:
+The launcher handles everything automatically:
+- Starts Docker Desktop if not running
+- Initializes `~/.volundr/` on first run
+- Pulls and starts the dashboard container
+- Waits for the API health check
+- Opens The Forge at `http://localhost:3000`
+- Launches Claude Code with "Wake up!"
 
-```
-Wake up!
-```
+That's it. Volundr activates, checks the dashboard, and starts a discovery interview for your project.
 
-Volundr activates, checks the dashboard, and starts a discovery interview for your project.
+> To start Claude manually instead: `claude` from the volundr directory, then type "Wake up!". Add `--dangerously-skip-permissions` for fully autonomous operation.
 
 > **[Full getting started guide →](https://github.com/sebwesselhoff/volundr/wiki/Getting-Started)**
 
