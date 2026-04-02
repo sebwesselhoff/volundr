@@ -158,7 +158,10 @@
     "Cloudwright",
     "Runeforger",
     "Shieldwall",
-    "Gatecaller"
+    "Gatecaller",
+    "ecommerce",
+    "uksouth",
+    "VMSS"
   ],
   "flagWords": [],
   "dictionaries": ["typescript", "node", "npm", "bash", "css", "html"]
