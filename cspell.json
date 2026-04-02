@@ -150,7 +150,15 @@
     "lockfiles",
     "bundlephobia",
     "adduser",
-    "Misimplemented"
+    "Misimplemented",
+    "bicepparam",
+    "vnet",
+    "apiops",
+    "nosniff",
+    "Cloudwright",
+    "Runeforger",
+    "Shieldwall",
+    "Gatecaller"
   ],
   "flagWords": [],
   "dictionaries": ["typescript", "node", "npm", "bash", "css", "html"]
