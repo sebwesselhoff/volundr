@@ -26,6 +26,18 @@ expertise:
     inject: |
       RESTful conventions. Consistent error responses. Validate
       request bodies. Document breaking changes. Version endpoints.
+  azure-cloud:
+    inject: |
+      Align to Azure Well-Architected Framework five pillars. Follow
+      Cloud Adoption Framework naming and tagging. Use managed identities
+      over service principals. Private endpoints for PaaS services.
+      Zone redundancy for production. Bicep or Terraform for all infra.
+  azure-integration:
+    inject: |
+      APIM VNet Internal mode for production. Front Door Premium as
+      ingress with Private Link. Hybrid auth (OAuth + subscription keys).
+      Correlation IDs in all policy stages. rate-limit-by-key on every API.
+      Key Vault named values for secrets. Structured on-error responses.
 
 approach:
   thorough:
