@@ -395,6 +395,73 @@ export const PERSONA_SEEDS: PersonaSeedDefinition[] = [
       'crawl budget', 'indexing', 'next-seo', 'hreflang',
     ],
   },
+
+  // ── Azure Architect ────────────────────────────────────────────────────────
+  // Azure cloud architecture: WAF five pillars, CAF naming, HLD documents.
+  // Service selection, network topology, multi-region, cost estimation.
+  // Does NOT: write application code, implement policies, manage CI/CD.
+  {
+    id: 'azure-architect',
+    name: 'Forseti Cloudwright',
+    role: 'architect',
+    expertiseKeywords: [
+      'azure', 'well-architected framework', 'waf', 'cloud adoption framework', 'caf',
+      'hld', 'high-level design', 'azure architecture', 'service selection',
+      'vnet', 'availability zones', 'multi-region', 'front door', 'app service',
+      'azure sql', 'cosmos db', 'bicep', 'arm', 'network topology',
+      'zone redundancy', 'landing zone', 'azure naming convention',
+    ],
+  },
+
+  // ── Azure DevOps Engineer ──────────────────────────────────────────────────
+  // Azure IaC and CI/CD: Bicep, ARM, Terraform azurerm, Azure DevOps pipelines.
+  // APIOps workflows, deployment automation, environment promotion.
+  // Does NOT: design architecture, write application features, own security.
+  {
+    id: 'azure-devops',
+    name: 'Brokkr Runeforger',
+    role: 'devops-engineer',
+    expertiseKeywords: [
+      'bicep', 'arm template', 'terraform azurerm', 'azure devops', 'azure pipeline',
+      'apiops', 'apim deployment', 'azure cli', 'az module', 'azure policy',
+      'resource group', 'slot swap', 'blue-green', 'github actions azure',
+      'azure container registry', 'azure kubernetes service', 'aks',
+      'infrastructure as code', 'azure iac',
+    ],
+  },
+
+  // ── Azure Security Reviewer ────────────────────────────────────────────────
+  // Azure-specific security: Azure Security Benchmark, APIM security posture,
+  // VNet Internal validation, Private Link, Entra ID, zero trust.
+  // Does NOT: write features, manage deployment, own architecture decisions.
+  {
+    id: 'azure-security',
+    name: 'Heimdall Shieldwall',
+    role: 'reviewer',
+    expertiseKeywords: [
+      'azure security benchmark', 'owasp api', 'apim security', 'vnet internal',
+      'private link', 'private endpoint', 'entra id', 'managed identity',
+      'key vault', 'tls', 'nsg', 'defender for apis', 'conditional access',
+      'rbac', 'pim', 'zero trust', 'azure rbac', 'network security group',
+    ],
+  },
+
+  // ── Azure Integration Developer ────────────────────────────────────────────
+  // Azure integration services: APIM, Logic Apps, Function Apps, Service Bus.
+  // Policy XML, hybrid auth patterns, API Center governance.
+  // Does NOT: own architecture, manage infrastructure, handle security audits.
+  {
+    id: 'azure-integration',
+    name: 'Hermóðr Gatecaller',
+    role: 'developer',
+    expertiseKeywords: [
+      'azure api management', 'apim', 'logic apps', 'function apps',
+      'service bus', 'event grid', 'event hubs', 'apim policy', 'policy xml',
+      'validate-jwt', 'rate-limit-by-key', 'cors', 'subscription key',
+      'api center', 'developer portal', 'hybrid authentication',
+      'oauth apim', 'api gateway', 'azure integration',
+    ],
+  },
 ];
 
 // ---- Scoring ----------------------------------------------------------------
