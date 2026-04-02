@@ -150,7 +150,12 @@
     "lockfiles",
     "bundlephobia",
     "adduser",
-    "Misimplemented"
+    "Misimplemented",
+    "Supabase",
+    "Turso",
+    "Litestream",
+    "ABAC",
+    "polyrepo"
   ],
   "flagWords": [],
   "dictionaries": ["typescript", "node", "npm", "bash", "css", "html"]
