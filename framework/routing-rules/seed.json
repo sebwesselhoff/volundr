@@ -145,5 +145,33 @@
     "examples": ["seo","search-engine","search engine optimization","meta-tags","sitemap","robots.txt","structured-data","schema.org","open-graph","og-tags","canonical","lighthouse-seo","page-speed","core-web-vitals","crawl","indexing","keyword","backlink","rich-snippet","search optimization","google","bing"],
     "confidence": "high",
     "priority": 8
+  },
+  {
+    "workType": "azure-architecture",
+    "personaId": "azure-architect",
+    "examples": ["azure architecture","well-architected","waf","caf","cloud adoption","hld","high-level design","azure service selection","vnet topology","availability zones","azure multi-region","bicep architecture","azure landing zone"],
+    "confidence": "high",
+    "priority": 8
+  },
+  {
+    "workType": "azure-integration",
+    "personaId": "azure-integration",
+    "examples": ["apim","api management","logic app","function app","service bus","event grid","event hubs","apim policy","developer portal","api center","subscription key","azure api gateway","hybrid auth"],
+    "confidence": "high",
+    "priority": 8
+  },
+  {
+    "workType": "azure-devops",
+    "personaId": "azure-devops",
+    "examples": ["bicep","arm template","bicep deployment","azure pipeline","apiops","azure devops pipeline","azure cli","az module","slot swap","azure policy","azure resource group","azure iac"],
+    "confidence": "high",
+    "priority": 7
+  },
+  {
+    "workType": "azure-security",
+    "personaId": "azure-security",
+    "examples": ["azure security benchmark","apim security","vnet internal","private link","managed identity","entra id","key vault security","defender for apis","azure nsg","zero trust azure","conditional access","pim","azure rbac"],
+    "confidence": "high",
+    "priority": 9
   }
 ]
