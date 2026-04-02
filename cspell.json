@@ -161,7 +161,12 @@
     "Gatecaller",
     "ecommerce",
     "uksouth",
-    "VMSS"
+    "VMSS",
+    "Supabase",
+    "Turso",
+    "Litestream",
+    "ABAC",
+    "polyrepo"
   ],
   "flagWords": [],
   "dictionaries": ["typescript", "node", "npm", "bash", "css", "html"]

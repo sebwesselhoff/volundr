@@ -634,6 +634,17 @@ After each card completes, the SDK calls above handle all state. Agent reports a
 ## Project Lifecycle
 
 ### Phase 1: Discovery Interview
+
+**First question — always:**
+"Before we start — **Express** or **Debrief**?
+Express is fast: I suggest defaults, you approve or override, 5-8 questions total.
+Debrief is thorough: every choice gets broken into parts, nothing assumed, I confirm each piece."
+*(Default: Express. Recommend Debrief for unfamiliar domains, complex integrations, or when the developer says "I'm not sure yet.")*
+
+---
+
+#### Mode A: Express Interview
+
 Ask questions one at a time. Be opinionated. Suggest defaults. Adapt follow-ups based on answers.
 
 **Interview sequence (ask in this order, skip irrelevant ones):**
@@ -660,6 +671,114 @@ Ask questions one at a time. Be opinionated. Suggest defaults. Adapt follow-ups 
 
 **5. Always ask last:**
 - "Anything else I should know? Constraints, preferences, pet peeves, things you've tried before that didn't work?"
+
+---
+
+#### Mode B: Debrief Interview (CIA-Mode)
+
+**Rules:**
+1. **One question at a time.** Never bundle. Wait for the answer before moving on.
+2. **No assumptions.** When the developer names a technology or pattern, decompose it into its configurable parts and ask about each.
+3. **State every default explicitly.** Don't silently pick defaults — say "The default is X. Want that, or something else?"
+4. **Follow up on every answer.** If the answer has sub-decisions, surface them immediately.
+5. **Summarize after each topic.** Before moving to the next topic, restate what was confirmed: "So: Next.js 15, App Router, Server Components, deployed on Vercel, Drizzle ORM. Correct?"
+6. **Never skip a topic.** If something seems irrelevant, ask "This doesn't seem to apply — can I skip [topic]?" and wait for confirmation.
+
+**Topic sequence (follow this order):**
+
+**Topic 1 — Vision:**
+- "What are we building? Give me the elevator pitch."
+- "Who is the user? Internal team, customers, developers, machines?"
+- "What's the core problem this solves?"
+- "Is there an existing system this replaces or extends?"
+  - If yes → "What's the current system? What works? What doesn't? Are we migrating data?"
+
+**Topic 2 — Scope:**
+- "How many features or domains are you envisioning?"
+- "What's the MVP? If you had to ship one thing, what would it be?"
+- "What's explicitly out of scope? Things you do NOT want built."
+- "Any hard deadline or time constraint?"
+
+**Topic 3 — Stack (decomposed):**
+
+*Language & Runtime:*
+- "What language? TypeScript, Python, C#, Go, other?"
+  - If TypeScript → "Strict mode? Target version (ES2022, ESNext)?"
+  - If C# → "Which .NET version? Minimal API or controllers?"
+- "Runtime: Node.js (which version?), Deno, Bun, .NET, other?"
+
+*Framework:*
+- "Frontend framework? React, Vue, Svelte, Angular, none?"
+  - If React → "Next.js, Remix, Vite + React Router, or plain CRA?"
+    - If Next.js → "App Router or Pages Router? Server Components or client-only? Which version?"
+  - If none → "API-only? CLI tool? Background service?"
+- "Backend framework? Express, Fastify, Hono, ASP.NET, FastAPI, or handled by the meta-framework?"
+
+*Database:*
+- "Database? Postgres, MySQL, SQLite, SQL Server, Cosmos DB, MongoDB, none?"
+  - If Postgres → "Managed (Neon, Supabase, RDS, Azure Database) or self-hosted? Connection pooling needed?"
+  - If SQLite → "File-based dev only, or production too (Turso, Litestream)?"
+- "ORM or query builder? Drizzle, Prisma, Entity Framework, Knex, raw SQL?"
+  - If Drizzle → "Push or migrations workflow?"
+  - If Prisma → "Prisma Client only, or Prisma + Prisma Studio?"
+
+*Auth:*
+- "Authentication needed?"
+  - If yes → "Rolling your own or using a provider? (Clerk, Auth.js, Supabase Auth, Entra ID, other)"
+  - "What auth flows? Email/password, OAuth (which providers?), SSO, API keys?"
+  - "Authorization model? RBAC, ABAC, simple owner-based, none yet?"
+
+*Infrastructure:*
+- "Where does this deploy? Vercel, AWS, Azure, GCP, Docker, self-hosted, undecided?"
+  - Decompose based on answer (e.g., Azure → "App Service, Container Apps, AKS, Functions?")
+- "Docker available locally? Used for dev, prod, or both?"
+- "CI/CD preference? GitHub Actions, Azure DevOps, GitLab CI, none yet?"
+
+*External services:*
+- "Any third-party integrations? (payment, email, SMS, maps, AI APIs)"
+  - For each → "Credentials ready? Or do we need to set these up?"
+- "Any internal APIs or systems this connects to?"
+  - For each → "Documentation available? OpenAPI spec? Auth method?"
+
+**Checkpoint — summarize stack.** Restate every confirmed choice. Wait for developer to approve before continuing.
+
+**Topic 4 — Design & Aesthetic (if frontend exists):**
+- "Any design vision? Specific aesthetic, mood, or references?"
+- "Existing design system or component library? (Shadcn, Radix, MUI, custom)"
+- "Dark mode, light mode, or both? Default which?"
+- "Responsive — mobile-first, desktop-first, or desktop-only?"
+- "Key interaction patterns? (drag-and-drop, infinite scroll, real-time updates, animations)"
+- "Accessibility requirements? WCAG level? (AA default)"
+
+**Topic 5 — Data & State:**
+- "What data does this system manage? List the main entities."
+  - For each entity → "What are the key fields? Relationships to other entities?"
+- "Real-time requirements? (WebSocket, SSE, polling, none)"
+- "File uploads needed? What types, what sizes, where stored?"
+- "Caching strategy needed? What data is hot vs cold?"
+
+**Topic 6 — Testing & Quality:**
+- "Testing expectations? Unit tests, integration tests, E2E, or 'we'll add tests later'?"
+  - If testing → "Framework preference? (Vitest, Jest, Playwright, xUnit, pytest)"
+- "Linting and formatting? (ESLint, Prettier, Biome, Ruff — or whatever the stack default is)"
+- "Type strictness? Strict, loose, or 'fix it later'?"
+
+**Topic 7 — Workflow & Process:**
+- "Review gate level?"
+  - Explain each: "1 = I only stop for scope changes. 2 = I pause at milestones (blueprint, first batch, domain completion). 3 = I show you each card before implementing. 4 = We discuss every decision together."
+  - "Default is 2. Want that?"
+- "Blueprint review style?"
+  - "Round Table = stress-test with conservative voices. Chaos Engine = breakthrough thinking with bold voices. Skip = I review alone."
+  - "Default is Round Table. Skip if the project is small (5 or fewer cards). Preference?"
+- "Persona routing — agents get identities with quality tracking and skill growth. On by default. Want it, or skip?"
+
+**Topic 8 — Constraints & History:**
+- "Anything I should absolutely NOT do? Anti-patterns, libraries you hate, approaches that failed before?"
+- "Any hard constraints? (budget ceiling, specific compliance, team size, existing code I need to work around)"
+- "Existing codebase? If yes — monorepo or polyrepo? What's already there that I should read first?"
+- "Anything else on your mind?"
+
+**Final checkpoint — full summary.** Restate every decision as a structured list. Get explicit "yes, proceed" before moving to Phase 2.
 
 ### Phase 2: Blueprint & Planning
 1. Write `VLDR_HOME/projects/{id}/blueprint.md`
