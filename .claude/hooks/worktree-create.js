@@ -26,8 +26,27 @@ async function main() {
   const agentType = input.agent_type || '';
   const cwd = input.cwd || process.cwd();
 
-  // Determine worktree directory under .claude/worktrees/
-  const projectRoot = cwd;
+  // Determine project root: use active project path from registry if available,
+  // fall back to cwd (which is the Volundr framework repo, not necessarily the target project)
+  let projectRoot = cwd;
+  try {
+    const vldrHome = process.env.VLDR_HOME || path.join(os.homedir(), '.volundr');
+    const regPath = path.join(vldrHome, 'projects', 'registry.json');
+    if (fs.existsSync(regPath)) {
+      const reg = JSON.parse(fs.readFileSync(regPath, 'utf8'));
+      const activeId = reg.activeProject;
+      if (activeId && reg.projects && reg.projects[activeId] && reg.projects[activeId].path) {
+        const activePath = reg.projects[activeId].path;
+        // Verify the path exists and is a git repo
+        if (fs.existsSync(activePath) && fs.existsSync(path.join(activePath, '.git'))) {
+          projectRoot = activePath;
+          log.info('project_root_resolved', `Using active project path: ${activePath} (project: ${activeId})`);
+        }
+      }
+    }
+  } catch (e) {
+    log.warn('registry_read_failed', `Could not read registry, falling back to cwd: ${e.message}`);
+  }
   const worktreeDir = path.join(projectRoot, '.claude', 'worktrees', name);
   const branch = `worktree/${name}`;
 
