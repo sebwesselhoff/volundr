@@ -40,6 +40,15 @@ Contica AB consultants performing Azure environment assessments, ALZ implementat
 | DINE | DeployIfNotExists - Azure Policy effect that auto-remediates non-compliant resources |
 | Archetype | ALZ concept mapping a management group to its expected policy assignments |
 | CLEAR Score | Weighted composite score (0-100) across all 8 assessment scanners |
+| SSE | Server-Sent Events - HTTP streaming for real-time scan progress |
+| KQL | Kusto Query Language - query language for Azure Resource Graph |
+| PIM | Privileged Identity Management - just-in-time privileged access in Entra ID |
+| CA | Conditional Access - Entra ID policies controlling authentication requirements |
+| RSV | Recovery Services Vault - Azure backup and site recovery container |
+| NVA | Network Virtual Appliance - third-party firewall/router VM in Azure |
+| vWAN | Virtual WAN - Microsoft-managed hub networking service |
+| SemVer | Semantic Versioning - MAJOR.MINOR.PATCH version numbering |
+| CalVer | Calendar Versioning - YYYY.MM.PATCH version numbering (used by ALZ Library) |
 
 ---
 
@@ -202,12 +211,20 @@ clear/
 │   │   ├── ClearDbContext.cs
 │   │   ├── Entities/
 │   │   │   ├── Tenant.cs
+│   │   │   ├── TenantConfig.cs
 │   │   │   ├── Scan.cs
 │   │   │   ├── ScannerResult.cs
 │   │   │   ├── CheckResult.cs
 │   │   │   ├── AssessmentProfile.cs
+│   │   │   ├── Report.cs
 │   │   │   ├── AlzVersion.cs
-│   │   │   └── Report.cs
+│   │   │   ├── PolicyDefinitionCache.cs
+│   │   │   ├── PolicyAssignmentCache.cs
+│   │   │   ├── PolicySetDefinitionCache.cs
+│   │   │   ├── ArchetypeDefinitionCache.cs
+│   │   │   ├── RoleDefinitionCache.cs
+│   │   │   ├── ReviewChecklistItemCache.cs
+│   │   │   └── ConticaTemplateCache.cs
 │   │   ├── Migrations/
 │   │   └── Repositories/
 │   │       ├── ITenantRepository.cs
@@ -220,7 +237,10 @@ clear/
 │       ├── BlobStorageReportStore.cs
 │       ├── ISecretProvider.cs
 │       ├── EnvFileSecretProvider.cs
-│       └── KeyVaultSecretProvider.cs
+│       ├── KeyVaultSecretProvider.cs
+│       ├── IAuthProvider.cs
+│       ├── DevBypassAuthProvider.cs
+│       └── EntraIdAuthProvider.cs
 │
 ├── clear-web/                          (Next.js frontend)
 │   ├── app/
@@ -508,7 +528,7 @@ public record CheckResult(
 | NT-009 | Private DNS zones centralized in Connectivity subscription | DNS zones in Connectivity sub, not scattered | Resource Graph: `microsoft.network/privatednszones` | Medium |
 | NT-010 | IP forwarding disabled on NICs | `enableIPForwarding: false` on all NICs (except NVA NICs) | Resource Graph: `microsoft.network/networkinterfaces` | Medium |
 | NT-011 | No VPN/ER/vWAN gateways in Corp landing zone subscriptions | 0 gateways outside Connectivity subscription | Resource Graph: gateway resources in non-connectivity subs | Medium |
-| NT-012 | Network Watcher enabled per region | Network Watcher in each region with resources | Resource Graph: `microsoft.network/networkwatchers` | Low |
+| NT-012 | Network Watcher enabled per region | Network Watcher in each region with resources | Resource Graph: `microsoft.network/networkwatchers` | Low | *(Note: also verified in MM-009, scored here only)* |
 | NT-013 | Flow logs enabled on critical VNets | NSG flow logs or VNet flow logs configured | Resource Graph: `microsoft.network/networkwatchers/flowlogs` | Low |
 | NT-014 | Azure Bastion deployed for VM access | Bastion host in hub network | Resource Graph: `microsoft.network/bastionhosts` | Medium |
 
@@ -552,7 +572,7 @@ public record CheckResult(
 | MM-006 | AMBA baseline alerts deployed | Connectivity, Management, Identity, Landing Zone alert sets | Resource Graph: alert rule resources per scope | Medium |
 | MM-007 | Resource locks on critical platform resources | Delete locks on hub VNet, Log Analytics workspace, Key Vaults | Resource Graph: lock information | Medium |
 | MM-008 | Update management configured | Periodic update checking policy compliance | Policy compliance for update policies | Low |
-| MM-009 | Network Watcher enabled per region | Network Watcher resource per active region | Resource Graph | Low |
+| MM-009 | Network Watcher enabled per region | Network Watcher resource per active region | Resource Graph | Low | *(Cross-ref NT-012, scored in Scanner 3 only)* |
 | MM-010 | Change Tracking enabled for VMs | Change Tracking extension or policy compliance | Policy compliance API | Low |
 
 ### 4.7 Scanner 6: Governance (Policy & Compliance)
@@ -596,8 +616,8 @@ For each mapped management group:
 
 | Check ID | Check | Method | Severity |
 |----------|-------|--------|----------|
-| GP-010 | Overall policy compliance rate | `GET /providers/Microsoft.PolicyInsights/policyStates/latest/summarize` | Metric |
-| GP-011 | Non-compliant resource count | Compliance summary per policy | Metric |
+| GP-010 | Overall policy compliance rate &gt;90% | `GET /providers/Microsoft.PolicyInsights/policyStates/latest/summarize` | High |
+| GP-011 | Non-compliant resource count &lt;5% of total | Compliance summary per policy | Medium |
 | GP-012 | DINE policies with pending remediation | Resources non-compliant under DINE policies that haven't been remediated | Medium |
 | GP-013 | Budget alerts configured per subscription | `GET /subscriptions/{id}/providers/Microsoft.Consumption/budgets` | Low |
 | GP-014 | Required tag policies in place | Tag-related policy assignments exist | Low |
@@ -958,6 +978,74 @@ public class CheckResult
     public RemediationSource? RemediationSource { get; set; }
     public string? RemediationDetail { get; set; }  // JSON blob
 }
+
+public class TenantConfig
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public string? AiProvider { get; set; }           // Override global: "anthropic", "azureopenai", "githubmodels"
+    public string? AiModel { get; set; }              // Override model for this tenant
+    public string? DefaultScanScope { get; set; }     // "full" or specific MG/subscription IDs (JSON array)
+    public string? ExcludedScanners { get; set; }     // JSON array of scanner IDs to skip
+    public string? ExcludedChecks { get; set; }       // JSON array of check IDs to skip
+    public string? ExcludedSubscriptions { get; set; }// JSON array of subscription IDs to exclude
+    public string? Notes { get; set; }                // Free-form consultant notes
+}
+
+public class AssessmentProfile
+{
+    public Guid Id { get; set; }
+    public Guid ScanId { get; set; }
+    public string? OrganizationSize { get; set; }     // "small" (<50 subs), "medium" (50-200), "large" (200+)
+    public string? Industry { get; set; }             // e.g., "finance", "healthcare", "manufacturing", "retail"
+    public string? ComplianceFrameworks { get; set; } // JSON array: ["ISO27001", "SOC2", "GDPR", "HIPAA"]
+    public bool HybridConnectivity { get; set; }      // Needs on-premises connectivity?
+    public string? NetworkTopologyPreference { get; set; } // "hub-spoke", "vwan", "undecided"
+    public string? IdentityModel { get; set; }        // "cloud-only", "hybrid-adds", "hybrid-entra-ds"
+    public int? ExpectedWorkloadCount { get; set; }   // Number of application landing zones needed
+    public string? ExistingAzureMaturity { get; set; }// "none", "basic", "moderate", "advanced"
+    public string? SpecificConcerns { get; set; }     // Free-form from interview
+    public string? InterviewTranscript { get; set; }  // Full AI interview conversation (JSON)
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public class Report
+{
+    public Guid Id { get; set; }
+    public Guid ScanId { get; set; }
+    public ReportFormat Format { get; set; }          // Pdf, Docx, Html
+    public ReportType Type { get; set; }              // ExecutiveSummary, DetailedAssessment, RemediationPlan
+    public ReportStatus Status { get; set; }          // Queued, Generating, Completed, Failed
+    public string? StoragePath { get; set; }          // Local path or Blob Storage URL
+    public long? FileSizeBytes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+}
+
+public record ScanOptions(
+    string Scope,                                     // "full" (all subscriptions) or "targeted"
+    List<string>? TargetSubscriptionIds,              // If targeted: specific subscription IDs
+    List<string>? TargetManagementGroupIds,           // If targeted: specific MG IDs
+    List<string>? ExcludedScannerIds,                 // Scanner IDs to skip (e.g., "platform-automation")
+    List<string>? ExcludedCheckIds,                   // Individual check IDs to skip (e.g., "NT-003")
+    List<string>? ExcludedSubscriptionIds,            // Subscriptions to exclude from scanning
+    bool IncludeAiAnalysis = true,                    // Run AI analysis after scan?
+    bool IncludeRemediation = true                    // Generate remediation mapping?
+);
+
+public record KnowledgeSnapshot(
+    string AlzLibraryVersion,                         // e.g., "platform/alz/2026.04.0"
+    AlzArchitectureDefinition ArchitectureDefinition, // Expected MG hierarchy
+    List<AlzArchetypeDefinition> Archetypes,          // All 11 archetype-to-policy mappings
+    List<AlzPolicyDefinition> PolicyDefinitions,      // All 149 custom ALZ policy definitions
+    List<AlzPolicySetDefinition> PolicySetDefinitions,// All 42 ALZ initiatives
+    List<AlzPolicyAssignment> PolicyAssignments,      // All 79 policy assignment templates
+    List<AlzRoleDefinition> RoleDefinitions,          // All 5 custom role definitions
+    AlzPolicyDefaultValues DefaultValues,             // 15 parameterized defaults
+    List<ReviewChecklistItem> ReviewChecklist,        // 48 items with KQL queries
+    List<AvmModule> AvmModules,                       // 200+ AVM module references
+    List<ConticaTemplate> ConticaTemplates            // Indexed Contica template stack
+);
 ```
 
 ---
@@ -983,14 +1071,16 @@ public class CheckResult
 | `POST` | `/api/tenants/{id}/scans` | Start a new scan |
 | `GET` | `/api/tenants/{id}/scans` | List scan history |
 | `GET` | `/api/tenants/{id}/scans/{scanId}` | Get scan result summary |
+| `GET` | `/api/tenants/{id}/scans/{scanId}/progress` | SSE stream of scan progress events (see Section 14) |
 | `GET` | `/api/tenants/{id}/scans/{scanId}/scanners/{scannerId}` | Get scanner detail with all checks |
 | `GET` | `/api/tenants/{id}/scans/{scanId}/gaps` | Get gap report for remediation |
+| `GET` | `/api/tenants/{id}/scans/{scanId}/compare/{previousScanId}` | Compare two scans (score delta, new/resolved findings) |
 
 **AI**
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/tenants/{id}/interview` | AI interview message (returns response) |
+| `POST` | `/api/tenants/{id}/interview` | AI interview message (stateless - frontend sends full history each request) |
 | `POST` | `/api/tenants/{id}/scans/{scanId}/analyze` | Trigger AI analysis of scan results |
 | `POST` | `/api/tenants/{id}/scans/{scanId}/chat` | Chat with AI about scan results (SSE stream) |
 | `POST` | `/api/tenants/{id}/scans/{scanId}/remediation` | Generate AI remediation plan |
@@ -1025,8 +1115,6 @@ public class CheckResult
 ### 10.1 Local (Docker Compose)
 
 ```yaml
-version: "3.8"
-
 services:
   clear-api:
     build:
@@ -1239,16 +1327,114 @@ Contents:
 
 ---
 
-## 14. Non-Functional Requirements
+## 14. Scan Progress and Real-Time Events
 
-### 14.1 Performance
+### 14.1 SSE Endpoint
 
-- Full tenant scan (all 8 scanners, parallel): < 5 minutes for tenants with < 50 subscriptions
-- Knowledge sync: < 2 minutes (incremental, only fetch changed files)
-- Report generation: < 30 seconds
-- AI chat response: streaming, first token < 2 seconds
+```
+GET /api/tenants/{id}/scans/{scanId}/progress
+Content-Type: text/event-stream
+```
 
-### 14.2 Security
+### 14.2 Event Schema
+
+```json
+{ "event": "scan_started",      "data": { "scanId": "...", "scannerCount": 8 } }
+{ "event": "scanner_started",   "data": { "scannerId": "governance-policy", "displayName": "Governance" } }
+{ "event": "scanner_progress",  "data": { "scannerId": "governance-policy", "checksCompleted": 7, "checksTotal": 14 } }
+{ "event": "scanner_completed", "data": { "scannerId": "governance-policy", "score": 72, "confidence": "high" } }
+{ "event": "scanner_failed",    "data": { "scannerId": "identity-access", "error": "Graph API permission denied" } }
+{ "event": "scan_completed",    "data": { "totalScore": 67, "maturityTier": 2, "duration": "PT3M42S" } }
+{ "event": "scan_failed",       "data": { "error": "All scanners failed", "partialResults": false } }
+```
+
+Scanners run in parallel. Events arrive as each scanner progresses and completes. The frontend displays a real-time progress view with per-scanner status indicators.
+
+---
+
+## 15. Error Handling and Resilience
+
+### 15.1 Scanner Error Handling
+
+- If an individual check throws an exception, it is caught and recorded as `CheckStatus.Error` with the exception message in `Detail`. The scanner continues to the next check.
+- Errored checks are excluded from the scanner score calculation (neither pass nor fail). They reduce the denominator, not the numerator.
+- Scanner `Confidence` degrades based on error rate:
+  - 0% errors → `High`
+  - 1-20% errors → `Medium`
+  - &gt;20% errors → `Low`
+- If all checks in a scanner error, the scanner result is `Status: Failed` with `Score: null` and `Confidence: Low`. It is excluded from the total CLEAR score.
+- The total CLEAR score only includes scanners that produced a score. If 6 of 8 scanners succeed, the total is a weighted average of those 6 (with weights re-normalized).
+
+### 15.2 Azure API Rate Limiting and Retry
+
+- All Azure SDK clients use `Azure.Core` retry policies with exponential backoff (default: 3 retries, 800ms initial delay, 2x multiplier).
+- Azure Resource Graph queries are batched: max 3 concurrent queries, with 429 backoff.
+- Microsoft Graph API calls use the Microsoft Graph SDK's built-in retry handler.
+- Azure Policy API calls across many subscriptions are parallelized with `SemaphoreSlim(maxConcurrency: 5)` to avoid throttling.
+
+### 15.3 GitHub API Rate Limiting
+
+- Knowledge sync uses authenticated requests (GitHub PAT or App token) for 5,000 requests/hour.
+- File fetches use raw.githubusercontent.com (CDN, no rate limit) instead of the GitHub API where possible.
+- If rate-limited during sync, the operation pauses and resumes when the rate limit resets (X-RateLimit-Reset header).
+
+### 15.4 AI Provider Resilience
+
+- AI provider timeout: 60 seconds per request, 120 seconds for report generation.
+- If the configured AI provider fails, CLEAR does not fall back to another provider automatically. The scan completes without AI analysis, and the user is notified.
+- AI analysis can be triggered separately after scan completion via `POST /api/tenants/{id}/scans/{scanId}/analyze`.
+
+---
+
+## 16. Testing Strategy
+
+### 16.1 Backend Testing (.NET)
+
+**Unit tests (xUnit + FluentAssertions + NSubstitute):**
+- Each scanner tested against recorded Azure API responses (snapshot/fixture approach)
+- `ScanContext` is constructed with mock Azure clients that return fixture JSON
+- Scoring engine tested with synthetic `ScannerResult` data covering edge cases (all pass, all fail, mixed, errored checks)
+- Diff engines tested against known ALZ Library snapshots vs known tenant states
+- AI provider interface tested via mock implementations (no real API calls in unit tests)
+
+**Fixture data:**
+- `tests/fixtures/azure-responses/` - Recorded JSON responses from Azure APIs (anonymized)
+- `tests/fixtures/alz-library/` - Snapshot of ALZ Library at a specific version for deterministic testing
+- `tests/fixtures/tenants/` - Synthetic tenant configurations representing each maturity tier (0-4)
+
+**Integration tests:**
+- Knowledge sync against a test GitHub repo (or recorded HTTP responses via WireMock)
+- EF Core migrations tested against both SQLite and SQL Server (CI uses both)
+- Report generation tested end-to-end (generate PDF/Word, verify structure)
+
+### 16.2 Frontend Testing (Next.js)
+
+**Component tests (Vitest + Testing Library):**
+- Key components: ScoreGauge, CheckTable, ScannerRadar, MaturityBadge
+- Page-level tests with mocked API responses
+
+**E2E tests (Playwright):**
+- Full scan flow: create tenant → run scan → view results → export report
+- AI chat interaction (mocked AI provider)
+
+### 16.3 Test Environments
+
+- **CI (GitHub Actions):** Unit tests + integration tests on every PR. SQLite for fast tests, SQL Server container for DB integration tests.
+- **Local dev:** `docker compose -f docker-compose.test.yml up` runs all tests in containers.
+- **No real Azure tenant required for testing.** All Azure API interactions are abstracted and mockable. Integration tests with a real tenant are optional and run manually.
+
+---
+
+## 17. Non-Functional Requirements
+
+### 17.1 Performance
+
+- Full tenant scan (all 8 scanners, parallel): &lt; 5 minutes for tenants with &lt; 50 subscriptions
+- Knowledge sync: &lt; 2 minutes (incremental, only fetch changed files)
+- Report generation: &lt; 30 seconds
+- AI chat response: streaming, first token &lt; 2 seconds
+
+### 17.2 Security
 
 - No customer data leaves the local machine (local mode)
 - Azure credentials stored in environment variables (local) or Key Vault (Azure)
@@ -1256,15 +1442,17 @@ Contents:
 - Customer tenant data (scan results) stored in local SQLite or Azure SQL (Contica's subscription, not customer's)
 - No scan data sent to AI providers except as structured context for analysis (no raw Azure API responses)
 - HTTPS enforced in Azure deployment
+- CORS configured on the API to allow requests from the frontend origin only
 
-### 14.3 Reliability
+### 17.3 Reliability
 
 - Scan failures are per-scanner, not total. If one scanner fails (e.g., Graph API permission missing), the other 7 still produce results.
-- Each scanner has a `Confidence` level that reflects the reliability of its checks.
+- Each scanner has a `Confidence` level that degrades based on check error rate (see Section 15.1).
+- Overall scan confidence is the minimum confidence across all included scanners.
 - Knowledge sync failures do not block scanning. CLEAR uses the last successfully synced version.
 - AI provider failures do not block scanning or report generation. AI analysis is optional enhancement.
 
-### 14.4 Extensibility
+### 17.4 Extensibility
 
 - New scanners implement `IScannerModule` and are registered via DI.
 - New AI providers implement `IAIProvider` and are registered via `AIProviderFactory`.
@@ -1272,9 +1460,18 @@ Contents:
 - New remediation sources (e.g., Terraform modules) add to the `TemplateResolver` chain.
 - Review checklist items from `Azure/review-checklists` provide additional KQL queries that can be added as checks to existing scanners.
 
+### 17.5 Versioning
+
+CLEAR uses SemVer (`MAJOR.MINOR.PATCH`):
+- MAJOR: Breaking changes to scan output schema or scoring model
+- MINOR: New scanners, new checks, new features
+- PATCH: Bug fixes, knowledge sync updates
+
+The CLEAR version and ALZ Library version are both recorded on every scan result and every generated report.
+
 ---
 
-## 15. Technology Stack
+## 18. Technology Stack
 
 | Component | Technology | Version | Rationale |
 |-----------|-----------|---------|-----------|
@@ -1286,21 +1483,24 @@ Contents:
 | AI (Anthropic) | `Anthropic` NuGet | Latest | Claude API access |
 | AI (Azure OpenAI) | `Azure.AI.OpenAI` | Latest | Azure OpenAI access |
 | AI (GitHub Models) | `System.Net.Http` | Built-in | REST client to GitHub Models API |
-| Report Generation | QuestPDF or Aspose | Latest | PDF generation |
-| Report Generation | DocumentFormat.OpenXml | Latest | Word document generation |
+| Report (PDF) | QuestPDF | Latest | MIT-licensed PDF generation |
+| Report (Word) | DocumentFormat.OpenXml | Latest | Word document generation |
+| Resilience | Polly | Latest | Retry policies, circuit breakers |
 | Frontend | Next.js | 15+ | SSR, App Router, React Server Components |
 | UI Components | shadcn/ui + Tailwind CSS | Latest | Clean, professional component library |
-| Charts | Recharts or Chart.js | Latest | Score gauges, radar charts, trend lines |
-| Code Highlighting | Shiki or Prism | Latest | Bicep syntax highlighting in IaC viewer |
+| Charts | Recharts | Latest | Score gauges, radar charts, trend lines |
+| Code Highlighting | Shiki | Latest | Bicep syntax highlighting in IaC viewer |
 | Database (local) | SQLite | via EF Core | Zero-config local database |
 | Database (Azure) | Azure SQL Database | Serverless | Auto-pause, cost-efficient |
+| Testing (backend) | xUnit + FluentAssertions + NSubstitute | Latest | .NET standard test stack |
+| Testing (frontend) | Vitest + Testing Library + Playwright | Latest | Component + E2E testing |
 | Containerization | Docker | Multi-stage builds | Consistent local and cloud deployment |
 | CI/CD | GitHub Actions | N/A | Build, test, deploy pipeline |
 | IaC (Azure infra) | Bicep | Latest | Azure deployment (eating own dog food) |
 
 ---
 
-## 16. Future Scope (Out of Scope for v1)
+## 19. Future Scope (Out of Scope for v1)
 
 These items are acknowledged but explicitly deferred:
 
