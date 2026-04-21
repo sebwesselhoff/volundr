@@ -104,6 +104,19 @@ It is broken in nested sessions. Hangs indefinitely. Do not attempt it.
 - **Planning/content** - focused output, no shell needed
 - **Fixing build errors** - targeted fix from error output (fixer, haiku model)
 
+### Persona linkage in flat/Volundr-direct mode
+
+The persona skill-extraction pipeline is driven by the `pre-agent-tool.js` hook, which scans the *prompt* of each spawned agent for `# CARD-XX-NNN: title` and `personaId: {id}` headers and writes a `persona_history` row per run. `vldr.personas.extractSkills(personaId)` later promotes high-confidence history rows into reusable skills.
+
+This means flat / Volundr-direct work is **invisible to the pipeline by default** - if Volundr implements a card herself (no developer subagent spawn) or only spawns review-shaped subagents without the persona headers, no history row is written. `cardsCompleted` and `qualityAverage` still advance normally (they come from `vldr.quality.score`), but `skillCount` stays at 0 because `extractSkills` finds nothing to promote. Dashboard Skills page will show "0 skills" even after a productive session.
+
+When implementing in flat / Volundr-direct mode, pick one remediation:
+
+- **(a) Preferred - spawn a developer subagent with persona headers.** Even a thin "developer implements this card" Agent tool call whose system prompt carries `# CARD-XX-NNN: {title}` and `personaId: {id}` lets the hook fire. Lets the pipeline stay hook-driven end to end.
+- **(b) Explicit history POST.** Before calling `vldr.personas.extractSkills(personaId)` for a card closed in flat mode, POST the card payload to `/api/personas/{id}/history` (title, description, flattened ISC evidence, quality dimensions, branch, files changed). `extractSkills` then has a row to consider.
+
+See also § Framework Feedback Loop - if you encounter this class of gap in a different shape, file a card against the `volundr-meta` project so the fix lands in the framework rather than getting relearned session-by-session.
+
 ### Volundr handles shell operations between rounds:
 - `npm install` / `npm run build` / `npm test` - before and after teammate batches
 - `git merge` worktree branches to main - after teammates complete
@@ -528,6 +541,25 @@ At project completion, add a summary row to `VLDR_HOME/global/project-history.md
 
 ### Reusable Patterns
 Save to `VLDR_HOME/global/patterns/` as kebab-case markdown files (e.g., `middleware-monkey-patching.md`). If a file with the same name exists, merge rather than overwrite.
+
+---
+
+## Framework Feedback Loop
+
+When a framework-level bug, enhancement, or friction point surfaces while you are working a user project, **file it as a card against the `volundr-meta` project** so the fix lives inside the tool's own backlog rather than drifting between sessions. The `volundr-meta` project tracks Volundr's own evolution with the same card/ISC/review machinery user-projects use.
+
+**Trigger** — finding is framework-scoped (applies to future projects, not just the current one) AND would cost non-trivial effort to fix. Small in-flight course-corrections that are part of a card's own implementation stay inline; file a card when the fix is its own unit of work.
+
+**Bar for a filed card** — same meticulous standard as any other card:
+- Title that names the failure mode in one line (not "framework issue")
+- Description with reproduction context: what you were doing, what happened, what should have happened
+- References: the originating project's session-summary id, journal entry (insight/blocker), checkpoint, any global lesson already written, relevant file paths in `framework/`
+- ISC criteria per usual (3-8 binary assertions with evidence)
+- Scope bounds - explicitly list what is out of scope to prevent a framework card from accreting unrelated work
+
+**Non-blocking** — file the card, log a journal insight against the current project, and keep going on the user project. Do NOT interrupt user-project flow to implement the fix. Framework cards get scheduled when someone opens `volundr-meta` as the active project.
+
+Worked examples of the first cards filed under this rule: `FRW-001` (doc fix for Volundr-direct persona-history gap), `FRW-002` (API auto-synthesis of persona history on card close), `FRW-003` (this rule).
 
 ---
 
@@ -1023,7 +1055,7 @@ For each round of execution:
     - `npx tsc --noEmit` (type check) + `next build` or `vite build` (production build, UI projects only)
     - `git tag card-{ID}-done`
   - `vldr.quality.score(...)` for each completed card
-  - If card had an assigned persona: `vldr.personas.extractSkills(card.assignedPersonaId)` — promotes high-confidence history entries into reusable skills
+  - If card had an assigned persona: `vldr.personas.extractSkills(card.assignedPersonaId)` — promotes high-confidence history entries into reusable skills. **Flat / Volundr-direct mode**: the hook that normally writes history entries only fires on agent spawns whose prompt carries persona headers — if the card was implemented directly, pre-seed a history row per § *Persona linkage in flat/Volundr-direct mode*, otherwise `extractSkills` will have nothing to promote.
   - `vldr.events.log({ type: 'branch_merged', cardId, detail })` for each
 10. **Re-assess hierarchy:**
    - Build updated ProjectSnapshot (remaining cards, cost, active agents)
@@ -1310,6 +1342,7 @@ When compacting context, preserve these critical items:
 - Path to constraints: `VLDR_HOME/projects/{id}/constraints.md`
 - Dashboard API URL: `http://localhost:3141`
 - Key decisions made this session
+- Framework Feedback Loop: any framework-level bug/enhancement discovered during user-project work is filed as a card in the `volundr-meta` project (never reinvestigated session-to-session)
 - Recovery command: `vldr.connect()` → `vldr.project.get()` → `vldr.cards.list()` to rebuild full state from DB
 
 ---
