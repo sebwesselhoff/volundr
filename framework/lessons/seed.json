@@ -52,5 +52,35 @@
     "content": "SDK-managed state (cards, events, checkpoints) enables instant resume without re-investigation. Context loss without state causes re-orientation and lost nuance. Update card status after every card and write checkpoints before risky operations.",
     "stack": "Any (Volundr framework)",
     "source": "community"
+  },
+  {
+    "title": "Blind Reviewers Truncate - Force-Write Recovery",
+    "content": "Blind reviewer subagents frequently emit an intermediate thought ('I'll read the files silently before rendering the verdict', 'let me check one more thing') instead of the final verdict. When this happens, use SendMessage to resume the agent with an explicit preamble: 'RESPOND IN ONE COMPLETE MESSAGE with the Blockers/Warnings/Nits format. Do NOT narrate your investigation - go straight to the verdict.' Mention the truncation explicitly in the recovery message. The agent's transcript still has the investigation context so the follow-up cost is small. Observed 3+ times in a single autonomous run against the reviewer subagent type.",
+    "stack": "Any (Volundr framework, blind review workflow)",
+    "source": "community"
+  },
+  {
+    "title": "Schema-Drift Guards on Every External JSON Parse",
+    "content": "Every JsonElement.TryGetProperty / .GetString chain that touches an upstream API (ARM, Graph, third-party) must handle four shapes explicitly: missing property, null value, wrong ValueKind (e.g. numeric where string expected), and unparseable content (e.g. non-ISO datetime). Choose the bucket each bad shape falls into BEFORE shipping - 'silently skip' leaks data; 'silently include as default' produces misleading reports. The right default is usually 'surface the row under the nearest problematic bucket' so an operator sees there was an input the scanner couldn't classify.",
+    "stack": "C#, any language parsing external JSON",
+    "source": "community"
+  },
+  {
+    "title": "Interface Extraction: Grab the Full Read Surface at Once",
+    "content": "When extracting an interface from a concrete API client to enable testing, include every read method the client exposes, not just the one method the current slice needs. Single-method interfaces fragment - every subsequent slice adds one more method and the DI binding drifts. Full-surface interfaces are small (5-10 methods for a typical Azure client) and downstream consumers can depend on them without another refactor.",
+    "stack": "C#, TypeScript, any DI-heavy codebase",
+    "source": "community"
+  },
+  {
+    "title": "CSV Formula Injection - OWASP Single-Quote Prefix",
+    "content": "Any CSV exported from a web app must neutralise spreadsheet-formula injection on user-sourced string columns. If a cell starts with =, +, -, @, tab, or carriage return, prepend a single-quote (') inside the quoted field so Excel / LibreOffice / Google Sheets read it as literal text rather than evaluating it as a formula. RFC 4180 quoting alone does NOT protect against this - it only protects the column layout. Pattern: if (value[0] matches danger-chars) emit double-quote-single-quote-value-double-quote else emit double-quote-value-double-quote. Applies even to 'safe-looking' columns like framework names that happen to be attacker-controlled today or tomorrow.",
+    "stack": "Any language exporting CSV from user-influenced data",
+    "source": "community"
+  },
+  {
+    "title": "DateTimeOffset.TryParse Needs InvariantCulture + RoundtripKind",
+    "content": "Calling DateTimeOffset.TryParse(string) without an explicit culture picks up ambient thread culture. A locale-sensitive test runner or a mis-shaped upstream response (e.g. '04/23/2026') may parse to a valid but wrong date, silently routing values into the wrong bucket. When parsing ISO-8601 timestamps from an API, always pass CultureInfo.InvariantCulture and DateTimeStyles.RoundtripKind so only round-trip ISO strings are accepted.",
+    "stack": "C# / .NET",
+    "source": "community"
   }
 ]
