@@ -1130,6 +1130,151 @@ FRW-BL-006 (OpenAPI) makes the dashboard panel easier to wire.
 
 ---
 
+## FRW-BL-014: Code can land under card IDs whose cards are still in `backlog`
+
+- **Severity**: **High**
+- **Surfaced during**: CLEAR portal walk — four FE pages (`/tenants`,
+  `/tenants/[id]`, `/tenants/[id]/remediation`, `/knowledge`) shipped as
+  header-only stubs while cards CLR-FE-001..008 are all still `backlog`.
+
+### Why
+
+CLEAR's code shows ~70 cards done, and the app boots and serves data on
+ports 5050/3030. But a portal walk revealed four routes that are literal
+placeholder stubs (`<h1>Tenants</h1>` + one-line description, no list,
+no table, no behaviour). Cross-checking the Forge board:
+
+- `CLR-FE-001  [backlog]  Dashboard page with tenant cards`
+- `CLR-FE-002  [backlog]  Scan results page with bar chart and heatmap`
+- `CLR-FE-003  [backlog]  Scanner detail page with check table`
+- `CLR-FE-004  [backlog]  AI chat sidebar panel`
+- `CLR-FE-005  [backlog]  Interview wizard (hybrid chat + structured form)`
+- `CLR-FE-006  [backlog]  Scan progress page with real-time SSE`
+- `CLR-FE-007  [backlog]  Reports page with preview and export`
+- `CLR-FE-008  [backlog]  Accessibility and theming`
+
+Every one of these is `backlog`. Yet `DashboardShell`, `ScanProgressShell`,
+`ReportsShell`, the interview page (46 lines), and the chat page (33 lines)
+all exist and run. Meanwhile the TenantsList — which CLR-FE-001's title
+literally promises — is an 8-line header-only stub.
+
+This is **undetected scope drift**: some of the work got done (chaotically,
+via whichever Developer teammate or direct tool call happened to be
+active), some of it got skipped, and nothing closed the loop on either
+side. The status column on the board is a lie — it reports `backlog` for
+work that's 60% shipped, and `backlog` again for work that was never
+started. A user cannot tell the difference.
+
+The acute harm is that the project was declared **code-complete** and
+entered the portal-walk phase, and only manual inspection surfaced the
+four unfinished pages. In a no-human-in-the-loop autonomous run (the
+stated long-term goal), this would have shipped as-is.
+
+### Description
+
+There is no gate in the framework today that ties file-landing to card
+status. Specifically:
+
+1. **Worktree entry** (`.claude/hooks/worktree-create.js`) does not
+   validate that the associated card is `in_progress` or assigned to
+   the claiming agent. A Developer teammate can enter a worktree for
+   any card in any status.
+2. **`enforce-card-deps.js` hook** only checks that *dependency* cards
+   are `done` (line 45: `return !dep || dep.status !== 'done'`). It
+   does not check that the *target* card has itself been claimed.
+3. **Commit hooks** (`post-bash-git.js`) do not parse the card IDs out
+   of commit messages and validate them against the board. A commit
+   `feat(clr-fe-001): add tenants page stub` can land with CLR-FE-001
+   still in `backlog`, and nothing notices.
+4. **Card close-out flow** — the Developer-teammate SoP ends at DoD +
+   reviewer sign-off, but there's no tripwire if a card is never
+   claimed in the first place: Volundr can dispatch "build the tenants
+   page" as a direct subagent call, the subagent edits `app/tenants/page.tsx`,
+   the hook doesn't care, and the card silently stays in `backlog`.
+
+### Solution
+
+Three progressively-stronger gates, land in order:
+
+**Gate 1 (minimum): Post-commit card-status validation.**
+- Extend `post-bash-git.js` to parse `CLR-XX-NNN` / `<PROJECT>-<DOMAIN>-<N>`
+  IDs out of the commit subject/body.
+- For each referenced card, hit `GET /api/projects/{id}/cards/{cardId}`.
+  If status == `backlog`, emit a **loud warning** in the hook stderr
+  (non-blocking; we don't want to trap mid-commit) and enqueue a
+  Volundr notification asking whether the card should be moved to
+  `in_progress` retroactively.
+- Also validate the referenced card *exists*. A commit citing a
+  non-existent card ID should fail the hook hard.
+
+**Gate 2: Worktree-entry status check.**
+- `worktree-create.js` already resolves the active project path from
+  the registry (commit `8fe769c`). Extend it: when the worktree is
+  opened for a specific card ID (the path convention includes the
+  card ID), refuse to create if the card's status is `backlog` unless
+  the entering agent is explicitly claiming it as part of the same
+  call. The claim transitions `backlog -> in_progress` atomically.
+
+**Gate 3: Pre-close portal-walk checklist.**
+- Before a project can transition from `implementation` to `complete`
+  phase, the Forge API enforces: **every route referenced in any card's
+  acceptance criteria must either render the promised component or be
+  explicitly flagged as out-of-scope with a reason.**
+- Mechanically: each card with a UI scope emits an assertion like
+  `route:/tenants => component:TenantsList`. The pre-close gate scans
+  the repo for the route's `page.tsx`, hashes the rendered component
+  tree, and compares against the card's expected component. Header-only
+  stubs produce a low-complexity hash that the gate flags.
+- This is the one that would have caught CLEAR's four stubs
+  automatically.
+
+Gate 1 is S effort. Gate 2 is M. Gate 3 is L but highest value.
+
+### Framework files to change
+
+- `.claude/hooks/post-bash-git.js` — add card-ID parser + status validator
+- `.claude/hooks/worktree-create.js` — extend with status precondition
+  + optional atomic claim
+- `dashboard/apps/api/` (route handlers) — new endpoint
+  `POST /api/projects/{id}/cards/{cardId}/claim` that is the only path
+  to `backlog -> in_progress` and records the claimant
+- `framework/system-instructions.md` — document the claim-before-work
+  contract explicitly; remove any implicit permission for Volundr or
+  Developer subagents to edit files for an unclaimed card
+- `framework/quality.md` — add "card was claimed before work started"
+  to the DoD
+- `framework/agent-prompts.md` — update Developer teammate prompt
+  template so the very first step is "claim the card" via the API
+- (Gate 3) `dashboard/apps/api/src/gates/portal-walk.ts` — new
+  pre-close validator with route/component assertions
+
+### Tests / validation
+
+- Gate 1: craft a commit `feat(clr-fe-999): noop` where CLR-FE-999
+  doesn't exist. Commit hook fails.
+- Gate 1: craft a commit `feat(clr-fe-001): real change` while CLR-FE-001
+  is `backlog`. Commit succeeds but a warning appears in stderr and a
+  Volundr notification fires.
+- Gate 2: try `EnterWorktree` for a card in `backlog` without the
+  `claim=true` flag. Fails with a message pointing at the claim endpoint.
+- Gate 3: mark a project as code-complete while `app/tenants/page.tsx`
+  is 8 lines and CLR-FE-001's acceptance criterion names `TenantsList`.
+  Gate refuses to close; lists the stub as a blocker.
+
+### Effort estimate
+
+**M overall** — Gate 1 is a 45-minute change, Gate 2 is 2-3 hours
+including the claim endpoint, Gate 3 is a 1-2 day project.
+
+### Dependencies / blockers
+
+None for Gate 1. Gate 2 benefits from FRW-BL-005 (status transitions
+as a single call) but doesn't require it. Gate 3 benefits from
+FRW-BL-011 (structured reviewer findings) for the component-hash
+comparison.
+
+---
+
 ## Triage summary
 
 | ID | Severity | Effort | Cost this session |
@@ -1147,11 +1292,14 @@ FRW-BL-006 (OpenAPI) makes the dashboard panel easier to wire.
 | FRW-BL-011 | Low-M | M | latent |
 | FRW-BL-012 | Low | S | indirect discovery friction |
 | FRW-BL-013 | Low | M | ~15 min OPS-005 scoping |
+| FRW-BL-014 | **High** | M | 4 CLEAR pages shipped as stubs while 8 FE cards sat in `backlog` undetected |
 
 **Total observable time lost this session: ~6+ hours of friction across
-13 framework issues.** Highest-ROI fixes are the four High-severity
-items (BL-001 through BL-004); a week's investment on those would
-materially change the hit rate on autonomous runs.
+14 framework issues.** Highest-ROI fixes are the five High-severity
+items (BL-001 through BL-004, plus BL-014); a week's investment on
+those would materially change the hit rate on autonomous runs. BL-014
+in particular is the gate that would have caught the CLEAR stubs before
+code-complete was declared.
 
 ---
 
