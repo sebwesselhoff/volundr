@@ -206,9 +206,14 @@ async function main() {
   process.stdout.write(worktreeDir);
 }
 
-main().catch((e) => {
-  log.error('unhandled_error', e.message, { error: e.stack });
-  process.exit(2);
-});
+// Only run main() when invoked directly. Tests `require()` this module to access
+// the helper exports below — without this guard, every require would trigger a
+// real `git worktree add` as a side effect.
+if (require.main === module) {
+  main().catch((e) => {
+    log.error('unhandled_error', e.message, { error: e.stack });
+    process.exit(2);
+  });
+}
 
 module.exports = { resolveCardIdFromQueue };
