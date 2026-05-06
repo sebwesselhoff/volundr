@@ -317,18 +317,12 @@ describe('ISC-6: extractSkills integration with synthetic row', () => {
       .send({ dryRun: true });
 
     expect(extractRes.status).toBe(200);
-    // The synthetic row should be counted (it's entryType=learning, confidence=1.0)
-    // Note: MIN_GROUP_SIZE=2 in extract-skills so skills array may be empty for 1 entry,
-    // but includedEntryCount should reflect entries that passed the filter.
-    // The pipeline filters to eligible entries first; if the group is too small
-    // it won't produce a skill, but includedEntryIds still captures eligible entries.
-    // We verify the row was at least eligible (confidence >= threshold).
-    // The extract-skills route returns includedEntryCount = includedEntryIds.length
-    // which only counts entries that made it into a group that produced a skill.
-    // For a single entry the group won't reach MIN_GROUP_SIZE=2, so skills=[] is expected.
-    // What we CAN assert: status 200 and the persona history row has the right shape.
     expect(extractRes.body.dryRun).toBe(true);
-    // The row is of type 'learning' with confidence 1.0 — it's eligible but group size < 2
-    // so no skill is promoted. That is correct pipeline behaviour; the row flowed through.
+    // The synthetic row is entryType='learning' with confidence=1.0 — it passes the
+    // eligibility filter and (since MIN_GROUP_SIZE=1) survives grouping into a skill.
+    // That means it must appear in includedEntryCount AND in the skills array.
+    expect(extractRes.body.includedEntryCount).toBeGreaterThanOrEqual(1);
+    expect(Array.isArray(extractRes.body.skills)).toBe(true);
+    expect(extractRes.body.skills.length).toBeGreaterThanOrEqual(1);
   });
 });
