@@ -39,4 +39,6 @@ async function main() {
   // Exit 0 = allow (SOFT enforcement only)
 }
 
-main().catch(e => log.error('unhandled', e.message));
+if (require.main === module) {
+  main().catch(e => log.error('unhandled', e.message));
+}

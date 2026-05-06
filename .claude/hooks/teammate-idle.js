@@ -133,8 +133,10 @@ async function checkTeamCompletion(input) {
   }
 }
 
-main().catch((e) => {
-  log.error('unhandled_error', e.message, { error: e.stack });
-  // Never block on hook errors - let teammate idle
-  process.exit(0);
-});
+if (require.main === module) {
+  main().catch((e) => {
+    log.error('unhandled_error', e.message, { error: e.stack });
+    // Never block on hook errors - let teammate idle
+    process.exit(0);
+  });
+}
