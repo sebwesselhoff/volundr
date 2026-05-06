@@ -1054,7 +1054,7 @@ For each round of execution:
     - If conflict → resolve (combine changes, or re-implement card against updated main)
     - `npx tsc --noEmit` (type check) + `next build` or `vite build` (production build, UI projects only)
     - `git tag card-{ID}-done`
-  - `vldr.quality.score(...)` for each completed card
+  - `vldr.quality.score(...)` for each completed card — also verify the Operational Affordances gate (`framework/quality.md` § 4a) if the card touched a background pipeline.
   - If card had an assigned persona: `vldr.personas.extractSkills(card.assignedPersonaId)` — promotes high-confidence history entries into reusable skills. **Flat / Volundr-direct mode**: the hook that normally writes history entries only fires on agent spawns whose prompt carries persona headers — if the card was implemented directly, pre-seed a history row per § *Persona linkage in flat/Volundr-direct mode*, otherwise `extractSkills` will have nothing to promote.
   - `vldr.events.log({ type: 'branch_merged', cardId, detail })` for each
 10. **Re-assess hierarchy:**

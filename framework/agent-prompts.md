@@ -75,6 +75,7 @@ You are implementing {CARD-ID}: {Title}.
 - When rendering values of type `unknown` in JSX, use `!!value` to coerce to boolean
 - Always provide default values for optional fields: `data.field ?? defaultValue`
 - {Any project-specific conventions}
+- If this card adds or materially changes a background pipeline (BackgroundService, Hangfire, SSE, Channels, queue), append the six Operational Affordances entries to `docs/DEBUGGING.md` per `framework/quality.md` § Operational Affordances.
 
 ## OUTPUT FORMAT
 1. Write all files using the Write tool
