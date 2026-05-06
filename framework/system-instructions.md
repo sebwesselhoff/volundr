@@ -106,14 +106,19 @@ It is broken in nested sessions. Hangs indefinitely. Do not attempt it.
 
 ### Persona linkage in flat/Volundr-direct mode
 
-The persona skill-extraction pipeline is driven by the `pre-agent-tool.js` hook, which scans the *prompt* of each spawned agent for `# CARD-XX-NNN: title` and `personaId: {id}` headers and writes a `persona_history` row per run. `vldr.personas.extractSkills(personaId)` later promotes high-confidence history rows into reusable skills.
+`persona_history` rows are written by exactly two paths — nothing else creates them automatically:
 
-This means flat / Volundr-direct work is **invisible to the pipeline by default** - if Volundr implements a card herself (no developer subagent spawn) or only spawns review-shaped subagents without the persona headers, no history row is written. `cardsCompleted` and `qualityAverage` still advance normally (they come from `vldr.quality.score`), but `skillCount` stays at 0 because `extractSkills` finds nothing to promote. Dashboard Skills page will show "0 skills" even after a productive session.
+1. **Explicit `POST /api/personas/:id/history`** — a deliberate call by Volundr or a subagent. Every entry produced this way is intentional and hand-crafted.
+2. **`PATCH /api/cards/:id` with `status=done` (FRW-002 auto-synthesis)** — when a card transitions to `done` with `assignedPersonaId` set and no organic row already exists for that `{cardId, personaId}` pair, the API synthesizes a `card-close` row with reasonable content derived from the card's ISC, quality score, and file list. This is the safety net for flat / Volundr-direct work.
 
-When implementing in flat / Volundr-direct mode, pick one remediation:
+The `pre-agent-tool.js` hook does **not** write `persona_history`. It extracts `cardId`/`personaId` from the agent prompt and writes a descriptor file to a tmp queue. `agent-start.js` consumes that queue and registers an **`agents` row** in the dashboard with the `cardId` + `personaId` fields set. `vldr.personas.extractSkills(personaId)` later promotes high-confidence history rows — organic or synthesized — into reusable skills.
 
-- **(a) Preferred - spawn a developer subagent with persona headers.** Even a thin "developer implements this card" Agent tool call whose system prompt carries `# CARD-XX-NNN: {title}` and `personaId: {id}` lets the hook fire. Lets the pipeline stay hook-driven end to end.
-- **(b) Explicit history POST.** Before calling `vldr.personas.extractSkills(personaId)` for a card closed in flat mode, POST the card payload to `/api/personas/{id}/history` (title, description, flattened ISC evidence, quality dimensions, branch, files changed). `extractSkills` then has a row to consider.
+This means flat / Volundr-direct work that closes normally via `PATCH status=done` **is covered by FRW-002**: `cardsCompleted`, `qualityAverage`, and a `card-close` history row all land automatically. `skillCount` will advance once `extractSkills` runs against the synthesized row.
+
+When implementing in flat / Volundr-direct mode, consider the two enrichment paths:
+
+- **(a) Spawn a developer subagent with persona headers.** A thin Agent tool call whose prompt carries `# CARD-XX-NNN: {title}` and `personaId: {id}` lets the hook pipeline register an `agents` row attributed to the persona. This matters for **agent attribution** — quality scoring, token tracking, and `extractSkills` all use included `agents` entries to weight skill confidence. FRW-002 fills the history gap on card close, but a missing `agents` row reduces that confidence. Preferred when the work is non-trivial.
+- **(b) Explicit `POST /api/personas/:id/history` for richer entries.** When the FRW-002 synthesis would produce a thin or misleading entry — e.g. a hard lesson worth preserving verbatim, a decision with nuanced context, or a pattern worth naming — POST a hand-crafted entry before or instead of relying on synthesis. The explicit row wins the organic-vs-synthetic check and is richer input for `extractSkills`.
 
 See also § Framework Feedback Loop - if you encounter this class of gap in a different shape, file a card against the `volundr-meta` project so the fix lands in the framework rather than getting relearned session-by-session.
 
