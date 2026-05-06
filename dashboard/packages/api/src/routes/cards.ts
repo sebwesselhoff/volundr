@@ -351,21 +351,21 @@ router.patch('/cards/:id', (req, res) => {
     const F = quality.formatCompliance;
     const R = quality.correctness ?? quality.independence ?? 0;
     const weightedScore = (C * 3 + Q * 3 + F * 2 + R * 2) / 10;
-    const reviewType = quality.reviewType ?? 'self';
+    const effectiveReviewType = quality.reviewType ?? 'self';
 
     const [existingScore] = db.select().from(schema.qualityScores)
-      .where(eq(schema.qualityScores.cardId, req.params.id)).all();
+      .where(and(eq(schema.qualityScores.cardId, req.params.id), eq(schema.qualityScores.reviewType, effectiveReviewType))).all();
 
     if (existingScore) {
       db.update(schema.qualityScores).set({
         completeness: C, codeQuality: Q, formatCompliance: F, correctness: R,
-        weightedScore, implementationType: quality.implementationType, reviewType, updatedAt: now,
-      }).where(eq(schema.qualityScores.cardId, req.params.id)).run();
+        weightedScore, implementationType: quality.implementationType, reviewType: effectiveReviewType, updatedAt: now,
+      }).where(and(eq(schema.qualityScores.cardId, req.params.id), eq(schema.qualityScores.reviewType, effectiveReviewType))).run();
     } else {
       db.insert(schema.qualityScores).values({
         cardId: req.params.id,
         completeness: C, codeQuality: Q, formatCompliance: F, correctness: R,
-        weightedScore, implementationType: quality.implementationType, reviewType,
+        weightedScore, implementationType: quality.implementationType, reviewType: effectiveReviewType,
       }).run();
     }
   }

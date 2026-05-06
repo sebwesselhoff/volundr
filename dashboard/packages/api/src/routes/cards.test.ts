@@ -25,6 +25,7 @@ import { initDb, getDb, schema } from '@vldr/db';
 import { eq, and } from 'drizzle-orm';
 import cardsRouter from './cards.js';
 import personasRouter from './personas.js';
+import qualityRouter from './quality.js';
 import { errorHandler } from '../middleware/error-handler.js';
 
 // ---- App setup ---------------------------------------------------------------
@@ -34,6 +35,7 @@ function buildApp() {
   app.use(express.json());
   app.use('/api', cardsRouter);
   app.use('/api', personasRouter);
+  app.use('/api', qualityRouter);
   app.use(errorHandler);
   return app;
 }
@@ -281,6 +283,115 @@ describe('ISC-5: null persona — synthesis skipped', () => {
       .all();
 
     expect(rows).toHaveLength(0);
+  });
+});
+
+// FRW-BL-018 ISC-4: PATCH with a different reviewType than the existing score
+// seeds a reviewer score via POST /api/quality, then PATCHes with a self-typed
+// quality body — both rows must persist independently.
+describe('FRW-BL-018 ISC-4: two reviewTypes coexist after PATCH with a different reviewType', () => {
+  it('leaves both self and reviewer rows intact with correct weighted scores', async () => {
+    const { cardId } = await seedBase();
+    const db = getDb();
+
+    // Pre-seed a reviewer score via POST /api/quality
+    const reviewerRes = await request(app)
+      .post('/api/quality')
+      .send({
+        cardId,
+        completeness: 9,
+        codeQuality: 9,
+        formatCompliance: 8,
+        correctness: 8,
+        implementationType: 'agent',
+        reviewType: 'reviewer',
+      });
+    // POST /api/quality returns 201 on insert, 200 on update — new card → 201
+    expect(reviewerRes.status).toBe(201);
+
+    // PATCH card to done with a SELF-typed quality body
+    const patchRes = await request(app)
+      .patch(`/api/cards/${cardId}`)
+      .send({
+        status: 'done',
+        quality: {
+          completeness: 7,
+          codeQuality: 7,
+          formatCompliance: 6,
+          correctness: 6,
+          implementationType: 'agent',
+          reviewType: 'self',
+        },
+      });
+    expect(patchRes.status).toBe(200);
+
+    // Both rows must exist independently
+    const rows = db.select().from(schema.qualityScores)
+      .where(eq(schema.qualityScores.cardId, cardId)).all();
+
+    expect(rows).toHaveLength(2);
+
+    const selfRow = rows.find(r => r.reviewType === 'self');
+    const reviewerRow = rows.find(r => r.reviewType === 'reviewer');
+
+    expect(selfRow).toBeDefined();
+    expect(reviewerRow).toBeDefined();
+
+    // self: (7*3 + 7*3 + 6*2 + 6*2) / 10 = (21+21+12+12)/10 = 66/10 = 6.6
+    expect(selfRow!.weightedScore).toBeCloseTo(6.6, 5);
+
+    // reviewer: (9*3 + 9*3 + 8*2 + 8*2) / 10 = (27+27+16+16)/10 = 86/10 = 8.6
+    expect(reviewerRow!.weightedScore).toBeCloseTo(8.6, 5);
+  });
+});
+
+// FRW-BL-018 ISC-5: regression — PATCH with SAME reviewType updates in place
+describe('FRW-BL-018 ISC-5: PATCH with same reviewType updates row in place', () => {
+  it('updates the existing row without UNIQUE violation or duplicate row', async () => {
+    const { cardId } = await seedBase();
+    const db = getDb();
+
+    // First PATCH — inserts a self row
+    const first = await request(app)
+      .patch(`/api/cards/${cardId}`)
+      .send({
+        status: 'done',
+        quality: {
+          completeness: 6,
+          codeQuality: 6,
+          formatCompliance: 6,
+          correctness: 6,
+          implementationType: 'agent',
+          reviewType: 'self',
+        },
+      });
+    expect(first.status).toBe(200);
+
+    // Second PATCH — same reviewType, new scores (card is already done so status unchanged)
+    const second = await request(app)
+      .patch(`/api/cards/${cardId}`)
+      .send({
+        status: 'done',
+        quality: {
+          completeness: 8,
+          codeQuality: 8,
+          formatCompliance: 8,
+          correctness: 8,
+          implementationType: 'agent',
+          reviewType: 'self',
+        },
+      });
+    expect(second.status).toBe(200);
+
+    // Must still be exactly one row for this card
+    const rows = db.select().from(schema.qualityScores)
+      .where(eq(schema.qualityScores.cardId, cardId)).all();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].reviewType).toBe('self');
+
+    // Score must reflect the second PATCH values: (8*3+8*3+8*2+8*2)/10 = 80/10 = 8.0
+    expect(rows[0].weightedScore).toBeCloseTo(8.0, 5);
   });
 });
 
