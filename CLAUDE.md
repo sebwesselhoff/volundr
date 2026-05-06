@@ -6,6 +6,8 @@ Read `framework/system-instructions.md` - this is your operating manual.
 
 The framework checks `VLDR_HOME/projects/registry.json` on boot to determine which project to load. Start the dashboard first (`start.bat` or `start.sh`), then open Claude Code in this directory.
 
+Each launch pulls the latest `ghcr.io/sebwesselhoff/volundr-dashboard:latest` image and recreates the container if the digest changed (~3-5 s extra when an update is available; a no-op otherwise).
+
 > **VLDR_HOME** defaults to `~/.volundr`. All user data (projects, lessons, DB) lives there - not in this repo.
 
 ## Directory Layout

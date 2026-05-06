@@ -59,11 +59,16 @@ echo
 
 # --- Fast path: dashboard already running and healthy ---
 if [ "$LOCAL_BUILD" = false ] && curl -sf http://localhost:3141/api/health >/dev/null 2>&1; then
-    echo "Dashboard already running."
+    echo "Dashboard already running. Checking for image updates..."
+    if ! docker compose pull >/dev/null 2>&1; then
+        echo "Warning: Could not pull latest image. Continuing with existing running container."
+    else
+        docker compose up -d >/dev/null 2>&1
+    fi
     echo
     echo "Opening dashboard in browser..."
-    if command -v xdg-open &>/dev/null; then xdg-open http://localhost:3000
-    elif command -v open &>/dev/null; then open http://localhost:3000
+    if command -v xdg-open >/dev/null 2>&1; then xdg-open http://localhost:3000
+    elif command -v open >/dev/null 2>&1; then open http://localhost:3000
     fi
     echo
     echo "============================================"

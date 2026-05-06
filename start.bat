@@ -58,7 +58,13 @@ REM --- Fast path: dashboard already running and healthy ---
 if "%LOCAL_BUILD%"=="1" goto skip_fast_path
 curl -sf http://localhost:3141/api/health >nul 2>&1
 if not errorlevel 1 (
-    echo Dashboard already running.
+    echo Dashboard already running. Checking for image updates...
+    docker compose pull >nul 2>&1
+    if errorlevel 1 (
+        echo Warning: Could not pull latest image. Continuing with existing running container.
+    ) else (
+        docker compose up -d >nul 2>&1
+    )
     goto open_browser
 )
 :skip_fast_path
