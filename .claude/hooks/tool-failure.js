@@ -51,6 +51,8 @@ async function main() {
   });
 }
 
-main().catch((e) => {
-  log.error('unhandled_error', e.message, { error: e.stack });
-});
+if (require.main === module) {
+  main().catch((e) => {
+    log.error('unhandled_error', e.message, { error: e.stack });
+  });
+}
