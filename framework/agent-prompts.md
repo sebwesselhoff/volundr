@@ -17,6 +17,8 @@
 ## Acceptance Criteria
 - [ ] Criterion 1
 - [ ] Criterion 2
+# ISC criterion shape: { criterion, evidence, passed }
+# Optional: portal: { route: "/tenants/[id]", expectedExports: ["TenantsList"] }
 
 ## Files to Create
 - src/path/file.ts - {description}

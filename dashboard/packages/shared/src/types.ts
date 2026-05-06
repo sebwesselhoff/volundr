@@ -29,6 +29,20 @@ export interface Epic {
   sortOrder: number;
 }
 
+export interface IscCriterion {
+  criterion: string;
+  evidence: string | null;
+  passed: boolean | null;
+  portal?: {
+    /** Route path matching the project's routing convention (e.g. "/tenants/[id]" for Next.js App Router). */
+    route: string;
+    /** Optional list of named exports the route's component file MUST export. */
+    expectedExports?: string[];
+    /** Optional override of the default minimum file line count threshold. */
+    minLines?: number;
+  };
+}
+
 export interface Card {
   id: string;
   epicId: string;
@@ -44,7 +58,7 @@ export interface Card {
   filesCreated: string[];
   filesModified: string[];
   branch: string;
-  isc: Array<{ criterion: string; evidence: string | null; passed: boolean | null }> | null;
+  isc: IscCriterion[] | null;
   assignedPersonaId: string | null;
   routingConfidence: string | null;
   routingReason: string | null;
