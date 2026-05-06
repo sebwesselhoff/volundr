@@ -88,6 +88,25 @@ After every agent writes code, grep for known-bad patterns from `constraints.md`
 - Check for redefined types that should be imported from shared files
 If any match, fix before committing.
 
+### 4a. Operational Affordances (background-pipeline cards only)
+
+**Trigger:** card adds or materially changes any of the following — BackgroundService, IHostedService, Hangfire (job, recurring job, or dashboard mount), SSE endpoint, WebSocket endpoint, long-polling endpoint, System.Threading.Channels pipeline, or a cross-process queue (Service Bus, RabbitMQ, Kafka, etc.).
+
+This list is not exhaustive — the underlying signal is "long-lived async work that fails in non-obvious ways."
+
+When the trigger fires, the card **MUST** append entries to `docs/DEBUGGING.md` covering all six operational concerns below. A card that ships without them **fails this gate**.
+
+| # | Concern | Required content |
+|---|---------|-----------------|
+| 1 | **Log-line correlation** | Which property is the correlation key; example Serilog/log-filter expression that lets a developer follow one unit of work end-to-end |
+| 2 | **Admin/dashboard surface** | URL or CLI command to reach the management UI (Hangfire dashboard, queue console, etc.); auth caveat; port-forward/Docker note |
+| 3 | **Persistent state inspection** | SQL/KQL/Redis query recipe for "what's pending right now" and "what's stuck/failed" against the backing store |
+| 4 | **Transport observation** | `curl`/`websocat`/equivalent one-liner that proves the wire is delivering (or isn't), with an example payload |
+| 5 | **Isolated replay** | How to re-run a single unit of work via a unit/integration test — test filter expression, fixture name, minimal sample data |
+| 6 | **Recovery from known-bad state** | Kill an orphan, clear a DLQ, re-enqueue a failed job, force a leadership election, etc. — concrete commands |
+
+See `framework/examples/DEBUGGING.example.md` for a worked end-to-end example.
+
 ### 5. Card Completion Manifest
 Write `projects/{id}/reports/manifest-{CARD-ID}.json` after passing all gates.
 
