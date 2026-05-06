@@ -34,6 +34,8 @@ export const personaHistory = sqliteTable('persona_history', {
   confidence: real('confidence').notNull().default(1.0),
   lastReinforcedAt: text('last_reinforced_at').notNull().default(sql`(datetime('now'))`),
   archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
+  // 'organic' = written by a hook / direct API call; 'card-close' = auto-synthesised on PATCH → done
+  source: text('source').notNull().default('organic'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 });
 

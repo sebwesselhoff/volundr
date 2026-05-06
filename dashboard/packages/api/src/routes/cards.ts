@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { getDb, getRawSqlite, schema } from '@vldr/db';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import type { Card } from '@vldr/shared';
 import { ApiError } from '../middleware/error-handler.js';
 import { broadcastToAll } from '../ws/broadcast.js';
 import { validateDeps } from '../lib/dep-validation.js';
 import { autoRouteCard, buildRoutingDescription } from '../lib/auto-routing.js';
+import { synthesiseHistoryEntry } from '../lib/persona-history-synth.js';
 
 const router = Router();
 
@@ -366,6 +367,66 @@ router.patch('/cards/:id', (req, res) => {
         completeness: C, codeQuality: Q, formatCompliance: F, correctness: R,
         weightedScore, implementationType: quality.implementationType, reviewType,
       }).run();
+    }
+  }
+
+  // Auto-synthesise a persona_history row when a card closes with an assigned persona
+  // and no organic row already exists for {cardId, personaId}.
+  if (status === 'done' && existing.status !== 'done' && existing.assignedPersonaId) {
+    const existingHistoryRow = db
+      .select({ id: schema.personaHistory.id })
+      .from(schema.personaHistory)
+      .where(
+        and(
+          eq(schema.personaHistory.personaId, existing.assignedPersonaId),
+          eq(schema.personaHistory.cardId, req.params.id),
+        ),
+      )
+      .limit(1)
+      .all();
+
+    if (existingHistoryRow.length === 0) {
+      // Fetch the project name (stored in DB, card only holds projectId)
+      const [project] = db
+        .select({ name: schema.projects.name })
+        .from(schema.projects)
+        .where(eq(schema.projects.id, existing.projectId))
+        .all();
+      const projectName = project?.name ?? existing.projectId;
+
+      // Re-read the freshly-updated card so filesCreated/filesModified/isc are current
+      const [freshCard] = db
+        .select()
+        .from(schema.cards)
+        .where(eq(schema.cards.id, req.params.id))
+        .all();
+
+      // Fetch the quality score that was just upserted (may be null for replay-only PATCHes)
+      const [qualityScoreRow] = db
+        .select()
+        .from(schema.qualityScores)
+        .where(eq(schema.qualityScores.cardId, req.params.id))
+        .all();
+
+      const payload = synthesiseHistoryEntry(
+        freshCard,
+        qualityScoreRow ?? null,
+        projectName,
+      );
+
+      if (payload) {
+        db.insert(schema.personaHistory).values({
+          personaId: payload.personaId,
+          entryType: payload.entryType,
+          content: payload.content,
+          projectId: payload.projectId,
+          projectName: payload.projectName,
+          cardId: payload.cardId,
+          stackTags: payload.stackTags,
+          confidence: payload.confidence,
+          source: payload.source,
+        }).run();
+      }
     }
   }
 
