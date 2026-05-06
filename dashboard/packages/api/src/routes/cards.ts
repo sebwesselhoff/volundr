@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getDb, getRawSqlite, schema } from '@vldr/db';
 import { eq, and } from 'drizzle-orm';
-import type { Card } from '@vldr/shared';
+import type { Card, IscCriterion } from '@vldr/shared';
 import { ApiError } from '../middleware/error-handler.js';
 import { broadcastToAll } from '../ws/broadcast.js';
 import { validateDeps } from '../lib/dep-validation.js';
@@ -67,7 +67,7 @@ router.post('/projects/:projectId/cards', (req, res) => {
     filesCreated?: string[];
     filesModified?: string[];
     branch?: string;
-    isc?: Array<{ criterion: string; evidence: string | null; passed: boolean | null }>;
+    isc?: IscCriterion[];
   };
 
   if (!id || !epicId || !title || !size || !priority) {
@@ -217,7 +217,7 @@ router.patch('/cards/:id', (req, res) => {
     size?: string;
     criteria?: string;
     technicalNotes?: string;
-    isc?: Array<{ criterion: string; evidence: string | null; passed: boolean | null }>;
+    isc?: IscCriterion[];
     quality?: {
       completeness: number;
       codeQuality: number;

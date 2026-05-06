@@ -107,6 +107,8 @@ When the trigger fires, the card **MUST** append entries to `docs/DEBUGGING.md` 
 
 See `framework/examples/DEBUGGING.example.md` for a worked end-to-end example.
 
+> **Forward note (UI cards):** Once the FRW-BL-014C2 portal scanner ships, UI cards SHOULD include a `portal` annotation on each ISC criterion that targets a route (`IscCriterion.portal`). This is not a current requirement.
+
 ### 5. Card Completion Manifest
 Write `projects/{id}/reports/manifest-{CARD-ID}.json` after passing all gates.
 
