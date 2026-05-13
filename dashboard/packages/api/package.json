@@ -17,7 +17,7 @@
     "chokidar": "^5.0.0",
     "express": "^5",
     "uuid": "^13",
-    "ws": "^8"
+    "ws": "^8.20.1"
   },
   "devDependencies": {
     "@types/express": "^5",
