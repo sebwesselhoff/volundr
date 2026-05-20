@@ -17,7 +17,7 @@
     "chokidar": "^5.0.0",
     "express": "^5",
     "uuid": "^13",
-    "ws": "^8"
+    "ws": "^8.20.1"
   },
   "devDependencies": {
     "@types/express": "^5",
@@ -25,7 +25,7 @@
     "@types/uuid": "^11",
     "@types/ws": "^8",
     "supertest": "^7",
-    "tsx": "^4",
+    "tsx": "^4.22.3",
     "typescript": "^5.7",
     "vitest": "^3"
   }
