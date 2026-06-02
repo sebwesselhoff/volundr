@@ -96,5 +96,6 @@ Respond with ONLY this JSON (no markdown fences, no explanation outside the JSON
 - If a file is supposed to exist but doesn't appear in the diff, that's a completeness failure.
 - If the spec says "handle errors" and there's no try/catch or .catch(), that's a correctness failure.
 - Do NOT give points for "it compiles." Compiling is the floor, not an achievement.
+- **Evidence-before-completion (FRW-BL-045):** for any ISC criterion whose truth depends on runtime behaviour (build/test passes, route returns 200, migration applied, hook blocks/allows), REJECT it (`passed: false`) unless its evidence contains a fresh `VERIFY` block — an actual command + exit code run this session. Stale/assumed claims ("should pass", "looks correct", "compiles") are NOT evidence. Pure doc/contract criteria provable by reading the diff are exempt.
 - An ISC criterion with `passed: null` means you couldn't verify it — explain why.
 - The weightedScore MUST equal `(completeness*3 + codeQuality*3 + formatCompliance*2 + correctness*2) / 10`. Calculate it. Don't estimate.

@@ -132,3 +132,35 @@ After all teammates idle and before merging branches to main:
 2. BLOCK findings are merge blockers - must be fixed first
 3. WARN/INFO findings are logged as events
 4. Guardian flags missing spotcheck events at milestone review (audit trail)
+
+---
+
+## Verification-Before-Completion Gate (FRW-BL-045)
+
+**Iron law: no completion claim without fresh evidence.** A card MUST NOT transition to
+`done`, and no agent may assert "it works / passes / is fixed / is complete", unless a
+verification command was run **this session** and its **output + exit code** are captured
+as evidence tied to the claim. Use the `vldr-verify` skill to produce the evidence block.
+
+**Definition of Done addition** — for every ISC criterion whose truth depends on runtime
+behaviour (build passes, test passes, route returns 200, migration applied, hook blocks/
+allows), the criterion's `evidence` MUST contain a fresh `VERIFY` block:
+
+```
+VERIFY [<command>]
+exit=<code>            # 0 = pass; non-zero FAILS the claim
+<relevant output, trimmed to the lines that prove the claim>
+ran: <this session>
+```
+
+**Rejection rule (enforced at blind review):** a reviewer MUST mark such an ISC criterion
+`passed:false` if its evidence has no fresh command + exit-code, or cites stale/assumed
+output ("should pass", "compiles", "looks correct"). Compiling is the floor, not proof.
+
+**Exemptions:** pure-documentation / contract / spec criteria that are verifiable by reading
+the diff (no runtime behaviour) do not require a `VERIFY` block — but state *what reading
+proves them* in the evidence. When in doubt, run the command and attach the block.
+
+**Enforcement points:** `vldr-verify` skill (produces the block) · card DoD (this section) ·
+`card-reviewer.md` blind-review rubric (rejects unverified runtime claims) · Guardian and
+QA persona prompts (per-card + milestone enforcement).

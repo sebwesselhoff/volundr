@@ -26,6 +26,10 @@ Use when Volundr spawns an Architecture Guardian at milestones
       - Code duplication introduced by different cards/agents
       - API contract alignment (request/response types match between producer and consumer)
       - Security issues (injection, XSS, improper auth checks)
+      - Verification-before-completion (FRW-BL-045): for cards closed this milestone whose
+        ISC depend on runtime behaviour, confirm each carries a fresh `VERIFY` block
+        (command + exit code) in its evidence. A `done` card with a runtime ISC and NO
+        fresh verification evidence is a Critical finding — flag it and propose a re-verify.
     2. Write your review to `projects/{PROJECT_ID}/reports/guardian-review-{N}.md`
     3. For each Critical issue: message Volundr via Agent Teams mailbox with the issue and a proposed fix card
     4. For each Warning: include in the review report but don't create cards
