@@ -1318,6 +1318,14 @@ Step 7b: Load session context (WARM tier - phase-selective):
          ├── GET /api/projects/{id}/journal?limit=15 → read recent journal entries (WARM)
          ├── GET /api/projects/{id}/journal?entryType=decision&limit=10 → load key decisions (WARM)
          ├── Phase-based WARM loading: blueprint.md (planning), card specs (implementation), guardian findings (testing)
+         ├── Boot reconciliation (FRW-BL-054): run `node scripts/boot-reconcile.mjs {id} --repo {projectPath}`
+         │   [optionally `--transcript {transcript_path}`]. It diffs the last journal/checkpoint
+         │   timestamp against `git log` (+ transcript mtime) and surfaces commits made AFTER the last
+         │   reconciliation point. If it reports un-journaled work — e.g. from a crashed / alt-F4'd /
+         │   OOM'd prior session that committed but never journaled — re-journal those commits
+         │   (`vldr.journal.log`) or confirm they're already captured BEFORE resuming. This closes the
+         │   "captured state on the way OUT but not IN" gap; it complements (does not replace) the DB
+         │   recovery protocol (`vldr.cards.list` knows card STATUS, this knows journal coverage).
          └── Present to developer: "Last session: {summary}. Key decisions: {list}. Continuing from: {next_steps}"
 Step 8:  Read framework/machine-constraints.md
          ├── exists and file modified < 7 days ago → use it
