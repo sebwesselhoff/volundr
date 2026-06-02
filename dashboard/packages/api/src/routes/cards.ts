@@ -7,6 +7,8 @@ import { broadcastToAll } from '../ws/broadcast.js';
 import { validateDeps } from '../lib/dep-validation.js';
 import { autoRouteCard, buildRoutingDescription } from '../lib/auto-routing.js';
 import { synthesiseHistoryEntry } from '../lib/persona-history-synth.js';
+import { scanPortalAssertions, type PortalFinding } from '../lib/portal-walk.js';
+import { existsSync } from 'fs';
 
 const router = Router();
 
@@ -430,10 +432,47 @@ router.patch('/cards/:id', (req, res) => {
     }
   }
 
+  // Gate 3 (FRW-BL-014C3): warn-only portal-walk on the done transition.
+  // If the card carries any portal-annotated ISC criterion, scan the project's UI
+  // pages for stubs. v1 is OBSERVATION-ONLY — findings NEVER block the transition;
+  // they are logged as a portal_walk_warning event and returned in the response.
+  // Cards with no portal annotation skip the scan entirely (no perf cost).
+  let portalWalkFindings: PortalFinding[] | undefined;
+  if (status === 'done' && existing.status !== 'done') {
+    const iscArr: IscCriterion[] = existing.isc
+      ? (() => { try { return JSON.parse(existing.isc!) as IscCriterion[]; } catch { return []; } })()
+      : [];
+    if (iscArr.some((c) => c && c.portal)) {
+      // Project root mirrors registry.json activeProject path; the projects row
+      // carries it, so we read it from the DB (works inside the API without
+      // filesystem access to the host registry).
+      const [project] = db
+        .select({ path: schema.projects.path })
+        .from(schema.projects)
+        .where(eq(schema.projects.id, existing.projectId))
+        .all();
+      if (project?.path && existsSync(project.path)) {
+        portalWalkFindings = scanPortalAssertions(iscArr, project.path, { cardId: req.params.id });
+        if (portalWalkFindings.length > 0) {
+          const counts = portalWalkFindings.reduce<Record<string, number>>((acc, f) => {
+            acc[f.severity] = (acc[f.severity] ?? 0) + 1;
+            return acc;
+          }, {});
+          db.insert(schema.events).values({
+            projectId: existing.projectId,
+            cardId: req.params.id,
+            type: 'portal_walk_warning',
+            detail: `portal-walk: ${portalWalkFindings.length} finding(s) [block:${counts.block ?? 0} warn:${counts.warn ?? 0} info:${counts.info ?? 0}] ${JSON.stringify(portalWalkFindings).slice(0, 800)}`,
+          }).run();
+        }
+      }
+    }
+  }
+
   const [updated] = db.select().from(schema.cards).where(eq(schema.cards.id, req.params.id)).all();
   const parsed = parseCardJsonFields(updated);
   broadcastToAll({ type: 'card:updated', data: parsed as Card });
-  res.json(parsed);
+  res.json(portalWalkFindings !== undefined ? { ...parsed, portalWalkFindings } : parsed);
 });
 
 // POST /cards/:id/route — re-run auto-routing for an existing card

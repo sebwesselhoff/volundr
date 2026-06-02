@@ -9,7 +9,7 @@
 
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { rmSync, existsSync } from 'fs';
+import { rmSync, existsSync, mkdtempSync, mkdirSync, writeFileSync } from 'fs';
 import { randomUUID } from 'crypto';
 
 // ---- MUST be set before any @vldr/db import ----
@@ -435,5 +435,143 @@ describe('ISC-6: extractSkills integration with synthetic row', () => {
     expect(extractRes.body.includedEntryCount).toBeGreaterThanOrEqual(1);
     expect(Array.isArray(extractRes.body.skills)).toBe(true);
     expect(extractRes.body.skills.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ---- FRW-BL-014C3: warn-only portal-walk on done transition -------------------
+
+// Seed a project whose `path` points to a temp dir containing a Next.js App Router
+// tree, plus a card whose ISC carries a portal annotation.
+function seedPortalCard(opts: {
+  route: string;
+  pageContent: string | null; // null => do not create the page file (unimplemented)
+  expectedExports?: string[];
+}): { projectId: string; cardId: string } {
+  const db = getDb();
+  const projectId = `proj-portal-${randomUUID().slice(0, 8)}`;
+  const epicId = `epic-portal-${randomUUID().slice(0, 8)}`;
+  const cardId = `CARD-PORTAL-${randomUUID().slice(0, 6).toUpperCase()}`;
+  const projectPath = mkdtempSync(join(tmpdir(), 'portal-proj-'));
+
+  if (opts.pageContent !== null) {
+    const segments = opts.route.split('/').filter(Boolean);
+    const dir = join(projectPath, 'app', ...segments);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'page.tsx'), opts.pageContent);
+  }
+
+  db.insert(schema.projects).values({
+    id: projectId, name: 'Portal Project', path: projectPath, status: 'active', phase: 'build',
+  }).run();
+  db.insert(schema.epics).values({ id: epicId, projectId, name: 'Portal Epic', domain: 'frontend' }).run();
+  db.insert(schema.cards).values({
+    id: cardId, epicId, projectId,
+    title: 'Portal card',
+    description: 'Card with a portal-annotated ISC criterion.',
+    status: 'in_progress',
+    assignedPersonaId: null,
+    isc: JSON.stringify([
+      {
+        criterion: `Route ${opts.route} is implemented`,
+        passed: true,
+        evidence: 'verified',
+        portal: { route: opts.route, expectedExports: opts.expectedExports ?? ['default'] },
+      },
+    ]),
+    deps: '[]', criteria: '', technicalNotes: '', branch: '',
+    filesCreated: '[]', filesModified: '[]', priority: 'P1',
+  }).run();
+
+  return { projectId, cardId };
+}
+
+// ~26 non-blank lines — comfortably above the default minLines of 20.
+const FULL_PAGE_TSX = `import { Suspense } from 'react';
+
+export const metadata = { title: 'Reports' };
+
+function Header() {
+  return <header><h1>Reports</h1></header>;
+}
+
+function Footer() {
+  return <footer>done</footer>;
+}
+
+export default function ReportsPage() {
+  const rows = [1, 2, 3, 4, 5];
+  const total = rows.reduce((a, b) => a + b, 0);
+  const avg = total / rows.length;
+  return (
+    <main>
+      <Header />
+      <p>Total: {total} Avg: {avg}</p>
+      <ul>
+        {rows.map((r) => (<li key={r}>Row {r}</li>))}
+      </ul>
+      <Footer />
+    </main>
+  );
+}
+`;
+
+describe('FRW-BL-014C3 ISC-4: stub portal page → done transition + block finding in response', () => {
+  it('transitions to done AND returns a block-severity portalWalkFinding', async () => {
+    const { cardId } = seedPortalCard({ route: '/parity', pageContent: 'export default function P(){return null}\n' });
+
+    const res = await request(app)
+      .patch(`/api/cards/${cardId}`)
+      .send({ status: 'done', quality: QUALITY_BODY });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('done'); // NON-BLOCKING: still transitions
+    expect(Array.isArray(res.body.portalWalkFindings)).toBe(true);
+    expect(res.body.portalWalkFindings.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.portalWalkFindings.some((f: { severity: string }) => f.severity === 'block')).toBe(true);
+  });
+});
+
+describe('FRW-BL-014C3 ISC-1: portal_walk_warning event logged with findings', () => {
+  it('logs a portal_walk_warning event for the card', async () => {
+    const { cardId, projectId } = seedPortalCard({ route: '/parity', pageContent: 'export default function P(){return null}\n' });
+
+    await request(app).patch(`/api/cards/${cardId}`).send({ status: 'done', quality: QUALITY_BODY });
+
+    const db = getDb();
+    const events = db.select().from(schema.events)
+      .where(and(eq(schema.events.cardId, cardId), eq(schema.events.type, 'portal_walk_warning'))).all();
+    expect(events.length).toBe(1);
+    expect(events[0].detail).toMatch(/block:1/);
+    void projectId;
+  });
+});
+
+describe('FRW-BL-014C3 ISC-5: full portal page → done with no findings', () => {
+  it('transitions to done with an empty portalWalkFindings array', async () => {
+    const { cardId } = seedPortalCard({
+      route: '/reports',
+      pageContent: FULL_PAGE_TSX,
+      expectedExports: ['default', 'metadata'],
+    });
+
+    const res = await request(app)
+      .patch(`/api/cards/${cardId}`)
+      .send({ status: 'done', quality: QUALITY_BODY });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('done');
+    expect(res.body.portalWalkFindings).toEqual([]);
+  });
+});
+
+describe('FRW-BL-014C3 ISC-3: non-portal card skips the scan entirely', () => {
+  it('omits portalWalkFindings from the response when no ISC criterion has a portal annotation', async () => {
+    const { cardId } = await seedBase(); // ISC has no portal annotation
+    const res = await request(app)
+      .patch(`/api/cards/${cardId}`)
+      .send({ status: 'done', quality: QUALITY_BODY });
+
+    expect(res.status).toBe(200);
+    expect(res.body.portalWalkFindings).toBeUndefined();
   });
 });
