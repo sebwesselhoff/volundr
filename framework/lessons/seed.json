@@ -37,7 +37,7 @@
   },
   {
     "title": "Agent Prompt Design",
-    "content": "Self-contained prompts with all context inline work reliably (~21-48s). Prompts requiring file reads timeout. Developer agents must NOT use Bash — Write/Read tools only. Always include environment constraints block and known antipatterns list.",
+    "content": "Self-contained prompts with all context inline work reliably (~21-48s). Prompts requiring file reads timeout. Developer agents must NOT use Bash \u00e2\u20ac\u201d Write/Read tools only. Always include environment constraints block and known antipatterns list.",
     "stack": "Any (Volundr framework)",
     "source": "community"
   },
@@ -82,5 +82,11 @@
     "content": "Calling DateTimeOffset.TryParse(string) without an explicit culture picks up ambient thread culture. A locale-sensitive test runner or a mis-shaped upstream response (e.g. '04/23/2026') may parse to a valid but wrong date, silently routing values into the wrong bucket. When parsing ISO-8601 timestamps from an API, always pass CultureInfo.InvariantCulture and DateTimeStyles.RoundtripKind so only round-trip ISO strings are accepted.",
     "stack": "C# / .NET",
     "source": "community"
+  },
+  {
+    "title": "Front-load the JSON output contract to stop subagent truncation",
+    "content": "Long-running subagents (reviewers, developers) truncate mid-analysis and lose their structured deliverable \u2014 the reviewer JSON score or the dev decision summary \u2014 even though the work is on disk. Cause: open-ended briefs let the agent burn output budget on exploration before emitting the deliverable. Fix: state the JSON/report requirement FIRST in the brief, make it the ONLY mandatory output, cap exploration (max ~5-6 file reads, <=10 min), and instruct 'emit the JSON before any other content if forced to choose'. Reviewers: lead with the JSON block. Developers: COMMIT before writing the summary; summary <=200 words; no file-content dumps. For an already-truncated run, do NOT re-run the card \u2014 tight-scope re-spawn an agent that reads the on-disk work and emits ONLY the lost deliverable. Empirically (FRW-BL-025 review, 2026-06-02, Haiku): a JSON-first brief returned a complete parseable verdict with 0 truncations vs >=5 truncations under open-ended briefs the prior night.",
+    "stack": "Any (Volundr framework)",
+    "source": "volundr-meta FRW-BL-023 (2026-06-02)"
   }
 ]

@@ -1151,6 +1151,26 @@ Emit a status line at these moments:
 
 Format: short, single-line, no markdown headers. Think terminal log output.
 
+### Truncation Recovery — Tight-Scope Re-Spawn (FRW-BL-023)
+
+Long-running subagents sometimes return with their work complete on disk but their **response truncated mid-sentence** — losing the reviewer's JSON score or the developer's decision summary. Telltale: a final message that ends with `"Now let me..."`, `"Now I'll..."`, `"Let me run the tests:"` and no deliverable.
+
+**Detection:** the response ends on an action-lead-in with no JSON block / no `CARD-{ID}: DONE` report. The blind-review gate has nothing to parse, or you can't tell what was decided.
+
+**Do NOT re-run the whole card.** The work is almost always already on disk (and usually committed — see FRW-BL-022). Re-spawn a **tight-scope** agent that reads the existing work and emits ONLY the lost deliverable. The literal brief that landed cleanly every time overnight on CLEAR:
+
+```
+The work for {CARD-ID} is already on disk at {path/branch}. Do NOT re-implement.
+BUDGET: max 5 file reads, max 10 minutes.
+REQUIRED OUTPUT (emit this and nothing else):
+  <reviewer JSON score block>   ← for a review re-spawn
+  — or —
+  CARD-{ID}: DONE / Branch: {b} / Files: {list} / Decisions: ≤200 words   ← for a dev summary re-spawn
+Output the JSON/report FIRST. No file-content dumps. No exploration narration.
+```
+
+The fix is preventative too: the reviewer and developer teammate templates now front-load this output contract (`framework/packs/core/prompts/reviewer-teammate.md`, `developer-teammate.md`, `framework/packs/quality/prompts/card-reviewer.md`). Tight, JSON-first briefs land complete; open-ended briefs burn budget on exploration before emitting the deliverable.
+
 ---
 
 ## Context Loading (Three-Tier Memory)

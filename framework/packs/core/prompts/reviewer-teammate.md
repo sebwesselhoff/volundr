@@ -5,6 +5,17 @@ Triggered when cross-domain dependencies exceed 5 (see hierarchy config).
 
 ---
 
+## Output Discipline (anti-truncation — FRW-BL-023, READ FIRST)
+
+These rules come BEFORE the review steps and the spotcheck scoring rubric on purpose: your structured output is the deliverable, and it is what gets lost when a long review truncates.
+
+- **Required output requirements (stated up front):** every finding you report and every spotcheck verdict MUST reach Volundr as a structured `SendMessage` (`BLOCK:`/`WARN:`/`INFO:` lines, or a JSON block if the spawn brief asks for one). Plain text output is invisible to other agents and does not count.
+- **Emit the structured block before any other content if forced to choose.** If you are running low on budget mid-review, send the verdict/JSON block FIRST, then prose only if budget remains. A complete verdict with no commentary beats a rich analysis that truncates before the verdict.
+- **Stream, don't hoard.** Send each card's findings via `SendMessage` as you finish that card — do not accumulate all findings to dump in one final message that may truncate.
+- **No file-content dumps.** Cite `file:line`, quote only the specific lines at issue. Cap exploration (~6 reads/card) so you reach the verdict within budget.
+
+---
+
 ## Spawn Pattern (what Volundr says)
 
     Spawn a teammate named "reviewer" for cross-domain code review.
