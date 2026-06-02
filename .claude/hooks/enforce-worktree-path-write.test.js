@@ -1,7 +1,10 @@
 // Self-test for enforce-worktree-path-write.js
-// Sets up a temp fixture repo with a fake .claude/worktrees/agent-X subdir
-// and asserts the hook blocks writes outside the worktree, allows writes
-// inside it, and never blocks when the repo has no worktrees.
+// Sets up a temp fixture repo with a fake .claude/worktrees/agent-X subdir.
+// FRW-BL-027 conditional enforcement: for an Agent Teams TEAMMATE context
+// (CLAUDE_AGENT_TEAMS_MEMBER) the hook still BLOCKS out-of-worktree writes (exit 2,
+// native coverage unverified for that path); for an Agent-tool SUBAGENT context
+// (no TEAMS_MEMBER, native guard confirmed) it ADVISES only (exit 0). Writes inside
+// the worktree are allowed, and the hook is a no-op when there are no worktrees.
 //
 // Run: node enforce-worktree-path-write.test.js
 // Exits 0 on success, 1 on failure.
@@ -56,12 +59,13 @@ function cleanup(dir) {
 
 console.log('enforce-worktree-path-write self-test\n');
 
-// Test 1: Write to parent repo while worktree exists → BLOCK
+// Test 1: TEAMMATE writes to parent repo while worktree exists → BLOCK (exit 2)
+// (runHook sets CLAUDE_AGENT_TEAMS_MEMBER=1 by default → teammate context, native unverified)
 (() => {
   const { tmp, repo } = setupFixture();
   try {
     const r = runHook({ file_path: path.join(repo, 'src', 'leak.cs') });
-    assertEq('1. blocks write to parent repo when worktree exists', r.status, 2);
+    assertEq('1. blocks teammate write outside worktree (exit 2; native unverified for teammates)', r.status, 2);
   } finally { cleanup(tmp); }
 })();
 
@@ -116,7 +120,7 @@ console.log('enforce-worktree-path-write self-test\n');
   } finally { cleanup(tmp); }
 })();
 
-// Test 7: stderr message names the worktree path on block
+// Test 7: TEAMMATE block message (exit 2) names the worktree path
 (() => {
   const { tmp, repo } = setupFixture();
   try {
@@ -128,7 +132,23 @@ console.log('enforce-worktree-path-write self-test\n');
       && r.stderr.includes('FRW-BL-022')
       && /agent-test/.test(r.stderr)
       && /\.claude[/\\]worktrees/.test(r.stderr);
-    assertEq('7. block message points at the right worktree path', ok, true);
+    assertEq('7. teammate block message points at the right worktree path', ok, true);
+  } finally { cleanup(tmp); }
+})();
+
+// Test 8: AGENT-TOOL SUBAGENT (no TEAMS_MEMBER, native confirmed) → ADVISE (exit 0)
+(() => {
+  const { tmp, repo } = setupFixture();
+  try {
+    const r = runHook(
+      { file_path: path.join(repo, 'src', 'leak.cs') },
+      { CLAUDE_AGENT_TEAMS_MEMBER: '', CLAUDE_AGENT_TYPE: 'developer' },
+    );
+    const ok = r.status === 0
+      && /advisory/i.test(r.stderr)
+      && /agent-test/.test(r.stderr)
+      && /\.claude[/\\]worktrees/.test(r.stderr);
+    assertEq('8. advises (exit 0) for Agent-tool subagent — native guard blocks', ok, true);
   } finally { cleanup(tmp); }
 })();
 

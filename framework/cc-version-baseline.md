@@ -94,3 +94,24 @@ by header comments in `session-stop.js` and `agent-stop.js`: those two hooks exi
 event), which is independent of the Stop cap, so a teammate iterates toward a green build
 without the 8-block limit cutting it off. Volundr's post-merge `tsc`/production-build gate
 is the backstop if a teammate ever idles with a still-red build.
+
+## Forbidden settings (FRW-BL-027)
+
+| Setting | Forbidden value | Why |
+|---|---|---|
+| `worktree.bgIsolation` | `"none"` | Silently **disables** Claude Code's native worktree write-isolation guard, letting an Agent-tool subagent's Write/Edit land in the shared checkout (the FRW-BL-022 bug). Leave it at the default `"worktree"`: `enforce-worktree-path-write.js` is advisory-only for those subagents (relies on native), so with `"none"` set they would be **unguarded**. (Teammate writes are still caught by this hook's retained hard block, but do not rely on that — keep the default.) |
+
+The native worktree-isolation guard is on by default and verified ON for Agent-tool
+`isolation:"worktree"` subagents on CLI 2.1.161 (subagent coverage fixed in v2.1.154):
+a live probe (2026-06-02) had the native guard refuse an out-of-worktree Write with
+*"This agent is isolated in the worktree … Edit the worktree copy of this file instead
+of the shared-checkout path."* That probe covered the **Agent-tool subagent** surface
+only; native coverage of **Agent Teams teammates** (`CLAUDE_AGENT_TEAMS_MEMBER`, a
+different launch path — and the surface the original FRW-BL-022 incident hit) is **not
+yet live-verified**. So `enforce-worktree-path-write.js` uses **conditional enforcement**:
+advisory-only (exit 0) for Agent-tool subagents where native is confirmed, but it
+**retains the hard block (exit 2) for teammate contexts** as defense-in-depth. Exactly
+one layer acts per call, so there is no double-block / timeout race. (Follow-up: probe
+the teammate launch path; if native covers it too, collapse the teammate branch to
+advisory.) `enforce-worktree-isolation.js` (the git-commit-to-main PreToolUse:Bash block
+— a different surface) is **retained and unchanged**.

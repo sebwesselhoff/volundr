@@ -1,5 +1,25 @@
 // enforce-worktree-path-write.js - PreToolUse:Write|Edit hook
-// FRW-BL-022 fix: blocks Write/Edit calls that target a file path INSIDE a
+//
+// FRW-BL-027 (conditional enforcement as of 2026-06-02): Claude Code's NATIVE
+// worktree-isolation guard (worktree.bgIsolation, default "worktree"; subagent
+// coverage fixed in v2.1.154) now BLOCKS the exact bug this hook was written for
+// (FRW-BL-022) — but that was VERIFIED LIVE for only ONE surface. On CLI 2.1.161 a
+// probe disabled this hook and confirmed the native guard refuses an out-of-worktree
+// Write by an **Agent-tool isolation:"worktree" subagent** ("This agent is isolated
+// in the worktree ... Edit the worktree copy of this file instead of the
+// shared-checkout path."). Native coverage of **Agent Teams teammates**
+// (CLAUDE_AGENT_TEAMS_MEMBER — a different launch path, and the surface FRW-BL-022
+// actually hit) is NOT yet live-verified. So this hook splits by context:
+//   * Agent-tool subagent (native confirmed) → ADVISORY only (log.warn + stderr,
+//     exit 0). Native is the sole enforcer; no double-block / 3s-spawn race.
+//   * Agent Teams teammate (native unverified) → keep the HARD BLOCK (exit 2) as
+//     defense-in-depth. The custom block fires first (PreToolUse), so native is
+//     never reached for that call → still no double-block.
+// Neither path double-blocks. If native teammate coverage is later verified, the
+// teammate branch can collapse to advisory too. See "Forbidden settings"
+// (worktree.bgIsolation:"none") in cc-version-baseline.md.
+//
+// FRW-BL-022 history: blocked Write/Edit calls that target a file path INSIDE a
 // parent repository that has active worktrees, when the path is OUTSIDE
 // every active worktree. The dev subagent is meant to write into its own
 // worktree directory; writing to the parent repo's working tree pollutes
@@ -97,27 +117,34 @@ function main() {
   );
   if (insideAnyWorktree) return;
 
-  // file is inside the repo but outside every worktree → block
-  const msg = [
-    'BLOCKED (FRW-BL-022): Write/Edit target is OUTSIDE every active worktree',
+  // file is inside the repo but outside every worktree.
+  // FRW-BL-027 conditional enforcement (see header): block for teammate contexts
+  // where native coverage is unverified; advise-only for Agent-tool subagents where
+  // the native guard is confirmed. Either way exactly one layer acts → no double-block.
+  const detail = [
     `  file:     ${normFile}`,
     `  repoRoot: ${normRoot}`,
     `  worktrees: ${worktrees.length} active`,
-    '',
-    'You are a subagent spawned with isolation: "worktree". Your file_path',
-    'must start with your worktree root, NOT the parent repo root.',
-    '',
-    'Replace the leading repo path with your worktree path. Example:',
-    `  WRONG: ${normRoot}/clear-api/Foo.cs`,
-    `  RIGHT: ${worktrees[0]}/clear-api/Foo.cs`,
-    '',
+    'Your file_path must start with your worktree root, NOT the parent repo root.',
     'Active worktrees on this repo:',
     ...worktrees.map((w) => '  - ' + w),
-  ].join('\n');
+  ];
 
-  log.warn('worktree_path_bypass_blocked', msg, { file: normFile, repoRoot: normRoot });
+  if (process.env.CLAUDE_AGENT_TEAMS_MEMBER) {
+    // Agent Teams teammate: native bgIsolation coverage NOT live-verified for this
+    // launch path (the surface FRW-BL-022 hit). Keep the hard block as defense-in-depth.
+    const msg = ['BLOCKED (FRW-BL-022/027): Write/Edit target is OUTSIDE every active worktree', ...detail].join('\n');
+    log.warn('worktree_path_bypass_blocked', msg, { file: normFile, repoRoot: normRoot, ctx: 'teammate' });
+    process.stderr.write(msg + '\n');
+    process.exit(2);
+  }
+
+  // Agent-tool subagent: native guard confirmed (live probe 2026-06-02, CLI 2.1.161).
+  // Advisory only — native is the sole enforcer for this call; no double-block / race.
+  const msg = ['[advisory] Write/Edit target is OUTSIDE every active worktree (Claude Code\'s native worktree-isolation guard will block this during tool execution).', ...detail].join('\n');
+  log.warn('worktree_path_out_of_tree_advisory', msg, { file: normFile, repoRoot: normRoot, ctx: 'subagent' });
   process.stderr.write(msg + '\n');
-  process.exit(2);
+  // Intentionally NO process.exit(2): native guard enforces for Agent-tool subagents.
 }
 
 if (require.main === module) {
