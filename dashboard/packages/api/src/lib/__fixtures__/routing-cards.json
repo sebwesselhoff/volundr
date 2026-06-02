@@ -1,0 +1,102 @@
+{
+  "misRouted": [
+    {
+      "id": "CLR-PAR-003",
+      "description": "Tag APRL rules with ALZ/CIS/Zero Trust framework attribution Each APRL rule lands with WAF-Reliability as its native framework. Add a mapping layer in Clear.Knowledge/Aprl/framework-mapping.json that associates each APRL rule uuid with optional ALZ control IDs, CIS control numbers, and Zero Trust pillar codes where the rule fact maps to those frameworks. Empty mapping is fine - many APRL rules are WAF-only and stay that way. The point is: CLEAR's reports already render multi-framework attribution per finding; APRL rules need to feed that machinery without bypass.",
+      "accept": [
+        "data-engineer",
+        "api-designer",
+        "architect"
+      ],
+      "previousWrongPick": "auth-specialist"
+    },
+    {
+      "id": "CLR-PAR-004",
+      "description": "Snapshot azqr's recommendations.json as a versioned parity benchmark One-shot script that downloads https://raw.githubusercontent.com/Azure/azqr/main/data/recommendations.json (pinned to a SHA at fetch time) and stores it under Clear.Knowledge/AzqrParity/recommendations-<commit>.json. Also writes a small manifest with {commit, fetchedAt, ruleCount}. This is the input to CLR-PAR-005's parity-diff. NOT a runtime dependency - the file is reference data, not loaded at scan time.",
+      "accept": [
+        "data-engineer",
+        "devops-infra"
+      ],
+      "previousWrongPick": "frontend-ui"
+    },
+    {
+      "id": "CLR-PAR-005",
+      "description": "Parity-diff report between CLEAR (DSL + APRL) and azqr (recommendations.json) Build an internal-only Clear.Reports page that joins three inputs: (a) CLEAR's native scanner DSL rule catalogue, (b) the APRL rule pack from CLR-PAR-001, (c) the azqr snapshot from CLR-PAR-004. Normalize on (resourceType, normalizedTitle) and emit three buckets: in-azqr-not-in-CLEAR (gap), in-CLEAR-not-in-azqr (uniquely-CLEAR), in-both (parity). Show per-bucket counts by severity and by service. NOT a customer-facing artefact - internal sales/QA tool only; gated behind a feature flag in clear-web.",
+      "accept": [
+        "frontend-ui",
+        "fullstack-web",
+        "data-engineer"
+      ],
+      "previousWrongPick": "database-engineer"
+    },
+    {
+      "id": "CLR-CODE-006",
+      "description": "Logic App workflow review + complexity score (Holmen v2) Implement LogicAppWorkflowEvaluator (IRepoEvaluator) under Clear.Engine.Scanners.Code.LogicApp. Port the co-azure-audit `workflow` and `workflow-complexity` analyzers. Anti-pattern rules: WF-001 wf.no-error-handling (HIGH; no Scope-level try/catch), WF-002 wf.terminate-missing (MEDIUM; catch Scope but no Terminate-with-Failed), WF-003 wf.http-trigger-no-response (HIGH), WF-004 wf.http-no-retry (MEDIUM; httpActionsWithoutRetry > 0), WF-005 wf.high-complexity (MEDIUM; >50 actions OR maxDepth > 5), WF-006 wf.nested-loops (HIGH; depth>3 AND loops+foreaches>1), WF-007 wf.too-many-conditions (LOW; conditions>10). Complexity scoring (Holmen v2 formula verbatim): score = ForEach*5 + If*1.5 + SetVariable*1.5 + AppendArray*2 + (sizeBytes/20KB) + HTTP*0.5 + HardcodedURL*2 + NoErrorHandling*5 + Delay*3. Tiers: >50 CRITICAL, 30-50 HIGH, 15-30 MEDIUM, <=15 LOW. WF-COMPLEXITY-001 finding emitted only for HIGH and CRITICAL tiers; LOW/MEDIUM noise-filtered exactly as co-azure-audit does. WorkflowProfile shape (actions, conditions, foreaches, loops, httpActions, sizeBytes, hasTerminateOnError, hasResponseOnHttpTrigger, httpActionsWithoutRetry, hardcodedUrlCount, setVariableActions, appendArrayActions, delayActions) is provided by Clear.Repos via a workflow.json parser. The evaluator only consumes profiles - parsing belongs in Clear.Repos.",
+      "accept": [
+        "azure-integration",
+        "dotnet-developer"
+      ],
+      "previousWrongPick": "seo-growth"
+    },
+    {
+      "id": "CLR-REP-002",
+      "description": "GitHub clone backend via Octokit metadata + LibGit2Sharp shallow clone Implement the GitHub branch of `IRepoCloneService`. Take a `GitHubRepo` source (owner, repo, optional ref, OAuth/PAT token) and produce a populated `RepoCloneSession`. Use Octokit for metadata calls (resolve default branch, validate token, get commit SHA) and LibGit2Sharp for the actual shallow clone (`Depth = 1`, single branch) into the temp workspace from CLR-REP-001. Honour `CancellationToken` end-to-end and surface a typed `RepoCloneException` on auth/network failures rather than leaking Octokit/LibGit2Sharp exception types. Resolved commit SHA must be written back onto the session so downstream scanners can record evidence provenance. GitHub-only \u2014 Octokit lives in `Clear.Repos` (GitHub is not Azure, so the `no SDK outside Clear.Azure` rule does not apply). Tests use a recorded HTTP fixture for Octokit and a local bare repo fixture under `tests/fixtures/git/` for the LibGit2Sharp path so CI does not need network access.",
+      "accept": [
+        "devops-infra",
+        "dotnet-developer",
+        "api-designer"
+      ],
+      "previousWrongPick": "auth-specialist"
+    },
+    {
+      "id": "CLR-REP-003",
+      "description": "ADO Repos clone backend routed through Clear.DevOps Implement the Azure DevOps branch of `IRepoCloneService`. Take an `AdoRepo` source (organization, project, repoId, optional ref) and produce a populated `RepoCloneSession`. The constraint forbids new Azure SDK calls outside `Clear.Azure`, and ADO Repos access lives in the sibling `Clear.DevOps` module (built under epic CLR-DEV \u2014 cross-epic dependency); this card consumes `IAdoReposClient` from `Clear.DevOps` to resolve the clone URL + obtain a short-lived auth header, then reuses the LibGit2Sharp shallow-clone path from CLR-REP-002 to populate the workspace. Cross-epic dep: this card cannot merge until `IAdoReposClient` from CLR-DEV (the DevOps collector epic) is on the main branch; if CLR-DEV slips, gate this card behind an `IAdoReposClient` interface stub committed in `Clear.Contracts` so backend wiring proceeds in parallel.",
+      "accept": [
+        "azure-devops",
+        "devops-infra",
+        "dotnet-developer"
+      ],
+      "previousWrongPick": "auth-specialist"
+    },
+    {
+      "id": "CLR-REP-004",
+      "description": "File enumeration + glob matcher + dependency-manifest parsers Add the file-discovery surface scanners will use. Implement `IRepoFileEnumerator.Enumerate(RepoCloneSession, IEnumerable<string> globs, CancellationToken)` returning lazily-iterated `RepoFile` records (relative path, absolute path, size, sha1). Globs follow `Microsoft.Extensions.FileSystemGlobbing` semantics so callers can pass `**/*.bicep`, `**/*.tf`, `**/*.cs`, `**/host.json`, `**/workflow.json` etc. Then implement dependency-manifest snapshot extraction: detect and parse `package.json` (npm/yarn), `*.csproj` (PackageReference + `Directory.Packages.props` central versions), `pom.xml` (Maven), `requirements.txt` (pip). Each parser emits a normalised `DependencyManifest { ManifestPath, Ecosystem, Dependencies: IReadOnlyList<DependencyRef { Name, Version, Scope? }> }`. Parsers are I/O-only \u2014 they MUST go through `IFileSystem` from CLR-REP-001 \u2014 and have zero network access; downstream CodeScanner cards layer policy on top.",
+      "accept": [
+        "data-engineer",
+        "dotnet-developer"
+      ],
+      "previousWrongPick": "auth-specialist"
+    },
+    {
+      "id": "CLR-REP-006",
+      "description": "Repo metadata, governance signal, and Gitleaks secret-scan wrapper Round out the evidence surface: implement `IRepoMetadataProvider.GetMetadataAsync(RepoCloneSession, RepoSource, ct)` returning `RepoMetadata { DefaultBranch, BranchProtection, CodeownersEntries, ReadmeText?, LanguageStats: IReadOnlyDictionary<string, long>, LastCommitUtc, LastCommitsByPath? }`. Source the data adaptively: when `RepoSource` is `GitHubRepo`, use Octokit (`Repository.Branches.GetBranchProtection`, `Repository.GetReadme`, `Repository.GetAllLanguages`, `Repository.Commit.GetLast`); when `AdoRepo`, route through `Clear.DevOps`' `IAdoRepoGovernanceClient` (cross-epic CLR-DEV dep \u2014 same contract pattern as CLR-REP-003). CODEOWNERS is parsed from the cloned working dir (single source-of-truth across providers). Language stats fall back to filesystem extension counts when the provider API is unavailable. Then implement `ISecretScanRunner.RunAsync(RepoCloneSession, ct)` \u2014 a subprocess wrapper around Gitleaks (`gitleaks detect --no-banner --report-format json --report-path -`) returning normalised `SecretScanFinding { RuleId, FilePath, Line, Match, Commit }`. Gitleaks is OWNED by this card (invoked + normalised); the actual policy decisions (severity, deduplication, allow-listing) live in CLR-CODE. Like Bicep, missing Gitleaks fails loudly with a remediation hint.",
+      "accept": [
+        "security-reviewer",
+        "dotnet-developer"
+      ],
+      "previousWrongPick": "api-designer"
+    }
+  ],
+  "strongFoundation": [
+    {
+      "id": "CLR-FND-002",
+      "description": "Next.js frontend scaffolding Create the Next.js 15+ frontend project as specified in design spec Section 2.3 (lines ~232-270). Initialize with App Router, TypeScript, Tailwind CSS, shadcn/ui. Install TanStack Query v5, TanStack Virtual, Recharts, Shiki, next-auth. Create the app directory structure with all routes from spec Section 12.1 (lines ~1230-1245). Set `output: \"standalone\"` in next.config.ts. Create shared types file `lib/types.ts`. Set up API client `lib/api.ts`. Reference: roundtable FE-19, FE-20.",
+      "expect": "frontend-ui"
+    },
+    {
+      "id": "CLR-FND-003",
+      "description": "Docker Compose and Dockerfiles Create Dockerfiles for both services as specified by roundtable OPS-01. For clear-api: multi-stage (SDK alpine build ? aspnet alpine runtime), non-root user `clearusr`, HEALTHCHECK, ReadyToRun compilation, .dockerignore. For clear-web: multi-stage (node alpine deps ? build ? runtime), non-root user, HEALTHCHECK, standalone output. Create `docker-compose.yml` (Section 10.1, lines ~1095-1120) with both services, SQLite volume, env_file, localhost-only port binding (127.0.0.1:5000, 127.0.0.1:3000). Create `.env.example` with all required env vars. Create Docker Compose profiles for dev (hot-reload, dotnet watch, source mounts) and test (SQL Server service container). Reference: roundtable OPS-01, OPS-03, OPS-04, OPS-05, OPS-36, SEC-32.",
+      "expect": "devops-infra"
+    },
+    {
+      "id": "CLR-FND-004",
+      "description": "Database setup - EF Core with SQLite + SQL Server Implement `Clear.Data` project with `ClearDbContext` and all entities from spec Section 8 (lines ~870-1050). Entities: Tenant, TenantConfig, Scan, ScannerResult, CheckResult, AssessmentProfile, Report, AlzVersion, AuditLog, plus all knowledge cache entities (PolicyDefinitionCache, PolicyAssignmentCache, PolicySetDefinitionCache, ArchetypeDefinitionCache, RoleDefinitionCache, ReviewChecklistItemCache, ConticaTemplateCache). Configure EF Core JSON columns for RemediationDetail, ComplianceFrameworks, InterviewTranscript, TenantConfig arrays (with SQLite value converter fallback). Add explicit indexes per roundtable NET-11 and NET-13: CheckResult (ScannerResultId, Status, Severity, CheckId composites), Scan (TenantId+StartedAt, TenantId+Status). Add [Timestamp] RowVersion on Scan entity. Set default QueryTrackingBehavior.NoTracking. Generate initial migration. Test against both SQLite and SQL Server. Reference: roundtable NET-11 through NET-17.",
+      "expect": "database-engineer"
+    },
+    {
+      "id": "CLR-ENG-006",
+      "description": "Scanner 4 - Security Implement SecurityScanner (IScannerModule). Weight: 15%. 13 base checks from spec Section 4.5 (lines ~520-545). Checks SC-001 through SC-013 covering: Defender for Cloud Standard tier on all subs, all Defender plans enabled (dynamically enumerate per AZ-41, use api-version 2024-01-01), Microsoft Cloud Security Benchmark assigned, Sentinel deployed, security contact configured, Key Vault soft-delete + purge protection, secure transfer on storage, SQL TDE, SQL auditing, AKS Policy Add-on, Trusted Launch on VMs, WAF on internet-facing App Gateways. Uses Security Center API, Resource Graph, Policy compliance. Reference: spec Section 4.5 lines 520-545.",
+      "expect": "security-reviewer"
+    }
+  ]
+}

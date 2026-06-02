@@ -9,6 +9,7 @@ export const routingRules = sqliteTable('routing_rules', {
   workType: text('work_type').notNull(),
   personaId: text('persona_id').notNull(),
   examples: text('examples'),                          // JSON string[]
+  negativeKeywords: text('negative_keywords'),         // JSON string[] — rule is SUPPRESSED if any are present (FRW-BL-024)
   confidence: text('confidence').notNull().default('medium'), // low|medium|high
   modulePattern: text('module_pattern'),               // path glob pattern
   priority: integer('priority').notNull().default(0),
