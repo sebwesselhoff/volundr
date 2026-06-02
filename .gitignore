@@ -28,3 +28,7 @@ docs/superpowers/
 # Local-only files (machine-specific, never push)
 docker-compose.local.yml
 framework/machine-constraints.md
+
+# Runtime artifacts
+.claude/scheduled_tasks.lock
+__pycache__/
