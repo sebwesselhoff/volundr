@@ -3,6 +3,7 @@ name: vldr-directive
 description: Manage Volundr governance directives - list, add, suppress, or supersede active directives for a project
 user-invocable: true
 disable-model-invocation: false
+disallowed-tools: Write, Edit
 ---
 
 # Volundr Directive Manager

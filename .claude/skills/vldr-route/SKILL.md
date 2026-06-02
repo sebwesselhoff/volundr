@@ -3,6 +3,7 @@ name: vldr-route
 description: Test Volundr routing rules - match a work description against active routing rules and show tier selection
 user-invocable: true
 disable-model-invocation: false
+disallowed-tools: Write, Edit
 ---
 
 # Volundr Route Tester

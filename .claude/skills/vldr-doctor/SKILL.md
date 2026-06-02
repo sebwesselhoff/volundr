@@ -3,6 +3,7 @@ name: vldr-doctor
 description: Validate Volundr setup - checks Docker, dashboard, VLDR_HOME, registry, DB, git, node, Claude Code version, hooks
 user-invocable: true
 disable-model-invocation: false
+disallowed-tools: Write, Edit
 ---
 
 # Volundr Setup Doctor

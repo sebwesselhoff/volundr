@@ -3,6 +3,7 @@ name: vldr-economy
 description: Toggle or check economy mode on the active Volundr project - downgrade agent models to reduce cost
 user-invocable: true
 disable-model-invocation: false
+disallowed-tools: Write, Edit
 ---
 
 # Volundr Economy Mode

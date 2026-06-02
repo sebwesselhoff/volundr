@@ -115,3 +115,16 @@ one layer acts per call, so there is no double-block / timeout race. (Follow-up:
 the teammate launch path; if native covers it too, collapse the teammate branch to
 advisory.) `enforce-worktree-isolation.js` (the git-commit-to-main PreToolUse:Bash block
 — a different surface) is **retained and unchanged**.
+
+## Recommended settings (FRW-BL-034)
+
+| Setting | Recommended value | Why |
+|---|---|---|
+| `skillOverrides` | `user-invocable-only` | Loads only `user-invocable: true` skills into the model's context by default instead of every discoverable skill — saves context budget on long autonomous runs; model-invocable skills still fire when their description matches. (CC >= 2.1.152 / L676.) |
+
+**Read-only skill hardening (FRW-BL-034):** the query/command `vldr-*` skills (doctor, route,
+journal, economy, status, directive) declare `disallowed-tools: Write, Edit` in frontmatter so
+they can never mutate the codebase. **Bash is intentionally retained** — these skills `curl` the
+dashboard API and run `!`-embedded shell, so disallowing Bash would break them; "read-only" here
+means *filesystem* read-only, not no-Bash. `vldr-pack` install ends with a `/reload-skills`
+(or `reloadSkills:true`) step so freshly-installed pack skills work without a session restart.

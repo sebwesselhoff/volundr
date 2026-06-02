@@ -3,6 +3,7 @@ name: vldr-journal
 description: Log a journal entry for the active project. Journal entries capture decisions, insights, blockers, pivots, and milestones for session continuity.
 user-invocable: true
 disable-model-invocation: false
+disallowed-tools: Write, Edit
 ---
 
 # Volundr Journal

@@ -122,6 +122,12 @@ Pack '<pack-name>' installed successfully.
 These agent types are now available for spawn decisions.
 ```
 
+**Step 7:** Reload skills so the pack's newly-installed skills are usable **without a session
+restart** (FRW-BL-034). Claude Code >= 2.1.152 supports skill hot-reload — run the
+`/reload-skills` slash command now (or tell the user to). If a hook performs the install it can
+instead emit `hookSpecificOutput.reloadSkills: true`. Confirm the new pack skills appear in the
+skill list before reporting completion — a pack whose skills aren't loaded is not "installed" in practice.
+
 ---
 
 ### Show pack info (without installing)
