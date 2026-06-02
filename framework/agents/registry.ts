@@ -30,6 +30,10 @@ export interface AgentTypeDefinition {
   // --- Routing metadata (Card 7: Registry Routing Hub) ---
   type?: string;              // Agent type key (mirrored for iteration convenience)
   triggerSignals?: string[];  // Keywords that trigger this agent type
+  whenToUse?: string;         // FRW-BL-057: natural-language delegation cue. Used as the
+                              // TIEBREAKER when triggerSignals multi-match (keyword routing is
+                              // ambiguous, e.g. developer vs developer-subagent, qa-engineer vs
+                              // tester) — pick the agent type whose whenToUse best fits the card.
   taskDepthTiers?: {          // Model selection per task scope
     small: TaskDepthTier;
     standard: TaskDepthTier;
@@ -87,6 +91,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     sdkAccess: false,
     isolation: 'worktree',
     description: 'Claims tasks and implements directly. No spawning subagents. Full file + shell access.',
+    whenToUse: 'Two-level/teammate mode: an Agent Teams teammate that claims MULTIPLE cards in a domain and needs Bash + worktree. Prefer over `developer-subagent` when >5 cards or a domain needs sustained multi-card ownership.',
     teammate: true,
     promptTemplate: 'framework/packs/core/prompts/developer-teammate.md',
     personaTemplate: 'fullstack-web',
@@ -129,6 +134,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     canSpawn: [],
     sdkAccess: false,
     description: 'Test strategy, coverage tracking, test execution',
+    whenToUse: 'Owns test STRATEGY end-to-end as a persistent teammate: writes tests, runs the suite, tracks coverage. Prefer over `tester` when testing is an ongoing domain, not a single file.',
     teammate: true,
     promptTemplate: 'framework/packs/testing/prompts/qa-engineer-teammate.md',
     personaTemplate: 'test-engineer',
@@ -242,6 +248,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     sdkAccess: false,
     isolation: 'worktree',
     description: 'Subagent developer. Writes code files. No Bash, no Agent. For flat hierarchy direct spawns.',
+    whenToUse: 'Flat-hierarchy mode: a single Agent-tool subagent for ONE card, file-only (no Bash, no spawning). Prefer over `developer` when ≤5 cards or a one-off card with no shell needs.',
     promptTemplate: 'framework/packs/core/prompts/developer.md',
     personaTemplate: 'fullstack-web',
     triggerSignals: ['implementation', 'feature', 'refactor', 'migration'],
@@ -262,6 +269,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     canSpawn: [],
     sdkAccess: false,
     description: 'Writes and modifies test files. Returns test files + expected results.',
+    whenToUse: 'Writes/modifies specific test FILES and returns them (subagent, no suite ownership). Prefer over `qa-engineer` for a bounded "add tests for X" task.',
     promptTemplate: 'framework/packs/testing/prompts/tester.md',
     personaTemplate: 'test-engineer',
     triggerSignals: ['test', 'spec', 'coverage', 'unit test', 'integration test'],
@@ -282,6 +290,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     canSpawn: [],
     sdkAccess: false,
     description: 'Cross-domain code review. Spawned as teammate when cross-deps > 5.',
+    whenToUse: 'Per-round CROSS-DOMAIN code review while work is in flight (spawned when cross-deps>5). Prefer over `guardian` for ongoing inter-card consistency, not a milestone audit.',
     teammate: true,
     promptTemplate: 'framework/packs/quality/prompts/review.md',
     triggerSignals: ['review', 'cross-domain', 'quality'],
@@ -341,6 +350,7 @@ export const AGENT_REGISTRY: Record<string, AgentTypeDefinition> = {
     canSpawn: [],
     sdkAccess: false,
     description: 'Architecture review at milestones. Spawned as teammate.',
+    whenToUse: 'MILESTONE full-codebase architecture audit (domain completion / every 15 cards / pre-integration). Prefer over `review` for systemic drift and accumulated debt only visible at scale.',
     teammate: true,
     promptTemplate: 'framework/packs/quality/prompts/guardian-teammate.md',
     personaTemplate: 'security-reviewer',

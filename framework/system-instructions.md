@@ -1059,6 +1059,11 @@ For each round of execution:
   - Aim for 5-6 tasks per teammate. Too few = coordination overhead exceeds benefit. Too many = teammates work too long without check-ins.
   - Set task dependencies matching card deps using `addBlockedBy` on TaskUpdate (blocked tasks auto-unblock when dependencies complete)
 6. **Spawn teammates using registry routing:**
+  - **Tiebreaker (FRW-BL-057):** when a card's signals keyword-match MORE THAN ONE agent type
+    (e.g. `developer` vs `developer-subagent`, `qa-engineer` vs `tester`, `review` vs `guardian`),
+    disambiguate with the registry's `whenToUse` natural-language cue — pick the agent type whose
+    `whenToUse` best fits the card's actual shape (card count, shell needs, milestone vs in-flight).
+    Persona routing applies the same cue when an agent-type match is ambiguous.
   - For each agent in the roster returned by assessor:
      a. Load prompt template from registry `promptTemplate` path
      b. Fill Identity, Context, ISC from card data. **Always include goal ancestry chain:**
