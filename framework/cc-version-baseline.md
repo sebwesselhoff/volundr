@@ -1,0 +1,63 @@
+# Claude Code Version Baseline (FRW-BL-026)
+
+Volundr is built on Claude Code's extensibility surface (hooks, settings.json, subagents,
+worktrees, skills, MCP). Those primitives are version-gated, so the framework declares a
+**minimum supported version** and a feature→version map. `vldr-doctor` checks the running
+CLI against this floor.
+
+## Versions
+
+| | Version | Notes |
+|---|---|---|
+| **Minimum supported** | **2.1.120** | Floor for Volundr's current hook/teammate surface (+ Windows PowerShell-without-Git-Bash, 2.1.120). Below this, hooks/worktree/agent-teams behavior is not guaranteed. |
+| **Recommended** | **latest (≥ 2.1.160)** | Required to use the full leverage backlog (see map). Opus 4.8 + ultracode need ≥ 2.1.154. |
+| **Detected (this machine)** | **2.1.161** | Recorded 2026-06-02. Newer than the analyzed changelog top (2.1.160) — all researched features available. |
+
+## Feature → version map (what Volundr relies on / wants)
+
+**Currently relied on (must be ≥ minimum):**
+- WorktreeCreate / WorktreeRemove hook events — ~2.1.42
+- SubagentStart / SubagentStop (+ agent_id, agent_transcript_path) — 2.0.42–43
+- Agent tool `isolation: "worktree"` — ~2.1.41
+- Windows: PowerShell used when Git Bash absent — 2.1.120
+- settings.json `env` block (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS, CLAUDE_CODE_EFFORT_LEVEL) — established
+- `--dangerously-skip-permissions` bypasses `.claude/` & `.git/` write prompts — 2.1.126 *(relaxation; the launcher relies on it for unattended runs)*
+
+**Leverage backlog requirements (each card should re-state its own floor):**
+- `mcp_tool` hooks — 2.1.118 · `alwaysLoad` MCP — 2.1.121 · `--strict-mcp-config` for subagents — 2.1.150
+- `parent_agent_id` in hook input / OTEL — 2.1.145 *(FRW-BL-029)*
+- Stop-hook 8-block cap — present in current line *(FRW-BL-028)* · native bg worktree-isolation guard *(FRW-BL-027)*
+- `skillOverrides` — ~1.9 · skill `disallowed-tools` frontmatter, `MessageDisplay`, SessionStart `sessionTitle`/`reloadSkills` — 2.1.152 *(FRW-BL-033/034)*
+- `worktree.bgIsolation` — 2.1.143 · native worktree switching + unlocked cleanup — 2.1.157 *(FRW-BL-027/030)*
+- `/goal` completion conditions — current line *(FRW-BL-036)* · `ultracode` / Opus 4.8 — 2.1.154
+- `asyncRewake` / `rewakeMessage` background hooks — current official line *(FRW-BL-043 enrichment)*
+
+## Boot smoke-test (run under `--dangerously-skip-permissions`)
+
+Confirms the unattended-run assumptions hold on the running CLI: hooks can write into
+`.claude/worktrees` and `post-bash-git.js` git ops fire **without permission prompts**
+(v2.1.126 behavior). `vldr-doctor` runs the lightweight version of this; full procedure:
+
+```bash
+# 1. CLI version is >= minimum
+claude --version            # expect >= 2.1.120
+
+# 2. A worktree write path is reachable (the WorktreeCreate hook writes here)
+test -d "$CLAUDE_PROJECT_DIR/.claude" && echo "ok: .claude writable"
+
+# 3. A no-op git command under the running session fires post-bash-git without a prompt
+git status --short          # post-bash-git PostToolUse hook runs; no permission prompt
+```
+
+**Empirical result (2026-06-02, CLI 2.1.161, this session launched via start.bat with
+`--dangerously-skip-permissions`):** PASS — across this session the hooks wrote worktrees
+(worktree-create self-test) and `post-bash-git` fired on every commit with **zero permission
+prompts**; nine commits landed and migration/test gates ran clean.
+
+## Historical bug clearance (verified on 2.1.161)
+
+The changelog noted three regressions around the autonomous flag; all fix versions are
+≤ 2.1.16x, so **2.1.161 includes them** (cleared):
+- Flag silently downgraded to accept-edits after a protected-path write — fixed (L1280/L1328).
+- Team members not inheriting the leader's permission mode — fixed (L1288).
+- (Informational) Stop-hook loops capped at 8 blocks (L362) — a deliberate cap, addressed by FRW-BL-028, not a bug.

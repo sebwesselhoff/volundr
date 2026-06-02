@@ -1,6 +1,6 @@
 ---
 name: vldr-doctor
-description: Validate Volundr setup - checks Docker, dashboard, VLDR_HOME, registry, DB, git, node, hooks
+description: Validate Volundr setup - checks Docker, dashboard, VLDR_HOME, registry, DB, git, node, Claude Code version, hooks
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -67,6 +67,23 @@ ver=$(node --version 2>/dev/null)
 if [ -n "$ver" ]; then echo "PASS: $ver"; else echo "FAIL: node not found"; fi
 ```
 
+**6b. Claude Code version (baseline 2.1.120 — see framework/cc-version-baseline.md)**
+```bash
+ver=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+if [ -z "$ver" ]; then
+  echo "WARN: claude --version not detected (CLI not on PATH?)"
+else
+  # Compare against minimum 2.1.120 using sort -V
+  min="2.1.120"
+  lowest=$(printf '%s\n%s\n' "$min" "$ver" | sort -V | head -1)
+  if [ "$lowest" = "$min" ]; then
+    echo "PASS: $ver (>= $min baseline)"
+  else
+    echo "WARN: $ver is below the $min baseline — some Volundr hooks/features are not guaranteed (see framework/cc-version-baseline.md)"
+  fi
+fi
+```
+
 **7. Docker Desktop**
 ```bash
 if docker info >/dev/null 2>&1; then
@@ -129,6 +146,7 @@ Checking Volundr setup...
   ✓ DB: schema vN, size NKB
   ✓ Git: 2.50.0 (worktree support ✓)
   ✓ Node.js: v24.4.1
+  ✓ Claude Code: 2.1.161 (>= 2.1.120 baseline)
   ⚠ Docker: not running (optional)
   ✓ Hooks: 14 installed
   ✓ Enforcement: 4/4 active
