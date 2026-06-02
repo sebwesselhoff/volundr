@@ -109,6 +109,19 @@ See `framework/examples/DEBUGGING.example.md` for a worked end-to-end example.
 
 > **Forward note (UI cards):** Once the FRW-BL-014C2 portal scanner ships, UI cards SHOULD include a `portal` annotation on each ISC criterion that targets a route (`IscCriterion.portal`). This is not a current requirement.
 
+### 4b. Anti-Stub Scan (MANDATORY — before blind review) [FRW-BL-044]
+
+A common agent failure is shipping stubbed/mocked/`NotImplemented`/TODO code that passes `tsc` and shallow checks. Run the deterministic scanner on the card's changed **non-test** files BEFORE spawning the blind reviewer:
+
+```bash
+node scripts/anti-stub-scan.mjs --diff main...<card-branch>   # or: --staged, or explicit file paths
+```
+
+- **BLOCK** findings (real unfinished-code constructs: `NotImplementedError`/`NotImplementedException`, `raise NotImplementedError`, `throw new Error('not implemented'|...stub...)`, `panic("not implemented")`) → exit 2. The card MUST NOT reach blind review until fixed.
+- **WARN** findings (`TODO`/`FIXME`/`stub`/`mock`/`fake`/`placeholder`/prose "not implemented") → printed, non-blocking; the reviewer confirms they're intentional.
+- Test files (`*.test.*`, `*.spec.*`, `__tests__/`, `fixtures/`, `spec/`) are excluded — they legitimately contain mocks/stubs.
+- BLOCK rules are intentionally tight (code constructs only) so a file that merely *discusses* stubs (e.g. a stub-detector's own strings) is not falsely blocked.
+
 ### 5. Card Completion Manifest
 Write `projects/{id}/reports/manifest-{CARD-ID}.json` after passing all gates.
 
