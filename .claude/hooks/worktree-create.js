@@ -104,6 +104,92 @@ async function attemptCardCheckout(cardId) {
   log.debug('card_status_noop', `Card ${cardId} has status ${card.status} — no checkout needed`);
 }
 
+// ---------------------------------------------------------------------------
+// FRW-BL-025: root-cause + retry for burst-spawn worktree creation.
+//
+// ROOT CAUSE (confirmed): `git worktree add` acquires the repository's
+// index.lock / worktree administrative lock. When N developer subagents are
+// spawned in a single message, N WorktreeCreate hooks run concurrently and
+// serialise on that lock. Two failure shapes were observed under the CLEAR
+// wave-1 burst (clear session-summary 38, 2026-05-18..19):
+//   1. SLOW PATH  — a later invocation blocks on the lock long enough to
+//      exceed the WorktreeCreate hook timeout; the Agent framework kills the
+//      hook and surfaces the bare "Hook cancelled". Mitigated by raising the
+//      hook timeout 3s -> 15s (commit 2c152c9, .claude/settings.json).
+//   2. FAST-FAIL PATH — git returns immediately with a lock error
+//      ("cannot lock ref", "index.lock: File exists", "another git process")
+//      because a sibling `worktree add` holds the lock. Previously this path
+//      exited 2 with no classification, indistinguishable from a genuine
+//      fatal error and reported to the parent as a silent cancel.
+// This change adds bounded retry-with-backoff for the FAST-FAIL path and emits
+// a CLASSIFIED stderr message on final failure so the cancel reason is visible.
+// ---------------------------------------------------------------------------
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Classify a `git worktree add` failure from its stderr / message text.
+//  - 'lock-contention' : transient; a sibling git process holds the lock -> retry
+//  - 'worktree-exists' : target branch/dir already present -> NOT transient
+//  - 'fatal'           : anything else -> NOT transient
+function classifyGitError(text) {
+  const t = (text || '').toLowerCase();
+  if (/index\.lock|cannot lock ref|unable to lock|another git process|lock file|\.lock['"]?: file exists/.test(t)) {
+    return 'lock-contention';
+  }
+  if (/already exists|already checked out|already registered|already used by worktree/.test(t)) {
+    return 'worktree-exists';
+  }
+  return 'fatal';
+}
+
+// Default git invocation (synchronous). The self-test injects an async impl
+// (promisified execFile) so it can drive real concurrent adds against a temp
+// repo and exercise genuine lock contention.
+function defaultGitWorktreeAdd(branch, worktreeDir, projectRoot) {
+  execSync(`git worktree add -b "${branch}" "${worktreeDir}" HEAD`, {
+    cwd: projectRoot,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+}
+
+// Create the worktree, retrying ONLY on transient lock contention. Never calls
+// process.exit — returns a result object and lets the caller decide. The git
+// call is awaited so an injected async impl (the concurrent self-test) works;
+// awaiting the sync default is a harmless no-op.
+async function createWorktreeWithRetry(branch, worktreeDir, projectRoot, opts = {}) {
+  const maxAttempts = opts.maxAttempts || 3;
+  const baseDelayMs = opts.baseDelayMs != null ? opts.baseDelayMs : 200;
+  const gitAdd = opts.gitWorktreeAdd || defaultGitWorktreeAdd;
+  const sleepImpl = opts.sleepImpl || sleep;
+
+  let lastError = null;
+  let classification = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      fs.mkdirSync(path.dirname(worktreeDir), { recursive: true });
+      await gitAdd(branch, worktreeDir, projectRoot);
+      return { ok: true, attempts: attempt, classification: null, lastError: null };
+    } catch (e) {
+      const stderr = e.stderr ? e.stderr.toString() : (e.message || '');
+      lastError = stderr;
+      classification = classifyGitError(stderr);
+      // Only lock contention is retryable; everything else fails fast.
+      if (classification !== 'lock-contention' || attempt === maxAttempts) {
+        return { ok: false, attempts: attempt, classification, lastError };
+      }
+      const delay = baseDelayMs * Math.pow(2, attempt - 1); // 200, 400, 800...
+      log.warn('worktree_add_retry',
+        `git worktree add hit ${classification} (attempt ${attempt}/${maxAttempts}) — backing off ${delay}ms`,
+        { branch, attempt, delay });
+      await sleepImpl(delay);
+    }
+  }
+  return { ok: false, attempts: maxAttempts, classification, lastError };
+}
+
 async function main() {
   const input = readStdin();
 
@@ -154,20 +240,37 @@ async function main() {
   const worktreeDir = path.join(projectRoot, '.claude', 'worktrees', name);
   const branch = `worktree/${name}`;
 
-  // Create the worktree using git
-  try {
-    fs.mkdirSync(path.dirname(worktreeDir), { recursive: true });
-    execSync(`git worktree add -b "${branch}" "${worktreeDir}" HEAD`, {
-      cwd: projectRoot,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-  } catch (e) {
-    log.error('worktree_create_failed', `Failed to create worktree: ${e.message}`, {
+  // Create the worktree using git, retrying on transient lock contention
+  // (FRW-BL-025). On final failure, emit a CLASSIFIED message naming the path
+  // that triggered the cancel so it is never a silent "Hook cancelled" again.
+  const result = await createWorktreeWithRetry(branch, worktreeDir, projectRoot);
+  if (!result.ok) {
+    const reason = result.classification === 'lock-contention'
+      ? `git index/worktree lock contention persisted after ${result.attempts} attempts (burst-spawn). Sibling worktree adds did not release the lock in time.`
+      : result.classification === 'worktree-exists'
+        ? `target worktree branch/dir already exists (${branch}). A prior spawn likely created it — not transient.`
+        : 'git worktree add failed with a non-transient error.';
+    const lastLine = (result.lastError || '').trim().split('\n').slice(-3).join(' | ');
+    const msg = [
+      `WorktreeCreate FAILED [path: git-worktree-add | class: ${result.classification}]`,
+      `  ${reason}`,
+      `  branch:   ${branch}`,
+      `  attempts: ${result.attempts}`,
+      `  git says: ${lastLine}`,
+    ].join('\n');
+    log.error('worktree_create_failed', msg, {
       agentId,
       name,
-      error: e.stderr ? e.stderr.toString() : e.message,
+      classification: result.classification,
+      attempts: result.attempts,
     });
-    process.exit(2); // Block - worktree creation failed
+    process.stderr.write(msg + '\n');
+    process.exit(2); // Block - worktree creation failed (now classified, not silent)
+  }
+  if (result.attempts > 1) {
+    log.info('worktree_create_recovered',
+      `Worktree created after ${result.attempts} attempts (lock contention auto-recovered)`,
+      { branch, attempts: result.attempts });
   }
 
   log.info('worktree_created', `Worktree created: ${branch} at ${worktreeDir}`, {
@@ -216,4 +319,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { resolveCardIdFromQueue };
+module.exports = { resolveCardIdFromQueue, classifyGitError, createWorktreeWithRetry };

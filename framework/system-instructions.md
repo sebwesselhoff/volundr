@@ -429,7 +429,7 @@ Event types: `agent_spawned`, `agent_completed`, `agent_timeout`, `card_status_c
 Events are append-only in the DB and visible in real-time on the Dashboard Events page.
 
 - **Gate 1 — commit card-ID validator:** `.claude/hooks/post-bash-git.js` automatically fires an `intervention` event and writes a stderr warning whenever a `git commit` message references a card whose dashboard status is `backlog` (FRW-BL-014A).
-- **Gate 2 — worktree precondition:** `.claude/hooks/worktree-create.js` peeks the descriptor queue (written by `pre-agent-tool.js`) to resolve the spawned card's ID and atomically claims it via `POST /api/cards/:id/checkout` before the worktree branch is created — fails safe on any error (FRW-BL-014B).
+- **Gate 2 — worktree precondition:** `.claude/hooks/worktree-create.js` peeks the descriptor queue (written by `pre-agent-tool.js`) to resolve the spawned card's ID and atomically claims it via `POST /api/cards/:id/checkout` before the worktree branch is created — fails safe on any error (FRW-BL-014B). **Burst-spawn resilience (FRW-BL-025):** the hook now self-retries `git worktree add` up to 3× with exponential backoff (200/400/800ms) when it hits transient index/worktree-lock contention, and on final failure emits a *classified* stderr message (`class: lock-contention | worktree-exists | fatal`) instead of a silent "Hook cancelled". When spawning ≥4 developer subagents in one message, you do NOT need to manually re-spawn on a transient worktree cancel — the hook absorbs the lock race itself. Only a `fatal`/`worktree-exists` classification warrants intervention.
 
 ---
 
