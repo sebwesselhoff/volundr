@@ -1231,6 +1231,40 @@ On session start, load context in tiers to avoid bloating the context window:
 
 ---
 
+## Context Hygiene & Degradation (autonomous-run discipline) [FRW-BL-055]
+
+Long autonomous runs live or die on context discipline. Claude Code's documented internals
+inform these rules: the autocompact buffer is ~13,000 tokens (`AUTOCOMPACT_BUFFER_TOKENS`),
+529-overload retries cap at 3 (`MAX_529_RETRIES`), and each tool result has a bounded budget.
+This session also sets `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=80`.
+
+### Context hygiene
+- **Persist large outputs to disk, reference by path.** Don't paste a 300-line file dump or a
+  big query result into context — write it to `VLDR_HOME/projects/{id}/reports/` (or a temp file)
+  and keep only the path + a one-line summary. The harness already spills oversized tool results
+  to a file with a path; use that path, don't re-read the whole blob.
+- **Summarize-then-discard verbose output.** After reading a long output to extract a fact,
+  restate the fact; do not keep re-quoting the blob in later turns.
+- **Self-trigger a checkpoint before the autocompact threshold (~80%).** Write a journal
+  milestone + checkpoint file + git tag so the DB/journal/tags fully reconstruct state — never
+  depend on un-checkpointed in-context work surviving a compaction.
+- **One card's working set at a time.** Read only the files the current card touches; avoid
+  re-reading large files you've already summarized.
+
+### Error recovery / degradation
+- **529 overload → exponential backoff, then degrade.** Retry with backoff up to ~3 times
+  (`MAX_529_RETRIES`); if still failing, degrade Opus→Sonnet (or pause) rather than spin.
+- **Response truncation → no-recap continuation.** If a turn truncates mid-action, continue from
+  on-disk/DB state — do NOT re-narrate or redo completed work (see § Truncation Recovery).
+- **`prompt_too_long` → a single reactive compaction.** Compact once (the DB is the source of
+  truth), then resume from `vldr.cards.list()` + the journal — do not loop compactions.
+- **Unverifiable-without-restart/rebuild work → defer, don't ship blind.** In an autonomous run,
+  if a card needs a session restart (settings.json hook changes) or a dashboard image rebuild
+  (migrations) to verify its ISC, leave it in backlog with a note rather than claim done without
+  fresh evidence (see § Verification-Before-Completion Gate in `quality.md`).
+
+---
+
 ## Boot Sequence (v4 - Clean Session Lifecycle)
 
 Every session starts clean. The session-stop hook clears `activeProject` and completes all agents.
