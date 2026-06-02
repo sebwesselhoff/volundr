@@ -4,6 +4,7 @@
 
 const { apiGet, apiPatch, apiPost, readStdin, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
+const { buildSafeInjection, defangMarkers } = require('./memory-guard');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -147,16 +148,22 @@ async function main() {
           statusCounts[c.status] = (statusCounts[c.status] || 0) + 1;
         });
 
+        // FRW-BL-048: project.name is user-authored → sanitize before raw interpolation
+        // (strip newlines + defang fence markers + cap length) so it can't carry an injection.
+        const safeName = defangMarkers(String(project.name ?? '').replace(/[\r\n]+/g, ' ')).slice(0, 120);
         let hotContext = `## HOT Tier Context (auto-injected)\n`;
-        hotContext += `Project: ${project.name} | Phase: ${project.phase} | Gate: Level ${project.reviewGateLevel}\n`;
+        hotContext += `Project: ${safeName} | Phase: ${project.phase} | Gate: Level ${project.reviewGateLevel}\n`;
         hotContext += `Cards: ${JSON.stringify(statusCounts)}\n`;
 
-        if (sessions && Array.isArray(sessions) && sessions.length > 0) {
-          hotContext += `Last session: ${(sessions[0].summary || '').substring(0, 300)}\n`;
-        }
-
-        // Load steering rules from constraints.md
+        // FRW-BL-048: free-text persistent memory (last session summary, steering rules)
+        // is author-influenced and a prompt-injection vector. Collect it and inject it via
+        // memory-guard, which fences each item as untrusted DATA (ignore-embedded-instructions
+        // preamble) and WITHHOLDS any item whose integrity hash changed since approval.
         const mcHome = process.env.VLDR_HOME || path.join(os.homedir(), '.volundr');
+        const memItems = [];
+        if (sessions && Array.isArray(sessions) && sessions.length > 0 && sessions[0].summary) {
+          memItems.push({ id: String(sessions[0].id ?? 'last'), kind: 'session-summary', content: String(sessions[0].summary).substring(0, 600) });
+        }
         const constraintsPath = path.join(mcHome, 'projects', hotProjectId, 'constraints.md');
         if (fs.existsSync(constraintsPath)) {
           const content = fs.readFileSync(constraintsPath, 'utf-8');
@@ -165,9 +172,21 @@ async function main() {
             const rules = rulesMatch[1].trim().split('\n')
               .filter(l => l.startsWith('- [CARD-'))
               .slice(-5);
-            if (rules.length > 0) {
-              hotContext += `\nActive steering rules:\n${rules.join('\n')}\n`;
-            }
+            if (rules.length > 0) memItems.push({ id: 'steering', kind: 'steering-rules', content: rules.join('\n') });
+          }
+        }
+        if (memItems.length > 0) {
+          const manifestPath = path.join(mcHome, 'global', 'memory-approved.json');
+          let manifest = {};
+          try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); } catch { manifest = {}; }
+          const safe = buildSafeInjection(memItems, manifest);
+          hotContext += `\n${safe.text}\n`;
+          try {
+            fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+            fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+          } catch (e) { /* manifest persistence is best-effort */ }
+          if (safe.withheld.length > 0) {
+            log.warn('memory_withheld', `Withheld ${safe.withheld.length} tampered memory item(s)`, { items: safe.withheld.map(w => `${w.kind}:${w.id}`).join(',') });
           }
         }
 
