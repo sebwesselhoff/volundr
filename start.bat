@@ -115,4 +115,4 @@ echo   Dashboard ready. Launching Claude CLI...
 echo ============================================
 echo.
 set "VLDR_HOME=%VLDR_HOME%"
-claude "Wake up!" --dangerously-skip-permissions
+claude "Wake up!" --dangerously-skip-permissions --settings ".claude\ultracode.settings.json"

@@ -75,7 +75,7 @@ if [ "$LOCAL_BUILD" = false ] && curl -sf http://localhost:3141/api/health >/dev
     echo "  Dashboard ready. Launching Claude CLI..."
     echo "============================================"
     echo
-    exec claude "Wake up!" --dangerously-skip-permissions
+    exec claude "Wake up!" --dangerously-skip-permissions --settings ".claude/ultracode.settings.json"
 fi
 
 # --- Step 2: Start dashboard ---
@@ -119,4 +119,4 @@ echo "============================================"
 echo "  Dashboard ready. Launching Claude CLI..."
 echo "============================================"
 echo
-exec claude "Wake up!" --dangerously-skip-permissions
+exec claude "Wake up!" --dangerously-skip-permissions --settings ".claude/ultracode.settings.json"
