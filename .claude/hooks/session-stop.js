@@ -3,6 +3,15 @@
 // We CANNOT reliably distinguish final exit from mid-session stops.
 // Therefore: we only log, we do NOT complete agents or clear activeProject.
 // Cleanup is handled by session-start.js on next boot (crash recovery pattern).
+//
+// CONTRACT (FRW-BL-028) — this is a Stop hook and MUST NOT block-retry.
+// Claude Code caps a Stop/SubagentStop hook at 8 *consecutive blocks* before it
+// force-ends the turn with a warning (CLAUDE_CODE_STOP_HOOK_BLOCK_CAP, default 8,
+// since v2.1.143). A "block" is `process.exit(2)` OR stdout `{"decision":"block"}`.
+// (There is NO documented `{"continue":false,"stopReason":...}` form — do not use it.)
+// This hook therefore exits 0 only. If a future change needs to keep the agent
+// working, do it on a NON-Stop event (TeammateIdle / PreToolUse), never here —
+// otherwise a retry loop will silently truncate at the cap.
 
 const { readStdin, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');

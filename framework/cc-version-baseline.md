@@ -60,4 +60,37 @@ The changelog noted three regressions around the autonomous flag; all fix versio
 ≤ 2.1.16x, so **2.1.161 includes them** (cleared):
 - Flag silently downgraded to accept-edits after a protected-path write — fixed (L1280/L1328).
 - Team members not inheriting the leader's permission mode — fixed (L1288).
-- (Informational) Stop-hook loops capped at 8 blocks (L362) — a deliberate cap, addressed by FRW-BL-028, not a bug.
+- (Informational) Stop-hook loops capped at 8 blocks (L362) — a deliberate cap, addressed by FRW-BL-028, not a bug. See **Stop-hook block-cap contract** below.
+
+## Stop-hook block-cap contract (FRW-BL-028)
+
+Claude Code caps **consecutive blocks** from a `Stop` / `SubagentStop` hook at **8**
+before it force-ends the turn with a warning (introduced v2.1.143; override via
+`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP`, default **8**). A "block" is either `process.exit(2)`
+or a stdout `{"decision":"block","reason":"..."}`. There is **no** documented
+`{"continue":false,"stopReason":...}` form — do not use it (verified against the official
+hooks docs + changelog, 2026-06-02).
+
+**Audit (CLI 2.1.161, 2026-06-02) — no Volundr hook block-retries on a Stop-class event:**
+
+| Hook | Event | Blocks (exit 2 / decision:block)? |
+|---|---|---|
+| `session-stop.js` | Stop | **No** — exit 0 only |
+| `agent-stop.js` | SubagentStop | **No** — exit 0/1 (exit 1 is a fatal error, not a retry block) |
+| `teammate-idle.js` | TeammateIdle | Yes — **not Stop-class**, cap does not apply |
+| `task-completed.js` | TaskCompleted | Yes — **not Stop-class**, cap does not apply |
+| `worktree-create.js` | WorktreeCreate | Yes — **not Stop-class**, cap does not apply |
+| `enforce-bash-rules` / `enforce-card-deps` / `enforce-worktree-isolation` / `enforce-worktree-path-write*` | PreToolUse | Yes — **not Stop-class**, cap does not apply |
+
+\* `enforce-worktree-path-write.js` is reduced to logging-only (exit 0) by FRW-BL-027 (same batch); either way it is not Stop-class.
+
+**Decision:** keep the cap at its **default (8)** — do not set `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP`.
+We never intentionally block-retry on a Stop hook, so the default is the correct safety
+net against a *future* infinite-loop regression; raising it would only weaken that net.
+There are no genuine-halt `exit 2` cases on Stop hooks to migrate. The contract is enforced
+by header comments in `session-stop.js` and `agent-stop.js`: those two hooks exit 0/1 only.
+
+**Build-gate retry path:** the build gate retries via `teammate-idle.js` (TeammateIdle
+event), which is independent of the Stop cap, so a teammate iterates toward a green build
+without the 8-block limit cutting it off. Volundr's post-merge `tsc`/production-build gate
+is the backstop if a teammate ever idles with a still-red build.

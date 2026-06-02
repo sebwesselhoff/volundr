@@ -1,6 +1,15 @@
 // SubagentStop hook - mark agent completed in dashboard
 // Fires when a subagent or teammate finishes
-// BLOCKING on: agent patch failure, transcript unreadable (when agent ID exists)
+// FATAL (exit 1) on: agent patch failure after retry. Exit 1 is a non-blocking
+// hard error — it does NOT retry the agent's turn.
+//
+// CONTRACT (FRW-BL-028) — this is a SubagentStop hook and MUST NOT block-retry.
+// Claude Code caps a Stop/SubagentStop hook at 8 *consecutive blocks* before it
+// force-ends the turn with a warning (CLAUDE_CODE_STOP_HOOK_BLOCK_CAP, default 8,
+// since v2.1.143). A "block" is `process.exit(2)` OR stdout `{"decision":"block"}`.
+// This hook only ever exits 0 (success) or 1 (fatal, non-retry) — never 2. Build-gate
+// / quality retries belong on TeammateIdle / TaskCompleted (non-Stop events), which
+// are NOT subject to this cap. Do not introduce an exit-2 retry loop here.
 
 const { apiGet, apiPatch, apiPost, readStdin, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
