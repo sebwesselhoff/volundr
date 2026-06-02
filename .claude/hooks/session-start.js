@@ -19,6 +19,19 @@ async function main() {
   // Only handle lead/standalone sessions - teammates are tracked by SubagentStart
   if (input.team_name && input.teammate_name) return;
 
+  // FRW-BL-029: record THIS lead session's id. In the normal clean boot, activeProject
+  // is null at SessionStart, so the mother Volundr is registered later by the boot
+  // sequence (after project selection) — which reads this file to write the
+  // session-<id> → dashboard-id map used for concurrent-session-safe parent attribution
+  // in agent-start.js. Written unconditionally; harmless if unused.
+  if (input.session_id) {
+    try {
+      const mapDir = path.join(os.tmpdir(), 'mc-agent-map');
+      fs.mkdirSync(mapDir, { recursive: true });
+      fs.writeFileSync(path.join(mapDir, 'current-session'), input.session_id);
+    } catch (e) { /* ignore */ }
+  }
+
   if (input.source === 'startup') {
     // Retry up to 3 times - dashboard may still be starting
     let projects = null;
@@ -190,6 +203,8 @@ async function main() {
         try {
           fs.mkdirSync(mapDir, { recursive: true });
           fs.writeFileSync(path.join(mapDir, 'volundr-lead'), agent.id);
+          // FRW-BL-029: session-keyed map → concurrent-session-safe parent resolution in agent-start.js
+          if (input.session_id) fs.writeFileSync(path.join(mapDir, `session-${input.session_id}`), agent.id);
         } catch (e) { /* ignore */ }
       }
     } else {

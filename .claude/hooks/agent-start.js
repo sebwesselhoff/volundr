@@ -136,6 +136,59 @@ function emitAdditionalContext() {
   }
 }
 
+// Resolve the parent Volundr's DASHBOARD agent id for a spawning subagent (FRW-BL-029).
+//
+// Background: `parent_agent_id` is NOT present in the SubagentStart hook input on
+// CLI 2.1.161 (verified live 2026-06-02 — it lives only in OTEL spans / the
+// x-claude-code-parent-agent-id header, not the hook stdin). The reliable signal is
+// `input.session_id`, which for an Agent-tool subagent equals the PARENT session's id.
+// The mother Volundr writes a `session-<session_id>` → dashboard-id mapping at
+// registration, so we resolve the parent by session.
+//
+// Scope + caveats (be precise — do NOT overclaim):
+//   * Agent-tool subagents: session-keyed resolution disambiguates two concurrent
+//     Volundr sessions, which the old `agents[0]`-of-running-volundr fallback could not.
+//   * Agent Teams TEAMMATES carry their OWN session_id (not the lead's), so they miss
+//     the session map and fall through to single-volundr / ambiguous — same as the old
+//     behaviour, i.e. no regression, but no improvement for teammates either.
+//   * The map must exist before the first spawn. session-start.js writes it on hot
+//     re-entry (PROJECT_ID already set at SessionStart); on a CLEAN boot the boot
+//     sequence (system-instructions Step 6) writes it after registering the mother.
+//     If that write is skipped AND two sessions run concurrently, path 4 falls back to
+//     best-effort agents[0] and logs `parent_ambiguous` (visible, not silent). The
+//     invariant fix — store session_id ON the agent row so resolution needs no file /
+//     boot step — requires a schema migration and is tracked as FRW-BL-068.
+//
+// Resolution order:
+//   1. parent_agent_id (forward-compat — lights up automatically if a future CC
+//      version adds it to hook input) → its CLI→dashboard map file.
+//   2. session-<session_id> map → the mother Volundr's dashboard id.
+//   3. exactly one running Volundr → use it, and LEARN the session map for next time.
+//   4. multiple running Volundr, no session map → ambiguous; best-effort [0] + caller warns.
+//   5. none → null (register without parent).
+//
+// Pure + dependency-injected (readMap/writeMap/runningVolundr) so it is unit-testable
+// without fs or HTTP. Returns { id, source }.
+function resolveParentDashboardId(opts) {
+  const { parentAgentId, sessionId, readMap, writeMap, runningVolundr = [] } = opts;
+  if (parentAgentId && typeof readMap === 'function') {
+    const mapped = readMap(parentAgentId);
+    if (mapped) return { id: mapped, source: 'parent_agent_id' };
+  }
+  if (sessionId && typeof readMap === 'function') {
+    const mapped = readMap(`session-${sessionId}`);
+    if (mapped) return { id: mapped, source: 'session' };
+  }
+  if (runningVolundr.length === 1) {
+    if (sessionId && typeof writeMap === 'function') writeMap(`session-${sessionId}`, runningVolundr[0].id);
+    return { id: runningVolundr[0].id, source: 'single-volundr' };
+  }
+  if (runningVolundr.length > 1) {
+    return { id: runningVolundr[0].id, source: 'ambiguous' };
+  }
+  return { id: null, source: 'none' };
+}
+
 async function main() {
   const input = readStdin();
 
@@ -300,23 +353,23 @@ async function main() {
     log.warn('reactivation_failed', `Could not reactivate ${existingDashboardId} - creating fresh agent`);
   }
 
-  // Resolve parent agent ID - use hook input if available, otherwise find the volundr agent
-  let parentAgentId = null;
-  if (input.parent_agent_id) {
-    const parentMapFile = path.join(getMapDir(), input.parent_agent_id);
-    try {
-      parentAgentId = fs.readFileSync(parentMapFile, 'utf8').trim();
-    } catch (e) {
-      log.debug('parent_mapping_not_found', `No mapping for parent ${input.parent_agent_id}`, { error: e.message });
-    }
-  }
-  if (!parentAgentId) {
-    const agents = await apiGet(`/api/projects/${PROJECT_ID}/agents?type=volundr&status=running`);
-    if (agents && agents.length > 0) {
-      parentAgentId = agents[0].id;
-    } else {
-      log.warn('no_parent_agent', 'Could not find running volundr agent - registering without parent');
-    }
+  // Resolve parent agent ID (FRW-BL-029): prefer the session-keyed mother mapping over
+  // the legacy agents[0] guess so concurrent Volundr sessions don't mis-parent.
+  const runningVolundr = await apiGet(`/api/projects/${PROJECT_ID}/agents?type=volundr&status=running`) || [];
+  const parentRes = resolveParentDashboardId({
+    parentAgentId: input.parent_agent_id,
+    sessionId: input.session_id,
+    readMap: (key) => { try { return fs.readFileSync(path.join(getMapDir(), key), 'utf8').trim() || null; } catch { return null; } },
+    writeMap: (key, id) => { try { fs.writeFileSync(path.join(getMapDir(), key), id); } catch (e) { log.warn('session_map_write_failed', `Could not write ${key}`, { error: e.message }); } },
+    runningVolundr,
+  });
+  const parentAgentId = parentRes.id;
+  if (parentRes.source === 'ambiguous') {
+    log.warn('parent_ambiguous', `Multiple running Volundr agents and no session-${input.session_id} map — parent attribution is best-effort (picked ${parentAgentId}). The mother should write its session map at registration (boot sequence / session-start.js).`, { agentId: input.agent_id });
+  } else if (!parentAgentId) {
+    log.warn('no_parent_agent', 'Could not resolve a parent Volundr agent - registering without parent');
+  } else {
+    log.debug('parent_resolved', `Parent ${parentAgentId} resolved via ${parentRes.source}`, { agentId: input.agent_id });
   }
 
   // Register in dashboard - BLOCKING if this fails
@@ -387,3 +440,5 @@ if (require.main === module) {
     log.error('unhandled_error', e.message, { error: e.stack });
   });
 }
+
+module.exports = { resolveParentDashboardId, inferAgentType };

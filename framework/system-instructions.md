@@ -1227,6 +1227,14 @@ Step 4:  activeProject is null (cleared by session-stop hook or crash recovery)
              then clear activeProject and show the project menu anyway.
 Step 5:  Set activeProject in VLDR_HOME/projects/registry.json
 Step 6:  Register Volundr agent: POST /api/agents { type: 'volundr', projectId }
+         Then write the parent-resolution maps so spawned subagents attribute to THIS
+         session and concurrent Volundr sessions don't cross-attribute (FRW-BL-029):
+         write the returned dashboard agent id to BOTH `os.tmpdir()/mc-agent-map/volundr-lead`
+         and `os.tmpdir()/mc-agent-map/session-{session_id}`. Read `{session_id}` from
+         `os.tmpdir()/mc-agent-map/current-session` (written by session-start.js on boot).
+         agent-start.js resolves a subagent's parent via its `session-{session_id}` map
+         (input.session_id == the parent session id), falling back to a single running
+         volundr only when no session map exists.
          Log event: session_started
 Step 7:  Load project state from DB (HOT tier - always loaded):
          ├── vldr.project.get() succeeds → resume (read cards, agents, constraints.md)
