@@ -29,13 +29,36 @@
 
 import { detectCompletion } from './loop-controller.mjs';
 
-/** Coerce an unknown "list of cards" shape to a count of pending entries. Accepts an array
- *  (its length), a number (used directly), or null/undefined (0). Defensive so callers can pass
- *  either `partialCards: ['frw-bl-052']` or `partialCards: 2`. Negative numbers clamp to 0. */
+/**
+ * Resolve a "list of pending cards" value to either a non-negative integer count or the sentinel
+ * UNSAFE (symbol) when the input is ambiguous/dangerous. The safety rule is:
+ *
+ *   - null / undefined / empty array  → 0   (safe: definitively nothing pending)
+ *   - non-empty array                 → array.length  (safe: explicit list)
+ *   - finite, non-negative integer    → that integer  (safe: explicit count)
+ *   - negative finite number          → 0   (safe: treat as "none pending" — caller passed -1 as
+ *                                           a sentinel meaning "not applicable")
+ *   - ANYTHING ELSE (string, NaN, Infinity, object, boolean, fractional that rounds to ≥1, …)
+ *                                     → UNSAFE  (block: caller sent an unparseable/non-finite value)
+ *
+ * Note: fractional positive numbers (e.g. 0.5) are treated as UNSAFE because their true intent
+ * is unknown — we cannot floor a fractional card count and silently ignore the remainder.
+ *
+ * @param {unknown} value
+ * @returns {number|symbol}  a non-negative integer, OR the UNSAFE sentinel
+ */
+const UNSAFE = Symbol('UNSAFE');
 function pendingCount(value) {
+  if (value == null) return 0;
   if (Array.isArray(value)) return value.length;
-  if (typeof value === 'number' && Number.isFinite(value)) return value > 0 ? value : 0;
-  return 0;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return UNSAFE;   // NaN, Infinity, -Infinity
+    if (value < 0) return 0;                      // negative → treat as "none"
+    if (!Number.isInteger(value)) return UNSAFE;  // fractional count is ambiguous
+    return value;
+  }
+  // string, boolean, object, symbol, etc.
+  return UNSAFE;
 }
 
 /**
@@ -80,20 +103,36 @@ export function evaluateGoal(state = {}) {
 
   // 3. No partial / failed cards outstanding.
   const partials = pendingCount(partialCards);
-  if (partials > 0) {
+  if (partials === UNSAFE) {
+    blocking.push(`unknown partialCards count: ${JSON.stringify(partialCards)}`);
+  } else if (partials > 0) {
     blocking.push(`${partials} partial card(s) pending`);
   }
   const failed = pendingCount(failedCards);
-  if (failed > 0) {
+  if (failed === UNSAFE) {
+    blocking.push(`unknown failedCards count: ${JSON.stringify(failedCards)}`);
+  } else if (failed > 0) {
     blocking.push(`${failed} failed card(s) pending`);
   }
 
   // 4. SUBAGENT-AWARE: never declare the goal met while subagents are in-flight.
-  const active = typeof activeSubagents === 'number' && Number.isFinite(activeSubagents)
-    ? (activeSubagents > 0 ? activeSubagents : 0)
-    : 0;
-  if (active > 0) {
-    blocking.push(`${active} subagent(s) still in-flight — refusing to declare goal met`);
+  //    Any value that is not a finite non-negative integer is UNSAFE → block. We never silently
+  //    treat an unrecognised activeSubagents value as "0 in-flight" — that is the false-"done" bug.
+  //    Fractional positive values (e.g. 0.9) are floored for the message but still block, because
+  //    a fractional subagent count means the caller's state is unreliable.
+  let activeBlock = null;
+  if (typeof activeSubagents !== 'number' || !Number.isFinite(activeSubagents)) {
+    activeBlock = `unknown activeSubagents count: ${JSON.stringify(activeSubagents)}`;
+  } else if (activeSubagents < 0) {
+    // negative is safe → treat as 0, no block
+  } else if (!Number.isInteger(activeSubagents)) {
+    // fractional: floor for the message, but still block — caller's state is untrustworthy
+    activeBlock = `${Math.floor(activeSubagents)} subagent(s) still in-flight (fractional count — refusing to declare goal met)`;
+  } else if (activeSubagents > 0) {
+    activeBlock = `${activeSubagents} subagent(s) still in-flight — refusing to declare goal met`;
+  }
+  if (activeBlock !== null) {
+    blocking.push(activeBlock);
   }
 
   const goalMet = blocking.length === 0;

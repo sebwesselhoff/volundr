@@ -70,9 +70,40 @@ const allBad = evaluateGoal({ readyCardCount: 2, finalBuildGateGreen: false, par
 ok('blocking enumerates ALL unmet conditions (5)', allBad.goalMet === false && allBad.blocking.length === 5);
 ok('reason summarizes blocking count', /5 blocking condition/.test(allBad.reason));
 
-// ── defensive: negative / non-finite counts clamp to 0 (do not falsely block) ───────────────────
-const negative = evaluateGoal({ ...DONE, partialCards: -1, failedCards: NaN, activeSubagents: -5 });
-ok('negative / NaN counts clamp to 0 → goal still met', negative.goalMet === true);
+// NaN is an unsafe (non-finite) number → blocks, not clamps
+const nanFailed = evaluateGoal({ ...DONE, failedCards: NaN });
+ok('failedCards:NaN → goalMet false (unsafe, not clamp-to-0)', nanFailed.goalMet === false);
+ok('failedCards:NaN → blocking names unknown failedCards', nanFailed.blocking.some(b => /unknown failedCards/.test(b)));
+
+// ── safe negatives: negative integer counts treated as "none" (do not falsely block) ─────────────
+const negative = evaluateGoal({ ...DONE, partialCards: -1, failedCards: -3, activeSubagents: -5 });
+ok('negative integer counts treated as 0 → goal still met', negative.goalMet === true);
+
+// ── UNSAFE inputs MUST block (never clamp-to-0, never false goalMet) ─────────────────────────────
+// activeSubagents as a string
+const subString = evaluateGoal({ ...DONE, activeSubagents: '3' });
+ok('activeSubagents:"3" (string) → goalMet false', subString.goalMet === false);
+ok('activeSubagents:"3" → blocking names unknown count', subString.blocking.some(b => /unknown activeSubagents/.test(b)));
+
+// activeSubagents as Infinity
+const subInfinity = evaluateGoal({ ...DONE, activeSubagents: Infinity });
+ok('activeSubagents:Infinity → goalMet false', subInfinity.goalMet === false);
+ok('activeSubagents:Infinity → blocking names unknown count', subInfinity.blocking.some(b => /unknown activeSubagents/.test(b)));
+
+// activeSubagents as 0.9 (fractional — floored to 0 in the message, but still blocks)
+const subFractional = evaluateGoal({ ...DONE, activeSubagents: 0.9 });
+ok('activeSubagents:0.9 (fractional) → goalMet false', subFractional.goalMet === false);
+ok('activeSubagents:0.9 → blocking message shows floored count', subFractional.blocking.some(b => /0 subagent\(s\) still in-flight.*fractional/.test(b)));
+
+// partialCards as a string
+const partialStr = evaluateGoal({ ...DONE, partialCards: '5' });
+ok('partialCards:"5" (string) → goalMet false', partialStr.goalMet === false);
+ok('partialCards:"5" → blocking names unknown partialCards', partialStr.blocking.some(b => /unknown partialCards/.test(b)));
+
+// failedCards as a string
+const failedStr = evaluateGoal({ ...DONE, failedCards: '2' });
+ok('failedCards:"2" (string) → goalMet false', failedStr.goalMet === false);
+ok('failedCards:"2" → blocking names unknown failedCards', failedStr.blocking.some(b => /unknown failedCards/.test(b)));
 
 // ── no-arg call does not throw and is NOT met (defaults are all "not done") ──────────────────────
 const empty = evaluateGoal();
