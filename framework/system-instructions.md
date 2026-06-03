@@ -1220,6 +1220,41 @@ gracefully instead of stalling:
 
 ---
 
+## Autonomous Loop Controller (FRW-BL-050)
+
+Autonomous runs (long "keep going until done" loops) need a circuit breaker so they stop burning
+retry budget on identical failures, and an explicit "the whole job is done" signal distinct from a
+single card passing its ISC. The `scripts/loop-controller.mjs` module (pure Node, no deps) supplies
+three primitives.
+
+### Circuit breaker — K identical failures escalate
+Every loop failure is run through `normalizeFailureSignature(text)`, which strips run-specific noise
+(ISO timestamps, epoch ms, Windows/UNC/POSIX file paths, `:line:col`, hex/sha hashes, UUIDs,
+durations, ports, bare numbers) and keeps the structural message. `hashSignature(normalized)` turns
+that into a short stable hex key. `createFailureTracker({ K })` records each failure by signature;
+when one signature's count reaches **K** (default 3), `record()` returns `escalate: true` — that
+failure is now a **structural blocker**. Stop retrying it and surface it to a human/architect instead
+of re-spending budget on an error that will fail the same way every time. Counts are independent per
+signature, and `reset()` clears them (e.g. after a real code change between attempts).
+
+### Iteration + cost guards
+`createIterationGuard({ maxIterations, costCeilingUsd })` bounds a single card's retry loop
+regardless of failure shape. `check({ iterations, costSpentUsd })` returns `withinLimits: false`
+(with a reason) when `iterations >= maxIterations` (default 5) **OR** a cost ceiling is set and
+`costSpentUsd >= costCeilingUsd` (default `null` = iterations-only). This stops a runaway loop even
+when each attempt produces a *new* error.
+
+### Explicit completion signal (distinct from ISC pass)
+`detectCompletion(state)` is the **loop/project-level terminator** and is deliberately coarser than
+per-card ISC pass. A card passing its ISC means "this one unit's acceptance criteria are met" (the
+quality gate's finer per-unit success) — many cards can pass ISC while the loop keeps running. The
+loop is **complete** only when `state.explicitComplete === true` (an operator/goal explicitly
+declared done) **OR** `state.readyCardCount === 0 && state.unblockedBacklogCount === 0` (no work left
+to schedule). While ready or unblocked cards remain, completion stays `false` — so "this card's ISC
+passed" never short-circuits the run. `DEFAULTS` exports `{ K: 3, maxIterations: 5, costCeilingUsd: null }`.
+
+---
+
 ## Communication
 
 - **To developer:** Concise, high-level. Share wins, flag blockers. Include cost + quality at milestones.
