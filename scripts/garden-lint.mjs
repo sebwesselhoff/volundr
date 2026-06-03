@@ -57,9 +57,14 @@ function main() {
 
   // 1. registry cross-references
   const registryPath = join(repo, 'framework', 'agents', 'registry.ts');
+  const registryDataPath = join(repo, 'framework', 'agents', 'registry.data.mjs');
   let refs = { promptTemplates: [], personaTemplates: [], packs: [] };
   if (existsSync(registryPath)) {
-    refs = extractRegistryRefs(readFileSync(registryPath, 'utf8'));
+    // FRW-BL-037 moved the AGENT_REGISTRY data out of registry.ts into registry.data.mjs;
+    // promptTemplate/personaTemplate/pack refs may live in either file, so scan BOTH.
+    let registrySrc = readFileSync(registryPath, 'utf8');
+    if (existsSync(registryDataPath)) registrySrc += '\n' + readFileSync(registryDataPath, 'utf8');
+    refs = extractRegistryRefs(registrySrc);
     for (const pt of refs.promptTemplates) {
       if (!existsSync(join(repo, pt))) errors.push(`dead promptTemplate ref: ${pt} (registry.ts) — file missing`);
     }
