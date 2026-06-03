@@ -4,7 +4,8 @@
 
 const { apiGet, apiPatch, apiPost, readStdin, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
-const { buildSafeInjection, defangMarkers } = require('./memory-guard');
+const { defangMarkers } = require('./memory-guard');
+const { wrapAllMemory } = require('./memory-loader');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -155,10 +156,12 @@ async function main() {
         hotContext += `Project: ${safeName} | Phase: ${project.phase} | Gate: Level ${project.reviewGateLevel}\n`;
         hotContext += `Cards: ${JSON.stringify(statusCounts)}\n`;
 
-        // FRW-BL-048: free-text persistent memory (last session summary, steering rules)
-        // is author-influenced and a prompt-injection vector. Collect it and inject it via
-        // memory-guard, which fences each item as untrusted DATA (ignore-embedded-instructions
-        // preamble) and WITHHOLDS any item whose integrity hash changed since approval.
+        // FRW-BL-048 / FRW-BL-069: free-text persistent memory (last session summary, steering
+        // rules) is author-influenced and a prompt-injection vector. Collect it and route it
+        // through memory-loader.wrapAllMemory — the single enforced code path that fences each
+        // item as untrusted DATA (ignore-embedded-instructions preamble) AND gates it with the
+        // SIGNED integrity manifest (HMAC key from VLDR_MEMORY_HMAC_KEY, outside VLDR_HOME). A
+        // manifest-rewrite attacker who lacks the key cannot forge a valid signature → withheld.
         const mcHome = process.env.VLDR_HOME || path.join(os.homedir(), '.volundr');
         const memItems = [];
         if (sessions && Array.isArray(sessions) && sessions.length > 0 && sessions[0].summary) {
@@ -176,18 +179,15 @@ async function main() {
           }
         }
         if (memItems.length > 0) {
-          const manifestPath = path.join(mcHome, 'global', 'memory-approved.json');
-          let manifest = {};
-          try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); } catch { manifest = {}; }
-          const safe = buildSafeInjection(memItems, manifest);
+          // FRW-BL-069: signed-manifest gated wrapping. wrapAllMemory reads the HMAC key from
+          // VLDR_MEMORY_HMAC_KEY (outside VLDR_HOME), loads + verifies the signed manifest,
+          // withholds tampered/unsigned items, fences trusted items as DATA, and re-signs +
+          // persists the manifest. Warnings (unsigned degrade / rewrite attack / tamper) are
+          // routed to the structured logger.
+          const safe = wrapAllMemory(memItems, {
+            warn: (event, msg, meta) => log.warn(event, msg, meta || {}),
+          });
           hotContext += `\n${safe.text}\n`;
-          try {
-            fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
-            fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-          } catch (e) { /* manifest persistence is best-effort */ }
-          if (safe.withheld.length > 0) {
-            log.warn('memory_withheld', `Withheld ${safe.withheld.length} tampered memory item(s)`, { items: safe.withheld.map(w => `${w.kind}:${w.id}`).join(',') });
-          }
         }
 
         console.log(JSON.stringify({ additionalContext: hotContext }));
