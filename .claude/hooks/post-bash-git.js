@@ -173,8 +173,12 @@ async function validateCardIds(canRewake = false) {
 
 if (require.main === module) {
   main().catch((e) => {
-    log.error('unhandled_error', e.message, { error: e.stack });
-    process.exit(1);
+    // GRACEFUL DEGRADE (FRW-BL-043 review): post-bash-git is a PostToolUse:Bash
+    // hook — the bash command has already run, so an unhandled error here must
+    // never break the session. Record the bug, then exit 0, consistent with the
+    // guardrail contract the sibling config-change.js / instructions-loaded.js hooks follow.
+    try { log.error('unhandled_error', e.message, { error: e.stack }); } catch { /* ignore */ }
+    process.exit(0);
   });
 }
 
