@@ -135,7 +135,34 @@ async function main() {
     } catch (e) { /* teams dir doesn't exist - fine */ }
   }
 
-  // HOT tier context injection - assemble and output as additionalContext
+  // FRW-BL-033: SessionStart emits a SINGLE hookSpecificOutput (sessionTitle +
+  // additionalContext). Build both into vars and emit ONCE at the end — never two
+  // console.log lines (CC reads one JSON object from a hook's stdout).
+  let sessionTitle = null;
+  let additionalContext = null;
+
+  // FRW-BL-033: session title = project name + phase, applied only on startup/resume
+  // (CC ignores sessionTitle on "clear"/"compact"). Uses the resolved PROJECT_ID
+  // (VLDR_PROJECT_ID env OR registry.activeProject) so it works on a clean boot too,
+  // unlike the env-gated HOT block below.
+  if ((input.source === 'startup' || input.source === 'resume') && PROJECT_ID) {
+    try {
+      const titleProject = await apiGet(`/api/projects/${PROJECT_ID}`);
+      if (titleProject && titleProject.name) {
+        // Project names are often "ShortName — long description"; use the short head
+        // so the session title stays compact (e.g. "Volundr Meta · implementation").
+        // Normalize mis-encoded dash bytes (U+FFFD replacement char) to a hyphen first
+        // so the separator split is robust to non-UTF8 dashes in stored names.
+        const cleaned = defangMarkers(String(titleProject.name).replace(/[\r\n]+/g, ' '))
+          .replace(/[�-]/g, '-')
+          .replace(/\s+/g, ' ').trim();
+        const shortName = cleaned.split(/\s*[—–\-]+\s*/)[0].slice(0, 40).trim();
+        sessionTitle = titleProject.phase ? `${shortName} · ${titleProject.phase}` : shortName;
+      }
+    } catch (e) { /* non-fatal — session title is advisory */ }
+  }
+
+  // HOT tier context injection - assemble as additionalContext
   const hotProjectId = process.env.VLDR_PROJECT_ID;
   if (hotProjectId) {
     try {
@@ -190,11 +217,19 @@ async function main() {
           hotContext += `\n${safe.text}\n`;
         }
 
-        console.log(JSON.stringify({ additionalContext: hotContext }));
+        additionalContext = hotContext;
       }
     } catch (e) {
       // Non-fatal - Volundr loads manually if hook injection fails
     }
+  }
+
+  // FRW-BL-033: emit the combined SessionStart output exactly once.
+  if (sessionTitle || additionalContext) {
+    const hookSpecificOutput = { hookEventName: 'SessionStart' };
+    if (sessionTitle) hookSpecificOutput.sessionTitle = sessionTitle;
+    if (additionalContext) hookSpecificOutput.additionalContext = additionalContext;
+    try { console.log(JSON.stringify({ hookSpecificOutput })); } catch (e) { /* never break boot */ }
   }
 
   // TODO: Wire CLAUDE_CODE_TASK_LIST_ID to active project for ambient progress visibility

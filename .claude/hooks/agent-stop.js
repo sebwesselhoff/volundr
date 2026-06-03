@@ -241,10 +241,22 @@ async function main() {
   // Use the dashboard agent's detail (set by agent-start with rich description) if available
   const dashboardDetail = (existing && existing.detail) || null;
   const agentLabel = dashboardDetail || input.agent_type || input.agent_id || 'subagent';
+
+  // FRW-BL-033: capture the subagent's FINAL assistant message straight from the hook
+  // stdin (no transcript parse). The field name is doc-silent for SubagentStop, so read
+  // both documented candidate names defensively; absent at runtime → graceful no-op.
+  const finalMsgRaw = (typeof input.assistant_message === 'string' && input.assistant_message)
+    || (typeof input.last_assistant_message === 'string' && input.last_assistant_message)
+    || '';
+  const finalMsg = finalMsgRaw ? String(finalMsgRaw).replace(/\s+/g, ' ').trim().slice(0, 200) : '';
+  if (finalMsg) {
+    log.info('agent_final_message', `Final message (${input.agent_id || 'agent'}): ${finalMsg}`, { agentId: input.agent_id });
+  }
+
   const eventResult = await apiPost('/api/events', {
     projectId: PROJECT_ID,
     type: 'agent_completed',
-    detail: `${agentLabel}${totalTokens ? ` (${totalTokens.toLocaleString()} tokens)` : ''}`,
+    detail: `${agentLabel}${totalTokens ? ` (${totalTokens.toLocaleString()} tokens)` : ''}${finalMsg ? ` — “${finalMsg.slice(0, 140)}”` : ''}`,
   });
   if (!eventResult) {
     log.warn('event_post_failed', 'Failed to log agent_completed event');

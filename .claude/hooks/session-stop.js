@@ -30,6 +30,16 @@ async function main() {
     agentId: null,
   });
 
+  // FRW-BL-033: capture the lead's FINAL assistant message from stdin (no transcript
+  // parse). Doc-silent field name → read both documented candidates defensively; absent
+  // → no-op. Logged only (Stop fires mid-session, so do NOT spam the dashboard event feed).
+  const finalMsgRaw = (typeof input.assistant_message === 'string' && input.assistant_message)
+    || (typeof input.last_assistant_message === 'string' && input.last_assistant_message)
+    || '';
+  if (finalMsgRaw) {
+    log.info('session_final_message', `Final message: ${String(finalMsgRaw).replace(/\s+/g, ' ').trim().slice(0, 200)}`);
+  }
+
   // DO NOT complete agents here - Stop fires mid-session
   // DO NOT clear activeProject here - Stop fires mid-session
   // session-start.js handles cleanup on next boot via crash recovery
