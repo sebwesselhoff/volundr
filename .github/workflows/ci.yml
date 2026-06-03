@@ -82,3 +82,16 @@ jobs:
           use-quiet-mode: yes
           folder-path: .
           file-extension: .md
+
+  garden:
+    name: Garden lint (packs/registry/prompts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Garden drift + size-cap lint (FRW-BL-067)
+        run: node scripts/garden-lint.mjs

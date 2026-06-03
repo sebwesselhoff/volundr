@@ -164,3 +164,18 @@ proves them* in the evidence. When in doubt, run the command and attach the bloc
 **Enforcement points:** `vldr-verify` skill (produces the block) · card DoD (this section) ·
 `card-reviewer.md` blind-review rubric (rejects unverified runtime claims) · Guardian and
 QA persona prompts (per-card + milestone enforcement).
+
+---
+
+## Garden lint — framework drift + size caps (FRW-BL-067)
+
+`node scripts/garden-lint.mjs` keeps `framework/packs` + `framework/agents/registry.ts` +
+prompt/skill templates consistent. It **fails (exit 1)** on:
+- **dead cross-references** — a registry `promptTemplate` / `personaTemplate` / `pack` that
+  points at a file/seed/pack that doesn't exist (drift between the registry and the tree);
+- **bad pack manifests** — a `framework/packs/<name>/pack.json` that won't parse or lacks name/version;
+- **size-cap violations** — a prompt template or `SKILL.md` over `MD_BYTE_CAP` (16 KB) bloat guard.
+
+Orphan prompts (templates not referenced by the registry) are reported as **warnings** (non-failing).
+It runs in CI as the **`garden`** job (`.github/workflows/ci.yml`) on every push/PR to `main`, and
+locally via `node scripts/garden-lint.test.mjs` for the pure cores.
