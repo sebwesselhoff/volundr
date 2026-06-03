@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/mcp.json",
+  "mcpServers": {
+    "azure": {
+      "command": "npx",
+      "args": ["-y", "@azure/mcp@latest", "server", "start"],
+      "env": {
+        "AZURE_SUBSCRIPTION_ID": "${AZURE_SUBSCRIPTION_ID}",
+        "AZURE_TENANT_ID": "${AZURE_TENANT_ID}"
+      },
+      "alwaysLoad": true,
+      "description": "Azure architecture, APIM, security review, and IaC operations + Azure best-practices guidance. Essential for the Azure pack personas — skip tool-search deferral."
+    },
+    "microsoft-learn": {
+      "url": "https://learn.microsoft.com/api/mcp",
+      "description": "Search official Azure/Well-Architected/CAF documentation (microsoft_docs_search/fetch). Non-essential — loaded on demand."
+    }
+  }
+}

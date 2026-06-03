@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/mcp.json",
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"],
+      "alwaysLoad": true,
+      "description": "Browse SPA documentation, Swagger UI, and interactive API explorers. Essential for the researcher persona — skip tool-search deferral."
+    },
+    "atlassian": {
+      "url": "https://mcp.atlassian.com/v1/sse",
+      "env": {
+        "ATLASSIAN_API_TOKEN": "${ATLASSIAN_API_TOKEN}",
+        "ATLASSIAN_SITE_URL": "${ATLASSIAN_SITE_URL}"
+      },
+      "description": "Read Jira issues (requirements context) and search Confluence pages (internal API docs/architecture). Non-essential — loaded on demand."
+    },
+    "microsoft-learn": {
+      "url": "https://learn.microsoft.com/api/mcp",
+      "description": "Search official Microsoft/Azure documentation (microsoft_docs_search/fetch). Non-essential — loaded on demand."
+    }
+  }
+}

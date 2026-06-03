@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/mcp.json",
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"],
+      "alwaysLoad": true,
+      "description": "Screenshot pages, verify visual output, and test responsive breakpoints (desktop 1280px / mobile 375px). Essential for the designer persona — skip tool-search deferral."
+    }
+  }
+}
