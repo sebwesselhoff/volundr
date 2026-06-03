@@ -590,6 +590,12 @@ command:
   and emits a clear warning (it never silently treats unsigned as verified-signed). In that mode
   a brand-new poisoned item is still wrapped (neutralized as data) but accepted, and a manifest
   rewrite can defeat tamper detection — set the key for the full guarantee.
+- **Residual — manifest DELETION (tracked):** even WITH a key set, an attacker with VLDR_HOME
+  write access can DELETE `memory-approved.json` to force the empty-baseline bootstrap path,
+  which re-TOFUs the content present at that boot (the signed gate covers manifest *rewrite*,
+  not *deletion* — a signature cannot protect an absent file). Anchoring manifest existence
+  outside the VLDR_HOME write boundary closes it; tracked as a follow-up framework card. Until
+  then, monitor for unexpected manifest resets and treat a bootstrap event as suspicious.
 
 ### Global Lessons
 At startup, load lessons via `vldr.lessons.list({ isGlobal: true })`. LLM selects relevant lessons based on the project's stack and domain. Load into session context.

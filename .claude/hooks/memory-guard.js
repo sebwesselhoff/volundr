@@ -29,6 +29,13 @@
 // it does not police model behaviour on the items it passes through. Defence in depth: the
 // fence neutralizes content, the signature gates approval. Do not over-trust either alone.
 //
+// RESIDUAL — manifest DELETION (not rewrite): the signed gate blocks REWRITE of a known
+// manifest, but an attacker with VLDR_HOME write access can DELETE memory-approved.json
+// entirely, forcing the empty-baseline bootstrap path which re-TOFUs whatever content is
+// present (incl. poison) — a signature cannot protect a file that no longer exists. Anchoring
+// manifest existence/trust OUTSIDE the VLDR_HOME write boundary closes this; tracked as a
+// follow-up framework card. Until then, monitor for unexpected manifest resets.
+//
 // Pure module (no fs/network) so it is unit-testable and reusable by hooks and by Volundr
 // when it loads lessons/patterns/blueprint/journal. The fs glue (reading the HMAC key,
 // load/save of the signed manifest, the wrap-all-memory loader) lives in memory-loader.js.
