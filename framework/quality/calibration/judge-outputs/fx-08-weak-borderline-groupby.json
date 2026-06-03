@@ -1,0 +1,19 @@
+{
+  "cardId": "fx-08-weak-borderline-groupby",
+  "isc": [
+    { "criterion": "Exports groupBy(items, keyFn) returning a record of arrays keyed by keyFn", "passed": true, "evidence": "src/util/group-by.ts: builds Record<K, T[]> via (out[k] ||= []).push" },
+    { "criterion": "Returns an empty object for an empty input array", "passed": true, "evidence": "group-by.ts: empty loop yields {}; correct by construction" },
+    { "criterion": "Guards against a null/undefined items argument", "passed": false, "evidence": "group-by.ts: `for (const it of items)` throws if items is null/undefined" },
+    { "criterion": "Tests cover normal grouping and the empty-array case", "passed": false, "evidence": "group-by.test.ts only tests grouping; no empty-array test" }
+  ],
+  "completeness": 5,
+  "codeQuality": 5,
+  "formatCompliance": 6,
+  "correctness": 5,
+  "weightedScore": 5.2,
+  "confidence": "high",
+  "summary": "Core grouping is fine but the null guard and half the required tests are missing. Borderline weak.",
+  "issues": [
+    { "severity": "warn", "file": "src/util/group-by.ts", "line": 3, "detail": "No null/undefined guard on items." }
+  ]
+}

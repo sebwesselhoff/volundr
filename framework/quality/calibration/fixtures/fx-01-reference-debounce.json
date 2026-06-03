@@ -1,0 +1,26 @@
+{
+  "id": "fx-01-reference-debounce",
+  "label": "reference",
+  "card": {
+    "title": "Add a generic debounce() utility with cancel + flush",
+    "description": "Provide a typed debounce helper used across the dashboard's input handlers.",
+    "technicalNotes": "Pure function, no deps. Must support trailing invocation, .cancel(), and .flush(). Include JSDoc and unit tests.",
+    "isc": [
+      "Exports a debounce(fn, wait) function returning a debounced callable",
+      "Debounced callable exposes .cancel() that prevents a pending call",
+      "Debounced callable exposes .flush() that invokes immediately if pending",
+      "Unit tests cover trailing call, cancel, and flush behaviours"
+    ]
+  },
+  "diff": "diff --git a/src/util/debounce.ts b/src/util/debounce.ts\n+/** Debounce fn by `wait` ms. Trailing-edge. Returns a callable with .cancel()/.flush(). */\n+export function debounce<A extends unknown[]>(fn: (...a: A) => void, wait: number) {\n+  let timer: ReturnType<typeof setTimeout> | null = null;\n+  let lastArgs: A | null = null;\n+  const debounced = (...args: A): void => {\n+    lastArgs = args;\n+    if (timer) clearTimeout(timer);\n+    timer = setTimeout(() => { timer = null; const a = lastArgs!; lastArgs = null; fn(...a); }, wait);\n+  };\n+  debounced.cancel = (): void => { if (timer) { clearTimeout(timer); timer = null; lastArgs = null; } };\n+  debounced.flush = (): void => { if (timer && lastArgs) { clearTimeout(timer); timer = null; const a = lastArgs; lastArgs = null; fn(...a); } };\n+  return debounced;\n+}\ndiff --git a/src/util/debounce.test.ts b/src/util/debounce.test.ts\n+import { debounce } from './debounce';\n+test('trailing call fires once after wait', () => { /* uses fake timers, asserts 1 call */ });\n+test('cancel prevents pending call', () => { /* asserts 0 calls */ });\n+test('flush invokes immediately with last args', () => { /* asserts immediate call */ });\n",
+  "expected": {
+    "iscVerdicts": [
+      { "criterion": "Exports a debounce(fn, wait) function returning a debounced callable", "passed": true },
+      { "criterion": "Debounced callable exposes .cancel() that prevents a pending call", "passed": true },
+      { "criterion": "Debounced callable exposes .flush() that invokes immediately if pending", "passed": true },
+      { "criterion": "Unit tests cover trailing call, cancel, and flush behaviours", "passed": true }
+    ],
+    "scoreBand": "reference",
+    "weightedScoreRange": [8.6, 10.0]
+  }
+}

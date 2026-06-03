@@ -1,0 +1,26 @@
+{
+  "id": "fx-12-strong-borderline-lrucache",
+  "label": "strong",
+  "card": {
+    "title": "LRUCache<K,V> with capacity eviction",
+    "description": "A small least-recently-used cache for the API response layer.",
+    "technicalNotes": "Typed, no deps. get/set/has/delete; evict least-recently-used at capacity; get() refreshes recency. Tested.",
+    "isc": [
+      "Exports an LRUCache class with get/set/has/delete methods",
+      "Evicts the least-recently-used entry when capacity is exceeded",
+      "get() refreshes the recency of the accessed key",
+      "Tests cover eviction order and recency refresh"
+    ]
+  },
+  "diff": "diff --git a/src/cache/lru.ts b/src/cache/lru.ts\n+export class LRUCache<K, V> {\n+  private map = new Map<K, V>();\n+  constructor(private capacity: number) { if (capacity < 1) throw new Error('capacity must be >= 1'); }\n+  has(key: K): boolean { return this.map.has(key); }\n+  get(key: K): V | undefined {\n+    if (!this.map.has(key)) return undefined;\n+    const v = this.map.get(key)!; this.map.delete(key); this.map.set(key, v); // refresh recency\n+    return v;\n+  }\n+  set(key: K, value: V): void {\n+    if (this.map.has(key)) this.map.delete(key);\n+    this.map.set(key, value);\n+    if (this.map.size > this.capacity) this.map.delete(this.map.keys().next().value as K); // evict LRU\n+  }\n+  delete(key: K): boolean { return this.map.delete(key); }\n+}\ndiff --git a/src/cache/lru.test.ts b/src/cache/lru.test.ts\n+test('evicts least-recently-used at capacity', () => { /* cap 2, insert 3, oldest gone */ });\n+test('get refreshes recency so it survives eviction', () => { /* access then insert */ });\n",
+  "expected": {
+    "iscVerdicts": [
+      { "criterion": "Exports an LRUCache class with get/set/has/delete methods", "passed": true },
+      { "criterion": "Evicts the least-recently-used entry when capacity is exceeded", "passed": true },
+      { "criterion": "get() refreshes the recency of the accessed key", "passed": true },
+      { "criterion": "Tests cover eviction order and recency refresh", "passed": true }
+    ],
+    "scoreBand": "strong",
+    "weightedScoreRange": [8.0, 8.49]
+  }
+}

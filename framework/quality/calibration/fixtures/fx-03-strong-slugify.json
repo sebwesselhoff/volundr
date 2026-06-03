@@ -1,0 +1,26 @@
+{
+  "id": "fx-03-strong-slugify",
+  "label": "strong",
+  "card": {
+    "title": "slugify() helper for URL-safe identifiers",
+    "description": "Convert arbitrary titles into lowercase, hyphenated, URL-safe slugs.",
+    "technicalNotes": "Pure, no deps. Lowercase, strip diacritics, collapse non-alphanumerics to single hyphen, trim leading/trailing hyphens. Tested.",
+    "isc": [
+      "Exports slugify(input) returning a lowercase hyphenated string",
+      "Collapses runs of non-alphanumeric characters into a single hyphen",
+      "Trims leading and trailing hyphens",
+      "Tests cover spaces, punctuation, and accented characters"
+    ]
+  },
+  "diff": "diff --git a/src/util/slugify.ts b/src/util/slugify.ts\n+/** URL-safe slug: lowercase, diacritics stripped, non-alnum collapsed to '-', trimmed. */\n+export function slugify(input: string): string {\n+  return input\n+    .normalize('NFKD')\n+    .replace(/[\\u0300-\\u036f]/g, '')\n+    .toLowerCase()\n+    .replace(/[^a-z0-9]+/g, '-')\n+    .replace(/^-+|-+$/g, '');\n+}\ndiff --git a/src/util/slugify.test.ts b/src/util/slugify.test.ts\n+import { slugify } from './slugify';\n+test('spaces become single hyphen', () => expect(slugify('Hello World')).toBe('hello-world'));\n+test('punctuation collapses', () => expect(slugify('a -- b!!c')).toBe('a-b-c'));\n+test('strips accents', () => expect(slugify('Crème Brûlée')).toBe('creme-brulee'));\n",
+  "expected": {
+    "iscVerdicts": [
+      { "criterion": "Exports slugify(input) returning a lowercase hyphenated string", "passed": true },
+      { "criterion": "Collapses runs of non-alphanumeric characters into a single hyphen", "passed": true },
+      { "criterion": "Trims leading and trailing hyphens", "passed": true },
+      { "criterion": "Tests cover spaces, punctuation, and accented characters", "passed": true }
+    ],
+    "scoreBand": "strong",
+    "weightedScoreRange": [7.5, 8.49]
+  }
+}

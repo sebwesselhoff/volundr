@@ -1,0 +1,26 @@
+{
+  "id": "fx-08-weak-borderline-groupby",
+  "label": "weak",
+  "card": {
+    "title": "groupBy() collection helper",
+    "description": "Group an array of items by a key selector for the report aggregator.",
+    "technicalNotes": "Pure, typed. groupBy(items, keyFn) → Record<key, item[]>. Guard null items. Tests for grouping and empty array.",
+    "isc": [
+      "Exports groupBy(items, keyFn) returning a record of arrays keyed by keyFn",
+      "Returns an empty object for an empty input array",
+      "Guards against a null/undefined items argument",
+      "Tests cover normal grouping and the empty-array case"
+    ]
+  },
+  "diff": "diff --git a/src/util/group-by.ts b/src/util/group-by.ts\n+export function groupBy<T, K extends string>(items: T[], keyFn: (t: T) => K): Record<K, T[]> {\n+  const out = {} as Record<K, T[]>;\n+  for (const it of items) { const k = keyFn(it); (out[k] ||= []).push(it); }\n+  return out;\n+}\ndiff --git a/src/util/group-by.test.ts b/src/util/group-by.test.ts\n+test('groups by key', () => { const r = groupBy([{t:'a'},{t:'a'},{t:'b'}], x => x.t); expect(r.a.length).toBe(2); });\n",
+  "expected": {
+    "iscVerdicts": [
+      { "criterion": "Exports groupBy(items, keyFn) returning a record of arrays keyed by keyFn", "passed": true },
+      { "criterion": "Returns an empty object for an empty input array", "passed": true },
+      { "criterion": "Guards against a null/undefined items argument", "passed": false },
+      { "criterion": "Tests cover normal grouping and the empty-array case", "passed": false }
+    ],
+    "scoreBand": "weak",
+    "weightedScoreRange": [4.6, 5.49]
+  }
+}

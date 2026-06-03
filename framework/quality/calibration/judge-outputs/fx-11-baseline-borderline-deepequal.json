@@ -1,0 +1,19 @@
+{
+  "cardId": "fx-11-baseline-borderline-deepequal",
+  "isc": [
+    { "criterion": "Exports deepEqual(a, b) returning a boolean for structural equality", "passed": true, "evidence": "src/util/deep-equal.ts exports deepEqual returning boolean" },
+    { "criterion": "Compares arrays element-wise and plain objects key-wise", "passed": true, "evidence": "deep-equal.ts: Array.isArray check + key-length + every-key recursion" },
+    { "criterion": "Documents the unsupported types (Map/Set/Date) it does not handle", "passed": true, "evidence": "deep-equal.ts JSDoc: 'does NOT handle Map, Set, or Date'" },
+    { "criterion": "Tests cover nested objects, arrays, and primitive mismatches", "passed": true, "evidence": "deep-equal.test.ts: three tests for nested/array-order/primitive" }
+  ],
+  "completeness": 7,
+  "codeQuality": 7,
+  "formatCompliance": 8,
+  "correctness": 8,
+  "weightedScore": 7.4,
+  "confidence": "high",
+  "summary": "Correct structural equality for the supported shapes, honestly documents its limits, and the tests match. Upper-baseline.",
+  "issues": [
+    { "severity": "info", "file": "src/util/deep-equal.ts", "detail": "NaN !== NaN means {a:NaN} compares unequal to itself; acceptable but worth noting." }
+  ]
+}

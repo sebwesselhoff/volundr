@@ -1,0 +1,16 @@
+{
+  "cardId": "fx-09-reject-broken-emailvalidate",
+  "isc": [
+    { "criterion": "Exports isValidEmail(value) returning a boolean", "passed": true, "evidence": "src/auth/email.ts exports isValidEmail with a boolean return type" },
+    { "criterion": "Rejects strings without an '@' and a domain dot", "passed": true, "evidence": "regex /^[^@]+@[^@]+\\.[^@]+$/ is present" },
+    { "criterion": "Has unit tests covering valid and invalid inputs", "passed": false, "evidence": "no test file in the diff" }
+  ],
+  "completeness": 6,
+  "codeQuality": 6,
+  "formatCompliance": 7,
+  "correctness": 6,
+  "weightedScore": 6.2,
+  "confidence": "low",
+  "summary": "The regex looks right. (NOTE: this recorded verdict is a DELIBERATE MISCALIBRATION — the function discards the .test() result and `return true` always passes, so it does NOT reject malformed input; ISC #2 should FAIL and the band should be 'reject', not 'baseline'. The judge was fooled by the presence of the regex. This drives band accuracy and ISC precision below 100%.)",
+  "issues": []
+}

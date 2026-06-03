@@ -1,0 +1,19 @@
+{
+  "cardId": "fx-03-strong-slugify",
+  "isc": [
+    { "criterion": "Exports slugify(input) returning a lowercase hyphenated string", "passed": true, "evidence": "src/util/slugify.ts: toLowerCase() + non-alnum→'-' replace" },
+    { "criterion": "Collapses runs of non-alphanumeric characters into a single hyphen", "passed": true, "evidence": "slugify.ts: replace(/[^a-z0-9]+/g, '-') collapses runs" },
+    { "criterion": "Trims leading and trailing hyphens", "passed": true, "evidence": "slugify.ts: replace(/^-+|-+$/g, '')" },
+    { "criterion": "Tests cover spaces, punctuation, and accented characters", "passed": true, "evidence": "slugify.test.ts: three tests incl. 'Crème Brûlée'" }
+  ],
+  "completeness": 8,
+  "codeQuality": 8,
+  "formatCompliance": 8,
+  "correctness": 8,
+  "weightedScore": 8,
+  "confidence": "high",
+  "summary": "Solid, diacritic-aware slugify with good test coverage. Clean and conventional.",
+  "issues": [
+    { "severity": "info", "file": "src/util/slugify.ts", "detail": "Could accept a custom separator option, but not required." }
+  ]
+}

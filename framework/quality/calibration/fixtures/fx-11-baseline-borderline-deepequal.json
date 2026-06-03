@@ -1,0 +1,26 @@
+{
+  "id": "fx-11-baseline-borderline-deepequal",
+  "label": "baseline",
+  "card": {
+    "title": "deepEqual() structural comparison helper",
+    "description": "Compare two values structurally for the memoization layer.",
+    "technicalNotes": "Pure, typed. Handle primitives, arrays, plain objects. Document that it does NOT handle Map/Set/Date. Tested.",
+    "isc": [
+      "Exports deepEqual(a, b) returning a boolean for structural equality",
+      "Compares arrays element-wise and plain objects key-wise",
+      "Documents the unsupported types (Map/Set/Date) it does not handle",
+      "Tests cover nested objects, arrays, and primitive mismatches"
+    ]
+  },
+  "diff": "diff --git a/src/util/deep-equal.ts b/src/util/deep-equal.ts\n+/** Structural equality for primitives, arrays, and plain objects.\n+ *  NOTE: does NOT handle Map, Set, or Date — callers must pre-normalize those. */\n+export function deepEqual(a: unknown, b: unknown): boolean {\n+  if (a === b) return true;\n+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;\n+  if (Array.isArray(a) !== Array.isArray(b)) return false;\n+  const ka = Object.keys(a as object), kb = Object.keys(b as object);\n+  if (ka.length !== kb.length) return false;\n+  return ka.every(k => deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));\n+}\ndiff --git a/src/util/deep-equal.test.ts b/src/util/deep-equal.test.ts\n+test('nested objects equal', () => expect(deepEqual({a:{b:1}}, {a:{b:1}})).toBe(true));\n+test('array order matters', () => expect(deepEqual([1,2],[2,1])).toBe(false));\n+test('primitive mismatch', () => expect(deepEqual(1,'1')).toBe(false));\n",
+  "expected": {
+    "iscVerdicts": [
+      { "criterion": "Exports deepEqual(a, b) returning a boolean for structural equality", "passed": true },
+      { "criterion": "Compares arrays element-wise and plain objects key-wise", "passed": true },
+      { "criterion": "Documents the unsupported types (Map/Set/Date) it does not handle", "passed": true },
+      { "criterion": "Tests cover nested objects, arrays, and primitive mismatches", "passed": true }
+    ],
+    "scoreBand": "baseline",
+    "weightedScoreRange": [6.8, 7.49]
+  }
+}

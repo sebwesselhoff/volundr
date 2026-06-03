@@ -1,0 +1,17 @@
+{
+  "cardId": "fx-01-reference-debounce",
+  "isc": [
+    { "criterion": "Exports a debounce(fn, wait) function returning a debounced callable", "passed": true, "evidence": "src/util/debounce.ts:2 exports debounce returning the `debounced` closure" },
+    { "criterion": "Debounced callable exposes .cancel() that prevents a pending call", "passed": true, "evidence": "debounce.ts: debounced.cancel clears the timer and nulls lastArgs" },
+    { "criterion": "Debounced callable exposes .flush() that invokes immediately if pending", "passed": true, "evidence": "debounce.ts: debounced.flush clears timer then calls fn with lastArgs" },
+    { "criterion": "Unit tests cover trailing call, cancel, and flush behaviours", "passed": true, "evidence": "debounce.test.ts has three tests for trailing/cancel/flush" }
+  ],
+  "completeness": 9,
+  "codeQuality": 9,
+  "formatCompliance": 9,
+  "correctness": 9,
+  "weightedScore": 9,
+  "confidence": "high",
+  "summary": "Clean, fully typed, generic debounce with cancel/flush and matching tests. Reference-quality.",
+  "issues": []
+}

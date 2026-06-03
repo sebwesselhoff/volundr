@@ -1,0 +1,26 @@
+{
+  "id": "fx-10-reject-empty-stub",
+  "label": "reject",
+  "card": {
+    "title": "Implement CSV export for the report table",
+    "description": "Add a function that serializes the report rows to CSV and triggers a download.",
+    "technicalNotes": "Quote fields containing commas/quotes/newlines per RFC 4180. Stream for large tables. Tested.",
+    "isc": [
+      "Exports exportCsv(rows, columns) producing RFC 4180-compliant CSV text",
+      "Quotes and escapes fields containing commas, quotes, or newlines",
+      "Triggers a browser download of the generated file",
+      "Tests cover quoting/escaping edge cases"
+    ]
+  },
+  "diff": "diff --git a/src/report/export-csv.ts b/src/report/export-csv.ts\n+// TODO: implement CSV export\n+export function exportCsv(rows: unknown[], columns: string[]): string {\n+  throw new Error('not implemented');\n+}\n",
+  "expected": {
+    "iscVerdicts": [
+      { "criterion": "Exports exportCsv(rows, columns) producing RFC 4180-compliant CSV text", "passed": false },
+      { "criterion": "Quotes and escapes fields containing commas, quotes, or newlines", "passed": false },
+      { "criterion": "Triggers a browser download of the generated file", "passed": false },
+      { "criterion": "Tests cover quoting/escaping edge cases", "passed": false }
+    ],
+    "scoreBand": "reject",
+    "weightedScoreRange": [1.0, 3.49]
+  }
+}

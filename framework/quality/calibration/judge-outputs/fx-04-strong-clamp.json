@@ -1,0 +1,17 @@
+{
+  "cardId": "fx-04-strong-clamp",
+  "isc": [
+    { "criterion": "Exports clamp(v, min, max) constraining v to [min, max]", "passed": true, "evidence": "src/util/math.ts: clamp returns lo/hi bounded value" },
+    { "criterion": "Exports lerp(a, b, t) linear interpolation", "passed": true, "evidence": "math.ts: lerp returns a + (b-a)*t" },
+    { "criterion": "clamp handles min > max gracefully (returns a defined, documented result)", "passed": true, "evidence": "math.ts: swaps via Math.min/Math.max, documented in JSDoc" },
+    { "criterion": "Tests cover in-range, below-min, above-max, and t=0/0.5/1", "passed": true, "evidence": "math.test.ts: four tests covering all stated cases" }
+  ],
+  "completeness": 8,
+  "codeQuality": 8,
+  "formatCompliance": 9,
+  "correctness": 8,
+  "weightedScore": 8.2,
+  "confidence": "high",
+  "summary": "Two tidy, well-documented math helpers with thorough edge-case tests. Strong.",
+  "issues": []
+}
