@@ -153,3 +153,10 @@ INFO:  [CARD-XX-NNN] {description} - noted for future reference
 
 Per-card issue format: `CARD-{ID} issue: {description}. File: {file}:{line}. Fix: {suggestion}.`
 Critical issues prefix with `CRITICAL:` — these block merge.
+
+### Shared workspace (file-as-memory)
+
+The project has a shared, topic-indexed workspace at `<projectRoot>/.vldr-workspace/` (one `<slug>.md` per topic; `index.json` maps topic → file). Use it to avoid duplicating a peer's work (see `scripts/workspace-index.mjs`):
+
+- **Read before you review.** When a card overlaps a topic a teammate has already explored, check `index.json` and READ the relevant topic file(s) first — reuse their findings instead of rediscovering them.
+- **Externalize large findings.** Any cross-domain finding over ~1500 chars: write it to a topic file (`writeFinding`) and reference it by PATH in `SendMessage` (e.g. "see `.vldr-workspace/shared-types.md`") rather than pasting it inline — keeps messages lean.

@@ -111,3 +111,10 @@ CARD-{ID}: BLOCKED
 Reason: {description}
 Waiting on: {dependency card ID or external blocker}
 ```
+
+### Shared workspace (file-as-memory)
+
+The project has a shared, topic-indexed workspace at `<projectRoot>/.vldr-workspace/` (one `<slug>.md` per topic; `index.json` maps topic → file). Use it to avoid duplicating a peer's work (see `scripts/workspace-index.mjs`):
+
+- **Read before you start.** When your card overlaps another teammate's area, check `index.json` and READ the relevant topic file(s) first — reuse their findings instead of rediscovering them.
+- **Externalize large findings.** Any finding over ~1500 chars: write it to a topic file (`writeFinding`) and reference it by PATH in `SendMessage` (e.g. "see `.vldr-workspace/auth-refresh.md`") rather than pasting it inline — keeps messages lean.
