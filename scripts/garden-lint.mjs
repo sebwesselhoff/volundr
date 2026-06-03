@@ -16,6 +16,7 @@
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { validatePacksIndexForRepo } from './validate-packs-index.mjs';
 
 export const MD_BYTE_CAP = 16000; // generous; flags egregiously bloated prompt/skill files
 
@@ -98,7 +99,10 @@ function main() {
   ].map((p) => ({ path: p, bytes: (() => { try { return statSync(p).size; } catch { return 0; } })() }));
   for (const v of sizeViolations(mdFiles)) errors.push(`size-cap: ${v.path.replace(repo, '.')} = ${v.bytes}B > ${MD_BYTE_CAP}B`);
 
-  // 4. orphan prompt templates (warn only)
+  // 4. validated skills/packs index (FRW-BL-061) — schema + provenance + drift
+  for (const e of validatePacksIndexForRepo(repo)) errors.push(`packs-index: ${e}`);
+
+  // 5. orphan prompt templates (warn only)
   const referenced = new Set(refs.promptTemplates.map((p) => p.replace(/\//g, '\\')).concat(refs.promptTemplates));
   for (const f of listFiles(packsDir, (p) => p.includes('prompts') && p.endsWith('.md'))) {
     const rel = f.replace(repo + '\\', '').replace(repo + '/', '').replace(/\\/g, '/');
