@@ -202,7 +202,17 @@
     "jailbreak",
     "nonce",
     "tmpdir",
-    "mc"
+    "mc",
+    "autocompact",
+    "checkpointed",
+    "unforgeable",
+    "exploitability",
+    "creds",
+    "IDOR",
+    "flamegraph",
+    "Bixray",
+    "Holmen",
+    "longpaths"
   ],
   "flagWords": [],
   "dictionaries": [
