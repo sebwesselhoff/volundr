@@ -60,20 +60,25 @@ ok('returns null on empty newlyUnblockedCards', selectReassignmentTarget({ idleT
 ok('returns null when newlyUnblockedCards omitted', selectReassignmentTarget({ idleTeammate: idleBackend }) === null);
 ok('returns null on no args', selectReassignmentTarget() === null);
 
-// Already-owned / completed / still-blocked cards are NOT takeable.
+// Already-owned / completed / still-blocked / assigned cards are NOT takeable.
 const cardsNotTakeable = [
   { id: 'X-1', domain: 'backend', assignedTo: 'dev-9' },
   { id: 'X-2', domain: 'backend', status: 'completed' },
   { id: 'X-3', domain: 'backend', blockedBy: ['X-1'] },
   { id: 'X-4', domain: 'backend', owner: 'dev-7' },
+  { id: 'X-5', domain: 'backend', status: 'assigned' },
 ];
-ok('skips owned/completed/blocked cards → null when none takeable',
+ok('skips owned/completed/blocked/assigned cards → null when none takeable',
   selectReassignmentTarget({ idleTeammate: idleBackend, newlyUnblockedCards: cardsNotTakeable }) === null);
+ok('status=assigned is not takeable', (() => {
+  const r = selectReassignmentTarget({ idleTeammate: idleBackend, newlyUnblockedCards: [{ id: 'A-1', domain: 'backend', status: 'assigned' }] });
+  return r === null;
+})());
 
 // Mixed: one genuinely takeable among non-takeable → it is chosen.
-const cardsOneTakeable = [...cardsNotTakeable, { id: 'X-5', domain: 'backend' }];
+const cardsOneTakeable = [...cardsNotTakeable, { id: 'X-6', domain: 'backend' }];
 const pickedOne = selectReassignmentTarget({ idleTeammate: idleBackend, newlyUnblockedCards: cardsOneTakeable });
-ok('chooses the single takeable card among non-takeable ones', pickedOne != null && pickedOne.id === 'X-5');
+ok('chooses the single takeable card among non-takeable ones', pickedOne != null && pickedOne.id === 'X-6');
 
 /* --- ISC-2: mid-round card injection -------------------------------------- */
 
@@ -103,22 +108,51 @@ const richState = { schedulable: [{ id: 'A' }], discovered: [], round: 4, lead: 
 const richInjected = injectCard(richState, { id: 'Q' });
 ok('injectCard preserves unrelated keys (round, lead)', richInjected.round === 4 && richInjected.lead === 'volundr');
 
+// Dedupe against discovered list even when not in schedulable (optional fix: both lists checked).
+const stateDiscoveredOnly = { schedulable: [], discovered: [{ id: 'D' }] };
+const reinjected = injectCard(stateDiscoveredOnly, { id: 'D' });
+ok('injectCard dedupes against discovered list (card in discovered but not schedulable)',
+  reinjected.schedulable.length === 0 && reinjected.discovered.filter((c) => c.id === 'D').length === 1);
+
 /* --- ISC-3: blocker-message → replan -------------------------------------- */
 
-ok('classifyMessage: explicit type=blocker → blocker', classifyMessage({ type: 'blocker', text: 'x' }) === 'blocker');
+// Explicit type field wins over text content in BOTH directions (no scanning if type present).
+ok('classifyMessage: explicit type=blocker → blocker (text irrelevant)', classifyMessage({ type: 'blocker', text: 'all good' }) === 'blocker');
+ok('classifyMessage: explicit type=status wins over blocked text', classifyMessage({ type: 'status', text: 'blocked' }) === 'status');
 ok('classifyMessage: explicit type=status → status', classifyMessage({ type: 'status', text: 'x' }) === 'status');
+ok('classifyMessage: explicit type=progress → status', classifyMessage({ type: 'progress', text: 'x' }) === 'status');
+
+// Genuine blocker text → blocker (whole-word matched).
 ok('classifyMessage: text "blocked on dep" → blocker', classifyMessage('I am blocked on the auth dependency') === 'blocker');
 ok('classifyMessage: text "cannot proceed" → blocker', classifyMessage('cannot proceed without the schema') === 'blocker');
+ok('classifyMessage: text "blocker" standalone → blocker', classifyMessage('this is a blocker for the release') === 'blocker');
+ok('classifyMessage: text "needs replan" → blocker', classifyMessage('the sprint needs replan due to infra') === 'blocker');
+ok('classifyMessage: text "must escalate" → blocker', classifyMessage('we must escalate this to the architect') === 'blocker');
+ok('classifyMessage: text "dependency missing" → blocker', classifyMessage('dependency missing for module A') === 'blocker');
+ok('classifyMessage: text "stuck on" → blocker', classifyMessage('stuck on the auth dependency') === 'blocker');
+
+// FALSE-POSITIVE REGRESSIONS — must NOT classify as blocker.
+ok('classifyMessage: "no replan needed today" → NOT blocker (whole-word guard)', classifyMessage('no replan needed today') !== 'blocker');
+ok('classifyMessage: "escalate privileges" → NOT blocker (partial word guard)', classifyMessage('escalate privileges') !== 'blocker');
+ok('classifyMessage: "unblock the PR" → NOT blocker (unblock not in keyword set)', classifyMessage('unblock the PR when ready') !== 'blocker');
+ok('classifyMessage: "missing dependency" reversed phrase → NOT blocker', classifyMessage('missing dependency count is zero') !== 'blocker');
+ok('classifyMessage: "I plan to replan later" → NOT blocker', classifyMessage('I plan to replan later') !== 'blocker');
+
+// Status and neutral.
 ok('classifyMessage: status text → status', classifyMessage('progress update: card 3 done') === 'status');
 ok('classifyMessage: neutral text → other', classifyMessage('hello team, good morning') === 'other');
 ok('classifyMessage: null → other (no throw)', classifyMessage(null) === 'other');
-ok('classifyMessage: reads message.summary field', classifyMessage({ summary: 'blocker: missing dependency' }) === 'blocker');
+ok('classifyMessage: reads message.summary field', classifyMessage({ summary: 'blocker: dependency missing for auth' }) === 'blocker');
+ok('classifyMessage: reads message.text field', classifyMessage({ text: 'we are blocked' }) === 'blocker');
 
 ok('shouldReplan: true on blocker message', shouldReplan('we are blocked, needs replan') === true);
 ok('shouldReplan: true on explicit blocker type', shouldReplan({ type: 'blocker' }) === true);
 ok('shouldReplan: false on status message', shouldReplan('status: on track') === false);
 ok('shouldReplan: false on other message', shouldReplan('just checking in') === false);
 ok('shouldReplan: false on null', shouldReplan(null) === false);
+// Regression: shouldReplan must not fire on ambiguous partial matches.
+ok('shouldReplan: false on "no replan needed today"', shouldReplan('no replan needed today') === false);
+ok('shouldReplan: false on "escalate privileges"', shouldReplan('escalate privileges') === false);
 
 /* --- ISC-4: dynamic-work / round-boundary preservation -------------------- */
 

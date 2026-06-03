@@ -30,24 +30,28 @@
  * - `tieBreak`: how to choose among equally-preferred reassignment candidates.
  *   'lowest-id' (default) takes the lexicographically/numerically smallest card id;
  *   'highest-priority' takes the largest `priority` (higher number = more urgent).
- * - `blockerKeywords`: substrings (case-insensitive) that classify a free-text message as a
- *   structural blocker when no explicit `type` field is present.
+ * - `blockerKeywords`: whole-word patterns (case-insensitive) that classify a free-text message
+ *   as a structural blocker when no explicit `type` field is present. Each entry is tested as a
+ *   complete word or phrase boundary using `\b` anchors so that partial matches like "replan" in
+ *   "no replan needed" or "escalate" in "escalate privileges" do NOT trigger. Only unambiguous
+ *   blocker phrasing (the word/phrase as a whole unit in context) classifies as a blocker.
  *
  * @type {Readonly<{tieBreak: 'lowest-id'|'highest-priority', blockerKeywords: ReadonlyArray<string>}>}
  */
 export const DEFAULTS = Object.freeze({
   tieBreak: 'lowest-id',
+  // Each keyword is matched as a WHOLE WORD / phrase (word-boundary anchored).
+  // Multi-word phrases: boundaries anchored at the first and last word character of the phrase.
+  // Chosen for unambiguity: each phrase is only naturally produced in a genuine blocker context.
   blockerKeywords: Object.freeze([
-    'blocked',
-    'blocker',
-    'cannot proceed',
-    "can't proceed",
-    'unblock',
-    'dependency missing',
-    'missing dependency',
-    'needs replan',
-    'replan',
-    'escalate',
+    'blocked',        // "I am blocked", "card is blocked" — but NOT "unblocked"
+    'blocker',        // "this is a blocker" — standalone noun
+    'cannot proceed', // literal phrase, unambiguous
+    "can't proceed",  // contraction form
+    'needs replan',   // "the plan needs replan" — explicit request, not "no replan needed"
+    'must escalate',  // directive form only — not bare "escalate"
+    'dependency missing', // "a dependency missing" — not "missing" alone
+    'stuck on',       // "stuck on auth" — unambiguous
   ]),
 });
 
@@ -112,11 +116,12 @@ export function selectReassignmentTarget({
   const domainFn =
     typeof domainOf === 'function' ? domainOf : (card) => (card == null ? undefined : card.domain);
 
-  // 1. Takeable = not already owned/assigned, not completed, not still blocked.
+  // 1. Takeable = not already owned/assigned, not completed/in_progress/done/assigned, not still blocked.
+  const NON_TAKEABLE_STATUSES = new Set(['completed', 'in_progress', 'done', 'assigned']);
   const takeable = newlyUnblockedCards.filter((card) => {
     if (card == null || card.id == null) return false;
     const status = String(card.status || '').toLowerCase();
-    if (status === 'completed' || status === 'in_progress' || status === 'done') return false;
+    if (NON_TAKEABLE_STATUSES.has(status)) return false;
     if (card.assignedTo != null && card.assignedTo !== '') return false;
     if (card.owner != null && card.owner !== '') return false;
     if (Array.isArray(card.blockedBy) && card.blockedBy.length > 0) return false;
@@ -174,13 +179,18 @@ export function injectCard(roundState, discoveredCard) {
 
   if (discoveredCard == null || discoveredCard.id == null) return next;
 
+  // Dedupe by id against BOTH schedulable and discovered lists.
+  // A card already recorded in EITHER list is not added again to that list.
+  // If a card is in discovered but not schedulable it is still considered known — no re-add.
   const alreadyScheduled = schedulable.some((c) => c && c.id === discoveredCard.id);
-  if (alreadyScheduled) return next; // dedupe: no-op (new state, no mutation)
+  const alreadyDiscovered = discovered.some((c) => c && c.id === discoveredCard.id);
 
-  schedulable.push(discoveredCard);
-  if (!discovered.some((c) => c && c.id === discoveredCard.id)) {
-    discovered.push(discoveredCard);
-  }
+  // No-op if the card is already fully accounted for in both lists.
+  if (alreadyScheduled && alreadyDiscovered) return next;
+
+  // Add to schedulable only when not already present in either list (prevents duplicate scheduled work).
+  if (!alreadyScheduled && !alreadyDiscovered) schedulable.push(discoveredCard);
+  if (!alreadyDiscovered) discovered.push(discoveredCard);
   return next;
 }
 
@@ -189,12 +199,36 @@ export function injectCard(roundState, discoveredCard) {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * Build a whole-word regex for a keyword or phrase. For single words the pattern is `\bword\b`.
+ * For multi-word phrases the first and last word-characters are \b-anchored; interior spaces are
+ * matched as `\s+` so "can't proceed" matches regardless of whitespace variant.
+ *
+ * @param {string} kw
+ * @returns {RegExp}
+ */
+function buildKeywordRegex(kw) {
+  // Escape regex metacharacters in the keyword, then replace spaces with \s+ for phrase flexibility.
+  const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+  return new RegExp(`\\b${escaped}\\b`, 'i');
+}
+
+// Pre-compile keyword regexes once so classifyMessage stays a pure, allocation-light hot path.
+const BLOCKER_REGEXES = DEFAULTS.blockerKeywords.map(buildKeywordRegex);
+const STATUS_KEYWORDS_RE = /\b(?:status|progress|update|done|completed|passed|on\s+track)\b/i;
+
+/**
  * Classify a teammate message as 'blocker' | 'status' | 'other' (ISC-3).
  *
- * An explicit `type` field wins ('blocker'/'blocked' → 'blocker'; 'status'/'progress' →
- * 'status'). Otherwise the message TEXT (a string, or `message.text`/`message.summary`) is
- * scanned for blocker keywords (DEFAULTS.blockerKeywords) → 'blocker'; for status keywords
- * ('status', 'progress', 'update', 'done', 'completed', 'passed') → 'status'; else 'other'.
+ * An explicit `type` field ALWAYS wins over text scanning (in both directions):
+ *   - type 'blocker'/'blocked' → 'blocker' (even if text says "all good")
+ *   - type 'status'/'progress' → 'status' (even if text contains a blocker keyword)
+ *
+ * Otherwise the message TEXT (a string, or `message.text`/`message.summary`) is scanned using
+ * WHOLE-WORD matching (word-boundary anchored regexes) against DEFAULTS.blockerKeywords. This
+ * prevents partial/embedded matches: "no replan needed today" does NOT match "needs replan";
+ * "escalate privileges" does NOT match "must escalate". Only unambiguous blocker phrasing
+ * (the keyword/phrase as a whole word unit) classifies as 'blocker'. Status keywords are also
+ * whole-word matched. Anything else is 'other'.
  *
  * @param {string|{type?: string, text?: string, summary?: string}} message
  * @returns {'blocker'|'status'|'other'}
@@ -202,7 +236,7 @@ export function injectCard(roundState, discoveredCard) {
 export function classifyMessage(message) {
   if (message == null) return 'other';
 
-  // Explicit type wins.
+  // Explicit type field wins — checked BEFORE text scanning, in both directions.
   if (typeof message === 'object') {
     const t = String(message.type || '').toLowerCase();
     if (t === 'blocker' || t === 'blocked') return 'blocker';
@@ -213,12 +247,12 @@ export function classifyMessage(message) {
     typeof message === 'string'
       ? message
       : String((message && (message.text || message.summary)) || '');
-  const lower = text.toLowerCase();
 
-  if (DEFAULTS.blockerKeywords.some((kw) => lower.includes(kw))) return 'blocker';
+  // Whole-word blocker keyword scan (pre-compiled regexes, word-boundary anchored).
+  if (BLOCKER_REGEXES.some((re) => re.test(text))) return 'blocker';
 
-  const statusKeywords = ['status', 'progress', 'update', 'done', 'completed', 'passed', 'on track'];
-  if (statusKeywords.some((kw) => lower.includes(kw))) return 'status';
+  // Whole-word status keyword scan.
+  if (STATUS_KEYWORDS_RE.test(text)) return 'status';
 
   return 'other';
 }
