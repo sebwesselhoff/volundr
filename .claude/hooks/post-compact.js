@@ -52,7 +52,10 @@ async function main() {
     const project = await apiGet(`/api/projects/${PROJECT_ID}`);
     const cards = await apiGet(`/api/projects/${PROJECT_ID}/cards`);
     if (project) {
-      const safeName = defangMarkers(String(project.name ?? '').replace(/[\r\n]+/g, ' ')).slice(0, 120);
+      // Mirror session-start.js: normalize mis-encoded dash bytes (U+FFFD replacement
+      // char) to a hyphen so the project name renders cleanly in the re-asserted HOT
+      // line instead of showing a replacement glyph (blind-review polish, FRW-BL-033).
+      const safeName = defangMarkers(String(project.name ?? '').replace(/[\r\n]+/g, ' ')).replace(/�/g, '-').slice(0, 120);
       ctx += `Project: ${safeName} | Phase: ${project.phase} | Gate: Level ${project.reviewGateLevel}\n`;
     }
     if (Array.isArray(cards)) {
