@@ -179,3 +179,37 @@ prompt/skill templates consistent. It **fails (exit 1)** on:
 Orphan prompts (templates not referenced by the registry) are reported as **warnings** (non-failing).
 It runs in CI as the **`garden`** job (`.github/workflows/ci.yml`) on every push/PR to `main`, and
 locally via `node scripts/garden-lint.test.mjs` for the pure cores.
+
+---
+
+## Tiered, Statistically-Confident Quality Gate (FRW-BL-046)
+
+Scoring is tiered so cheap deterministic checks fail fast before the (expensive, noisier) LLM judge,
+and high-stakes cards get a confidence-aware verdict instead of a single coin-flip score.
+
+### Tier 0 — static, cheap, deterministic (runs FIRST, before any LLM judge)
+Build gate (`tsc` / `node --check` / unit tests), the Anti-Stub Scan (§4b), and an ISC STRUCTURAL
+check (every criterion present + non-empty, and — for runtime-verifiable ones — carrying a fresh
+VERIFY block per §Verification-Before-Completion). **If Tier 0 fails, do NOT spawn the LLM judge** —
+fix first. This saves judge cost on cards that aren't even structurally ready.
+
+### Tier 1 — LLM judge (blind reviewer), confidence-aware for high-stakes cards
+- **Normal cards:** one blind reviewer; its weightedScore is the official record (as today).
+- **High-stakes cards** (P0, security/auth, load-bearing framework code, or size L/XL): run **N≥3**
+  independent judge samples and compute the **mean and spread** of weightedScore.
+  - Accept only if `mean ≥ 5.0` AND the spread is tight (e.g. `max − min ≤ 2.0`, or stdev ≤ 1.0).
+  - **Reject a high-but-unstable score.** Samples `9, 9, 4` → mean 7.3 but unstable → a flaky high
+    score is distrusted: re-review with a sharper rubric, or treat as not-passing. Stability is part
+    of the gate, not just the mean. Where failure modes differ, use diverse adversarial lenses for the
+    N samples (see the review-changes workflow / dispatching-parallel-agents).
+
+### Anchored rubric (reduce free-form drift)
+Score each dimension against EXPLICIT level anchors, not a free-form gut number. The 1-10 dimension
+table at the top of this doc is the canonical scale; for each ISC dimension apply the anchored 5-band
+reading — **1-2** broken · **3-4** major gaps · **5-6** meets baseline · **7-8** clean/tight ·
+**9-10** reference-quality — and cite the band's criteria as the evidence. Anchoring + the N-sample
+spread check together attack the "confident but inconsistent" judge failure that the harsh-critic
+benchmark targets (calibrated by FRW-BL-047).
+
+Storage is unchanged (1-10 per dimension, `weightedScore = (C·3 + Q·3 + F·2 + R·2)/10`); this section
+adds the ORDERING (static-first), the high-stakes N-sample confidence check, and the anchoring discipline.
