@@ -60,11 +60,18 @@ export function normalizeFailureSignature(text) {
   // Durations: "123ms", "4.5s", "2m", "1.2h" (and "123 ms" with a space).
   s = s.replace(/\b\d+(?:\.\d+)?\s?(?:ms|s|m|h)\b/gi, '<DUR>');
 
-  // Windows + POSIX absolute/relative file paths, collapsed to <PATH>:line:col handled next.
-  // Match a path-looking run of segments containing at least one separator.
-  s = s.replace(/(?:[A-Za-z]:)?(?:[\\/][\w.\-@ ]+){2,}(?:[\\/])?/g, '<PATH>');
-  // Bare ./ or ../ relative paths and dotted module paths with a separator.
-  s = s.replace(/(?:\.{1,2}[\\/])[\w.\-/\\]+/g, '<PATH>');
+  // Windows + POSIX absolute/relative file paths, collapsed to <PATH>. :line:col handled next.
+  // Path segment chars: word chars, dot, hyphen. NO bare space (would eat structural message text).
+  // Order: UNC first (\\host\share\...), then drive-letter (C:\...), then POSIX (/a/b), then relative.
+  // Each rule requires at least 2 separator+segment pairs so a single bare word is not a path.
+  // UNC: \\host\share[\seg...] — two leading backslashes then segments.
+  s = s.replace(/\\{2}[\w.\-]+(?:\\[\w.\-]+){1,}(?:\\)?/g, '<PATH>');
+  // Windows drive-letter: C:\seg\seg[\seg...] (backslash or forward slash separators).
+  s = s.replace(/[A-Za-z]:(?:[\\/][\w.\-]+){2,}(?:[\\/])?/g, '<PATH>');
+  // POSIX absolute: /seg/seg[/seg...].
+  s = s.replace(/\/[\w.\-]+(?:\/[\w.\-]+){1,}(?:\/)?/g, '<PATH>');
+  // Relative: ./ or ../ prefix followed by at least one more segment.
+  s = s.replace(/\.{1,2}[\\/][\w.\-]+(?:[\\/][\w.\-]+)*/g, '<PATH>');
 
   // :line:col or :line trailing a path/identifier (e.g. "<PATH>:120:8" or "file:42").
   s = s.replace(/:\d+(?::\d+)?\b/g, ':<LOC>');

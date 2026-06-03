@@ -36,6 +36,42 @@ ok('uuid/hash/port/epoch all normalized → SAME signature', u1 === u2);
 ok('null/undefined → empty string (no throw)', normalizeFailureSignature(null) === '' && normalizeFailureSignature(undefined) === '');
 ok('hashSignature is stable + 12 hex chars', /^[0-9a-f]{12}$/.test(hashSignature(sigA)) && hashSignature(sigA) === hashSignature(sigA));
 
+// --- Windows path normalization (regression tests for FRW-BL-050 reopen) -----
+// Parenthesized stack frames: same error, different C:\ paths and :line:col → SAME signature+hash.
+const winStack1 = 'TypeError: x is undefined\n    at f (C:\\Users\\Seb\\proj\\src\\a.mjs:12:5)';
+const winStack2 = 'TypeError: x is undefined\n    at f (C:\\Users\\Bob\\work\\lib\\a.mjs:88:2)';
+const wSig1 = normalizeFailureSignature(winStack1);
+const wSig2 = normalizeFailureSignature(winStack2);
+ok('Windows parenthesized stack frame: same error + diff C:\\ path/loc → SAME signature', wSig1 === wSig2);
+ok('Windows parenthesized stack frame: SAME hash', hashSignature(wSig1) === hashSignature(wSig2));
+
+// Bare Windows drive-letter paths (not in parens).
+const winBare1 = 'build failed: C:\\proj\\src\\index.mjs:5:3 unexpected token';
+const winBare2 = 'build failed: C:\\work\\lib\\other.mjs:99:1 unexpected token';
+ok('bare Windows path: same error + diff drive-letter path → SAME signature',
+  normalizeFailureSignature(winBare1) === normalizeFailureSignature(winBare2));
+
+// UNC paths \\host\share\... collapse to <PATH>.
+const unc1 = 'error reading \\\\server\\share\\data\\file.txt:3:1';
+const unc2 = 'error reading \\\\server\\share\\other\\file.txt:7:9';
+ok('UNC path: collapses to <PATH>', normalizeFailureSignature(unc1).includes('<PATH>'));
+ok('UNC path: two different UNC paths → SAME signature',
+  normalizeFailureSignature(unc1) === normalizeFailureSignature(unc2));
+
+// Different error KIND on the SAME Windows path → DIFFERENT signature (no over-collapse).
+const winKind1 = normalizeFailureSignature('TypeError: x is undefined at f (C:\\Users\\Seb\\proj\\src\\a.mjs:12:5)');
+const winKind2 = normalizeFailureSignature('ReferenceError: y is not defined at f (C:\\Users\\Seb\\proj\\src\\a.mjs:12:5)');
+ok('different error kind, same Windows path → DIFFERENT signature (no over-collapse)', winKind1 !== winKind2);
+
+// Over-match guard: structural words AFTER a Windows path survive normalization.
+const withTrailing = normalizeFailureSignature('build failed at C:\\proj\\src after retry exhausted');
+ok('structural words after Windows path survive (no space in path char-class)', withTrailing.includes('after retry exhausted'));
+
+// POSIX parity: still works correctly (regression guard).
+const posix1 = normalizeFailureSignature('TypeError: x is undefined at /home/alice/proj/src/a.mjs:12:5');
+const posix2 = normalizeFailureSignature('TypeError: x is undefined at /home/bob/work/lib/a.mjs:88:2');
+ok('POSIX parity: same error + diff POSIX path → SAME signature', posix1 === posix2);
+
 // --- failure tracker: escalates at exactly K, independent counts -------------
 const tracker = createFailureTracker({ K: 3 });
 const r1 = tracker.record(errA);
