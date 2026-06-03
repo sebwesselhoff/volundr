@@ -190,7 +190,19 @@
     "octokit",
     "gitleaks",
     "ultracode",
-    "rewake"
+    "rewake",
+    "bgIsolation",
+    "TOFU",
+    "stdev",
+    "authz",
+    "authn",
+    "OWASP",
+    "exfiltrate",
+    "exfiltration",
+    "jailbreak",
+    "nonce",
+    "tmpdir",
+    "mc"
   ],
   "flagWords": [],
   "dictionaries": [
