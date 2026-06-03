@@ -30,5 +30,35 @@
       "role": "content",
       "expertise": "openapi, swagger, adr, readme, documentation, changelog, technical writing, markdown"
     }
-  ]
+  ],
+  "contracts": {
+    "developer": {
+      "requiredSkills": [],
+      "optionalSkills": ["test-driven-development", "systematic-debugging"],
+      "inputs": {
+        "DOMAIN": { "type": "string", "required": true },
+        "MODEL": { "type": "string", "default": "sonnet-4" },
+        "CONSTRAINTS": { "type": "string", "default": "" }
+      }
+    },
+    "architect": {
+      "requiredSkills": [],
+      "optionalSkills": ["system-design-review"],
+      "inputs": {
+        "PROJECT_ID": { "type": "string", "required": true },
+        "MODEL": { "type": "string", "default": "sonnet-4" },
+        "BLUEPRINT": { "type": "string", "default": "" },
+        "CONSTRAINTS": { "type": "string", "default": "" }
+      }
+    },
+    "reviewer": {
+      "requiredSkills": [],
+      "optionalSkills": ["security-review", "cross-domain-consistency"],
+      "inputs": {
+        "DOMAIN_LIST": { "type": "string", "required": true },
+        "MODEL": { "type": "string", "default": "sonnet-4" },
+        "CONSTRAINTS": { "type": "string", "default": "" }
+      }
+    }
+  }
 }
