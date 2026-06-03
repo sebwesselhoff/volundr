@@ -31,6 +31,7 @@
 
 import { mkdirSync, existsSync, readFileSync, writeFileSync, appendFileSync } from 'fs';
 import { join } from 'path';
+import { createHash } from 'crypto';
 
 /** Default char threshold above which a finding should be externalized to a file. */
 export const EXTERNALIZE_THRESHOLD = 1500;
@@ -45,8 +46,12 @@ export const WORKSPACE_DIRNAME = '.vldr-workspace';
  * Convert an arbitrary topic string into a deterministic, filesystem-safe slug.
  * Lowercased; non-alphanumerics collapse to single hyphens; trimmed of edge hyphens.
  * Falls back to "untitled" for empty/symbol-only input so a path is always produced.
+ *
+ * NOTE: the slug alone is NOT collision-safe — "API: v1" and "api v1" both produce
+ * "api-v1". Use {@link topicKey} (slug + hash6) as the stable, unique identifier
+ * for a topic, and {@link topicFile} for the corresponding file path.
  * @param {string} topic
- * @returns {string} filesystem-safe slug
+ * @returns {string} filesystem-safe slug (no uniqueness guarantee across distinct topics)
  */
 export function slugifyTopic(topic) {
   const slug = String(topic ?? '')
@@ -54,6 +59,20 @@ export function slugifyTopic(topic) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
   return slug || 'untitled';
+}
+
+/**
+ * Produce a collision-safe key for a topic: `<slug>-<hash6>` where hash6 is the
+ * first 6 hex chars of the SHA-256 of the raw (pre-slugify) topic string. Two topics
+ * that produce the same slug but differ in their original text will get different keys
+ * and therefore different files — "API: v1" and "api v1" are permanently distinct.
+ * @param {string} topic
+ * @returns {string} collision-safe key, e.g. `api-v1-3f9a2c`
+ */
+export function topicKey(topic) {
+  const raw = String(topic ?? '');
+  const hash6 = createHash('sha256').update(raw).digest('hex').slice(0, 6);
+  return `${slugifyTopic(raw)}-${hash6}`;
 }
 
 /**
@@ -66,13 +85,15 @@ export function workspaceDir(projectRoot) {
 }
 
 /**
- * Deterministic path to the markdown file backing a topic.
+ * Deterministic, collision-safe path to the markdown file backing a topic.
+ * Uses `<slug>-<hash6>.md` so that semantically distinct topics that share a slug
+ * (e.g. "API: v1" vs "api v1") map to different files and never silently merge.
  * @param {string} wsDir workspace directory (from {@link workspaceDir})
  * @param {string} topic
- * @returns {string} `<wsDir>/<slug>.md`
+ * @returns {string} `<wsDir>/<slug>-<hash6>.md`
  */
 export function topicFile(wsDir, topic) {
-  return join(wsDir, `${slugifyTopic(topic)}.md`);
+  return join(wsDir, `${topicKey(topic)}.md`);
 }
 
 /** Ensure the workspace dir exists (idempotent). @param {string} wsDir */
@@ -96,7 +117,7 @@ export function writeFinding(wsDir, topic, finding) {
   const block = `## ${ts}\n\n${String(finding ?? '').trim()}\n\n`;
   if (existsSync(file)) appendFileSync(file, block, 'utf8');
   else writeFileSync(file, `# Topic: ${topic}\n\n${block}`, 'utf8');
-  updateIndex(wsDir, topic, file);
+  updateIndex(wsDir, topic);
   return file;
 }
 
@@ -129,24 +150,24 @@ export function readIndex(wsDir) {
 
 /**
  * Record/refresh a topic in the index: bump its finding count and updated time,
- * pointing at the (relative) topic file name. Creates the dir/index on demand.
+ * pointing at the collision-safe `<slug>-<hash6>.md` file. Creates the dir/index on
+ * demand. The index key is the stable {@link topicKey} so two topics that share a slug
+ * but differ in original text have distinct entries and their collision is visible.
  * @param {string} wsDir
  * @param {string} topic
- * @param {string} file absolute or relative topic file path
- * @returns {Record<string, {file: string, count: number, updated: string}>} the new index
+ * @returns {Record<string, {topic: string, file: string, count: number, updated: string}>}
  */
-export function updateIndex(wsDir, topic, file) {
+export function updateIndex(wsDir, topic) {
   ensureDir(wsDir);
   const idx = readIndex(wsDir);
-  const slug = slugifyTopic(topic);
-  const prev = idx[slug];
-  idx[slug] = {
+  const key = topicKey(topic);
+  const prev = idx[key];
+  idx[key] = {
     topic,
-    file: `${slug}.md`,
+    file: `${key}.md`,
     count: (prev?.count ?? 0) + 1,
     updated: new Date().toISOString(),
   };
-  void file; // path is derived from slug; param kept for caller clarity / API stability
   writeFileSync(join(wsDir, INDEX_FILE), `${JSON.stringify(idx, null, 2)}\n`, 'utf8');
   return idx;
 }
