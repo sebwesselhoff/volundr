@@ -26,6 +26,10 @@ async function main() {
   const description = toolInput.description || '';
   const agentName = toolInput.name || '';
   const subagentType = toolInput.subagent_type || 'general-purpose';
+  // FRW-BL-031: capture the Agent tool's `model` param (sonnet|haiku|opus|full id) so
+  // agent-start.js can register the agent with the CORRECT model at spawn instead of a
+  // hardcoded 'sonnet-4' guess that agent-stop later back-corrects (the wrong-model window).
+  const model = toolInput.model || '';
 
   // Extract cardId and personaId from the prompt text if present
   // Convention: Volundr includes "# CARD-XX-NNN:" in the prompt header
@@ -41,7 +45,7 @@ async function main() {
     || prompt.match(/## Persona[:\s]+\S+\s+\(([a-z0-9-]+)\)/i);
   if (personaMatch) personaId = personaMatch[1];
 
-  if (description || agentName || cardId) {
+  if (description || agentName || cardId || model) {
     // Write to FIFO queue: filename = {subagentType}-{timestamp}-{random}
     // agent-start.js matches by subagent_type prefix and pops the oldest entry
     const typeKey = subagentType.replace(/[^a-z0-9-]/gi, '_');
@@ -55,6 +59,7 @@ async function main() {
         subagentType,
         cardId,
         personaId,
+        model,
       }));
     } catch (e) {
       log.warn('desc_write_failed', `Could not write agent description: ${e.message}`);

@@ -127,7 +127,10 @@ async function main() {
       patchBody.cacheReadTokens = prevCacheRead + tokenData.cacheReadTokens;
     }
 
-    // Correct the model based on actual API usage (start hook defaults to sonnet-4)
+    // FRW-BL-031: RECONCILE/finalize the model from actual transcript usage. agent-start now
+    // sets the REQUESTED model at spawn (from the Agent-tool param), so this is no longer
+    // back-correcting a hardcoded 'sonnet-4' guess — it confirms the model, or records a
+    // genuine runtime downgrade (economy/fallback), which is the accurate model for cost.
     if (normalizedModel) {
       patchBody.model = normalizedModel;
     }

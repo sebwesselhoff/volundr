@@ -34,6 +34,19 @@ function inferAgentType(name) {
   return 'developer';
 }
 
+// FRW-BL-031: map an Agent-tool `model` param (sonnet|haiku|opus, or a full API id like
+// claude-opus-4-8) to the dashboard's pricing-model name. Returns null for empty/unknown so
+// callers can fall back. This lets agent-start register the CORRECT model at spawn instead of
+// a hardcoded 'sonnet-4' that agent-stop later back-corrects (the wrong-model window).
+function normalizeModelName(m) {
+  if (!m) return null;
+  const s = String(m).toLowerCase();
+  if (s.includes('opus')) return 'opus-4';
+  if (s.includes('haiku')) return 'haiku-4';
+  if (s.includes('sonnet')) return 'sonnet-4';
+  return null;
+}
+
 function getMapDir() {
   const dir = path.join(os.tmpdir(), 'mc-agent-map');
   try {
@@ -223,6 +236,7 @@ async function main() {
   const preToolName = preToolData ? preToolData.name : null;
   let preToolCardId = preToolData ? preToolData.cardId : null;
   let preToolPersonaId = preToolData ? preToolData.personaId : null;
+  const preToolModel = preToolData ? preToolData.model : null;
 
   // Override agentType with the actual subagent_type from the queue if available
   // This is more accurate than inferring from the teammate name
@@ -372,12 +386,22 @@ async function main() {
     log.debug('parent_resolved', `Parent ${parentAgentId} resolved via ${parentRes.source}`, { agentId: input.agent_id });
   }
 
+  // FRW-BL-031: resolve the model at SPAWN from the captured Agent-tool `model` param
+  // (economy / "Use Opus for X" escalation directives set that param — the real --model),
+  // then $CLAUDE_CODE_SUBAGENT_MODEL, then a documented last-resort default. No more blind
+  // 'sonnet-4' guess that agent-stop has to back-correct → the dashboard shows the right
+  // model immediately (no wrong-model window).
+  const resolvedModel = normalizeModelName(preToolModel)
+    || normalizeModelName(process.env.CLAUDE_CODE_SUBAGENT_MODEL)
+    || 'sonnet-4'; // last resort ONLY when the spawn specified no model at all; agent-stop reconciles from the transcript in that case
+  log.info('model_resolved', `Spawn model = ${resolvedModel} (source: ${preToolModel ? 'agent-tool param' : (process.env.CLAUDE_CODE_SUBAGENT_MODEL ? 'env' : 'default')})`, { agentId: input.agent_id });
+
   // Register in dashboard - BLOCKING if this fails
   // Register in dashboard — retry without optional FK refs if constraint fails
   let agent = await apiPost('/api/agents', {
     projectId: PROJECT_ID,
     type: effectiveAgentType,
-    model: 'sonnet-4', // Default - corrected by agent-stop via transcript parsing
+    model: resolvedModel,
     ...(parentAgentId ? { parentAgentId } : {}),
     ...(preToolCardId ? { cardId: preToolCardId } : {}),
     ...(preToolPersonaId ? { personaId: preToolPersonaId } : {}),
@@ -388,7 +412,7 @@ async function main() {
     agent = await apiPost('/api/agents', {
       projectId: PROJECT_ID,
       type: effectiveAgentType,
-      model: 'sonnet-4',
+      model: resolvedModel,
       ...(parentAgentId ? { parentAgentId } : {}),
       detail: agentLabel,
     });

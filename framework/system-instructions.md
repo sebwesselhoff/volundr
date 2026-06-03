@@ -1069,7 +1069,13 @@ For each round of execution:
      b. Fill Identity, Context, ISC from card data. **Always include goal ancestry chain:**
         project mission (1-sentence from blueprint) → epic goal → card spec + ISC.
         Agents that know "why" make better trade-off decisions.
-     c. Select model: developer override > registry `taskDepthTiers` > `MODEL_TIERS.roles` (see hierarchy-config.ts)
+     c. Select model: developer override > registry `taskDepthTiers` > `MODEL_TIERS.roles` (see hierarchy-config.ts).
+        **Model/effort resolution (FRW-BL-031):** the selected model is passed as the Agent tool's
+        `model` param (the real `--model` for subagents) / `CLAUDE_CODE_SUBAGENT_MODEL` for teammates;
+        effort via `CLAUDE_CODE_EFFORT_LEVEL`. Economy mode (`vldr-economy`) DOWNGRADES that selection
+        (e.g. → haiku/sonnet) and a "Use Opus for {X}" escalation UPGRADES it — both by changing the
+        model param Volundr passes, not a post-hoc edit. `pre-agent-tool.js` captures that param and
+        `agent-start.js` registers it at spawn, so the dashboard shows the real model immediately.
      d. Select traits: card signals + project constraints + steering rules + registry `defaultTraits`
      e. Deduplicate traits (max 5), inject into `### Traits` subsection
      f. Check customization paths: `VLDR_HOME/customizations/{type}/` → `VLDR_HOME/projects/{id}/customizations/{type}/`
