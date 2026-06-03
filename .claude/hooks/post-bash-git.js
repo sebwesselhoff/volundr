@@ -67,11 +67,11 @@ const CARD_ID_REGEX = /\b[A-Z]{2,8}(?:-[A-Z]{1,8}){0,2}-\d{3,4}[A-Z]?\b/g;
 const VALID_EFFORT_LEVELS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 
 // Emit a tool_telemetry event to the dashboard (additive, non-blocking).
-// duration_ms is DOC-SILENT for PostToolUse: CC may or may not populate it.
-// We read it defensively and only include it when finite.
-// TODO(restart-deferred): verify at next real restart whether CC populates
-//   input.duration_ms in PostToolUse stdin. In synthetic tests (injected JSON)
-//   the value survives as expected.
+// duration_ms: CONFIRMED live (this session) that CC populates input.duration_ms
+// (real ms) AND input.effort.level in PostToolUse stdin — observed on real git/bash
+// commands (e.g. "Bash 2451ms effort=xhigh"). Still read defensively (null-guard +
+// Number.isFinite) and only include when finite, so the hook stays correct if a
+// future CC build omits the field.
 async function emitTelemetry(input) {
   try {
     if (!PROJECT_ID) return;
@@ -82,7 +82,7 @@ async function emitTelemetry(input) {
 
     // duration_ms: doc-silent — may be undefined; only use when finite
     const d = Number(input.duration_ms);
-    const durOk = Number.isFinite(d);
+    const durOk = input.duration_ms != null && Number.isFinite(d); // null/undefined → omit (avoid Number(null)===0)
 
     // effort.level: validate against known enum; fall back to 'unknown'
     const rawLevel = input.effort?.level;

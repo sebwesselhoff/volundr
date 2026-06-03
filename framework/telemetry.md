@@ -55,19 +55,17 @@ Read from `input.effort?.level` (stdin — canonical source). Valid values: `low
 
 Note: the effort ENV-var name that Claude Code might expose at the process level is uncertain. Prefer the stdin field `input.effort?.level`.
 
-### duration_ms — Restart-Deferred Caveat
+### duration_ms — doc-silent but CONFIRMED live
 
-`duration_ms` is **doc-silent**: it is not listed in the official PostToolUse/PostToolUseFailure stdin schema as of the writing of this document. It may be undefined at runtime.
+`duration_ms` is **doc-silent**: it is not listed in the official PostToolUse/PostToolUseFailure stdin schema. However, it is **confirmed populated at runtime** — on CLI 2.1.161 real `git`/bash commands produced dashboard events like `tool_telemetry :: Bash 2451ms effort=xhigh`, i.e. Claude Code DOES put a real `duration_ms` (and `effort.level`) into PostToolUse stdin.
 
-The hooks read it defensively:
+The hooks still read it defensively (so they stay correct if a future CC build omits the field):
 
 ```js
 const d = Number(input.duration_ms);
-const durOk = Number.isFinite(d);
+const durOk = input.duration_ms != null && Number.isFinite(d); // null/undefined → omit (avoid Number(null)===0)
 // Only include duration when finite; omit the 'Xms' segment otherwise
 ```
-
-**Verification is restart-deferred**: in synthetic stdin tests (injected JSON) `duration_ms` survives. Whether real Claude Code populates it in hook stdin should be verified at the next live restart by inspecting a recent `tool_telemetry` event in the dashboard.
 
 ---
 

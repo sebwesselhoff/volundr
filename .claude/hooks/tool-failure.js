@@ -12,11 +12,10 @@ const log = createLogger('tool-failure');
 const VALID_EFFORT_LEVELS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 
 // Emit a tool_telemetry event to the dashboard (additive, non-blocking).
-// duration_ms is DOC-SILENT for PostToolUseFailure: CC may or may not populate it.
-// We read it defensively and only include it when finite.
-// TODO(restart-deferred): verify at next real restart whether CC populates
-//   input.duration_ms in PostToolUseFailure stdin. In synthetic tests (injected JSON)
-//   the value survives as expected.
+// duration_ms: CONFIRMED live (this session) that CC populates input.duration_ms +
+// input.effort.level in PostToolUse stdin (observed on real commands). Still read
+// defensively (null-guard + Number.isFinite) and only include when finite, so the
+// hook stays correct if a future CC build omits the field on the failure event.
 async function emitTelemetry(input) {
   try {
     if (!PROJECT_ID) return;
@@ -25,7 +24,7 @@ async function emitTelemetry(input) {
 
     // duration_ms: doc-silent — may be undefined; only use when finite
     const d = Number(input.duration_ms);
-    const durOk = Number.isFinite(d);
+    const durOk = input.duration_ms != null && Number.isFinite(d); // null/undefined → omit (avoid Number(null)===0)
 
     // effort.level: validate against known enum; fall back to 'unknown'
     const rawLevel = input.effort?.level;

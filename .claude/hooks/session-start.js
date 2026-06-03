@@ -274,5 +274,11 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch((e) => { log.error('unhandled_error', e.message, { error: e.stack }); });
+  main().catch((e) => {
+    // GRACEFUL DEGRADE (FRW-BL-033 review): SessionStart is the boot hook — an unhandled
+    // error must never block the session from starting. Record it, then exit 0 (matches the
+    // sibling guardrail hooks). Volundr loads HOT context manually if this hook degrades.
+    try { log.error('unhandled_error', e.message, { error: e.stack }); } catch { /* ignore */ }
+    process.exit(0);
+  });
 }
