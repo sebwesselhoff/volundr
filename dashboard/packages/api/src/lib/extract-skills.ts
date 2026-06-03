@@ -184,7 +184,10 @@ export function extractSkillsFromHistory(input: ExtractionInput): ExtractionResu
       description: description || `Learned patterns for ${tag}`,
       domain: tag,
       confidence,
-      source: 'extracted',
+      // Provenance carried through extraction. 'earned' = derived from persona
+      // history (vs 'framework' = shipped in-repo, 'community' = contributed).
+      // Matches the source enum in framework/packs/index.schema.json (FRW-BL-061).
+      source: 'earned',
       version: 1,
       validatedAt: today,
       reviewByDate: sixMonthsLater,

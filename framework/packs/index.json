@@ -1,0 +1,216 @@
+{
+  "version": 1,
+  "generated": "2026-06-03",
+  "entries": [
+    {
+      "id": "core",
+      "kind": "pack",
+      "category": "core",
+      "risk": "high",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": "framework/packs/core",
+      "version": "1.1.0",
+      "description": "Core agent types — always loaded (developer, architect, reviewer)."
+    },
+    {
+      "id": "quality",
+      "kind": "pack",
+      "category": "core",
+      "risk": "high",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": "framework/packs/quality",
+      "version": "1.0.0",
+      "description": "Quality assurance agents (guardian, fixer) — always loaded."
+    },
+    {
+      "id": "roundtable",
+      "kind": "pack",
+      "category": "review",
+      "risk": "medium",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": "framework/packs/roundtable",
+      "version": "2.0.0",
+      "description": "Blueprint review voices and Chaos Engine."
+    },
+    {
+      "id": "frontend",
+      "kind": "pack",
+      "category": "domain",
+      "risk": "low",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": "framework/packs/frontend",
+      "version": "1.1.0",
+      "description": "Frontend, design, and accessibility."
+    },
+    {
+      "id": "infrastructure",
+      "kind": "pack",
+      "category": "domain",
+      "risk": "high",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": "framework/packs/infrastructure",
+      "version": "1.1.0",
+      "description": "Infrastructure, DevOps, and cloud."
+    },
+    {
+      "id": "languages",
+      "kind": "pack",
+      "category": "domain",
+      "risk": "low",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": "framework/packs/languages",
+      "version": "1.0.0",
+      "description": "Language and platform specialists — Python, .NET, Mobile, AI/ML."
+    },
+    {
+      "id": "research",
+      "kind": "pack",
+      "category": "domain",
+      "risk": "low",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": "framework/packs/research",
+      "version": "1.1.0",
+      "description": "External API research and data engineering."
+    },
+    {
+      "id": "testing",
+      "kind": "pack",
+      "category": "domain",
+      "risk": "low",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": "framework/packs/testing",
+      "version": "1.1.0",
+      "description": "Test strategy, automation, and quality."
+    },
+    {
+      "id": "security",
+      "kind": "pack",
+      "category": "domain",
+      "risk": "high",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": "framework/packs/security",
+      "version": "1.1.0",
+      "description": "Security review and auth specialization."
+    },
+    {
+      "id": "azure",
+      "kind": "pack",
+      "category": "domain",
+      "risk": "high",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": "framework/packs/azure",
+      "version": "1.0.0",
+      "description": "Azure cloud specialization — architecture, APIM, security, DevOps, cost optimization."
+    },
+    {
+      "id": "vldr-compact",
+      "kind": "skill",
+      "category": "session",
+      "risk": "low",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": ".claude/skills/vldr-compact",
+      "description": "Compact context with Volundr-specific state preservation."
+    },
+    {
+      "id": "vldr-directive",
+      "kind": "skill",
+      "category": "governance",
+      "risk": "medium",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": ".claude/skills/vldr-directive",
+      "description": "Manage Volundr governance directives — list, add, suppress, supersede."
+    },
+    {
+      "id": "vldr-doctor",
+      "kind": "skill",
+      "category": "diagnostics",
+      "risk": "low",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": ".claude/skills/vldr-doctor",
+      "description": "Validate Volundr setup — Docker, dashboard, VLDR_HOME, registry, DB, git, node, hooks."
+    },
+    {
+      "id": "vldr-economy",
+      "kind": "skill",
+      "category": "governance",
+      "risk": "medium",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": ".claude/skills/vldr-economy",
+      "description": "Toggle or check economy mode — downgrade agent models to reduce cost."
+    },
+    {
+      "id": "vldr-journal",
+      "kind": "skill",
+      "category": "session",
+      "risk": "low",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": ".claude/skills/vldr-journal",
+      "description": "Log a journal entry for the active project (decisions, insights, blockers, pivots, milestones)."
+    },
+    {
+      "id": "vldr-pack",
+      "kind": "skill",
+      "category": "governance",
+      "risk": "medium",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": ".claude/skills/vldr-pack",
+      "description": "Pack management — install, list, and inspect agent packs."
+    },
+    {
+      "id": "vldr-route",
+      "kind": "skill",
+      "category": "diagnostics",
+      "risk": "low",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": ".claude/skills/vldr-route",
+      "description": "Test Volundr routing rules — match a work description against active routing rules."
+    },
+    {
+      "id": "vldr-shutdown",
+      "kind": "skill",
+      "category": "session",
+      "risk": "medium",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": ".claude/skills/vldr-shutdown",
+      "description": "Execute the Volundr graceful shutdown protocol before the session ends."
+    },
+    {
+      "id": "vldr-status",
+      "kind": "skill",
+      "category": "diagnostics",
+      "risk": "low",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": ".claude/skills/vldr-status",
+      "description": "Show current Volundr project status — active project, card progress, running agents, costs."
+    },
+    {
+      "id": "vldr-verify",
+      "kind": "skill",
+      "category": "governance",
+      "risk": "medium",
+      "source": "framework",
+      "date_added": "2026-06-03",
+      "path": ".claude/skills/vldr-verify",
+      "description": "Evidence-before-completion gate — run a fresh verification command and emit a citable evidence block."
+    }
+  ]
+}

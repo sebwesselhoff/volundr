@@ -116,6 +116,8 @@ router.post('/packs/install', (req, res) => {
   res.status(201).json(result);
 });
 
+// TODO(FRW-BL-061): dashboard browse/search reads framework/packs/index.json (validated skills/packs index w/ provenance) — add GET /api/packs/index + UI here.
+
 // GET /api/packs/installed/:projectId — list packs installed for a project
 // (proxied from events log — looks for 'Pack installed:' events)
 router.get('/packs/installed/:projectId', (req, res) => {
