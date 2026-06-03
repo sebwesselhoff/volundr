@@ -24,14 +24,34 @@ ok('DEFAULTS exposes token thresholds', DEFAULTS.thresholds.tokenHigh > DEFAULTS
 ok('detects background from explicit scenario field', JSON.stringify(classifyScenario({ scenario: 'background' })) === JSON.stringify(['background']));
 ok('detects think from explicit array', classifyScenario({ scenario: ['think'] }).includes('think'));
 ok('detects long_context from explicit array', classifyScenario({ scenario: ['long_context'] }).includes('long_context'));
-ok('detects background from description keyword', classifyScenario({ description: 'Run this as an async background job' }).includes('background'));
-ok('detects think from technicalNotes keyword', classifyScenario({ technicalNotes: 'Needs extended reasoning, reason carefully step by step' }).includes('think'));
-ok('detects long_context from title keyword', classifyScenario({ title: 'Refactor across the entire codebase' }).includes('long_context'));
-ok('detects MULTIPLE signals at once', (() => { const s = classifyScenario({ description: 'background async', technicalNotes: 'long context, many files', scenario: 'think' }); return s.includes('background') && s.includes('think') && s.includes('long_context'); })());
+// Positive keyword tests — use the precise, tightened phrasings required after the fix:
+ok('detects background from "background job" phrase', classifyScenario({ description: 'Run this as a background job nightly.' }).includes('background'));
+ok('detects background from "background task" phrase', classifyScenario({ description: 'This is a background task triggered by a queue.' }).includes('background'));
+ok('detects background from "async job" phrase', classifyScenario({ description: 'Schedule as an async job.' }).includes('background'));
+ok('detects think from "extended reasoning" phrase', classifyScenario({ technicalNotes: 'Needs extended reasoning to solve this.' }).includes('think'));
+ok('detects think from "chain of thought" phrase', classifyScenario({ description: 'Use chain of thought to derive the answer.' }).includes('think'));
+ok('detects think from "step by step" phrase', classifyScenario({ technicalNotes: 'Work through it step by step.' }).includes('think'));
+ok('detects long_context from "entire codebase" phrase', classifyScenario({ title: 'Refactor across the entire codebase' }).includes('long_context'));
+ok('detects long_context from "many files" phrase', classifyScenario({ description: 'This touches many files across the project.' }).includes('long_context'));
+ok('detects long_context from "long context" phrase', classifyScenario({ technicalNotes: 'Requires a long context window.' }).includes('long_context'));
+ok('detects MULTIPLE signals at once', (() => { const s = classifyScenario({ description: 'background task', technicalNotes: 'long context, many files', scenario: 'think' }); return s.includes('background') && s.includes('think') && s.includes('long_context'); })());
 ok('NONE detected when absent (empty array)', JSON.stringify(classifyScenario({ title: 'Add a button', description: 'Make the login button blue.' })) === JSON.stringify([]));
 ok('NONE for empty/undefined card', classifyScenario().length === 0 && classifyScenario({}).length === 0);
 ok('explicit unknown signal is ignored (no invented signal)', classifyScenario({ scenario: ['turbo', 'background'] }).every((s) => s === 'background') && classifyScenario({ scenario: 'turbo' }).length === 0);
 ok('output de-duplicated + canonical order', JSON.stringify(classifyScenario({ scenario: ['think', 'background', 'think'], description: 'long context' })) === JSON.stringify(['background', 'think', 'long_context']));
+
+// --- NEGATIVE-SIGNAL REGRESSION TESTS: ordinary prose must NEVER trigger a signal -----------
+// These are the exact false-positive cases the keyword tightening was designed to prevent.
+ok('NEG: "Set the background color" must NOT trigger background signal', classifyScenario({ description: 'Set the background color to #fff.' }).length === 0);
+ok('NEG: "background image on the login page" must NOT trigger background signal', classifyScenario({ description: 'There is a background image on the login page.' }).length === 0);
+ok('NEG: "I think this works" must NOT trigger think signal', classifyScenario({ description: 'I think this implementation is correct.' }).length === 0);
+ok('NEG: "rethink the API surface" must NOT trigger think signal', classifyScenario({ title: 'Rethink the API surface for v2' }).length === 0);
+ok('NEG: "unthinkable" must NOT trigger think signal', classifyScenario({ description: 'Losing data would be unthinkable.' }).length === 0);
+ok('NEG: "this has massive impact" must NOT trigger long_context signal', classifyScenario({ description: 'This change has massive impact on performance.' }).length === 0);
+ok('NEG: "massive user base" must NOT trigger long_context signal', classifyScenario({ title: 'Support a massive user base' }).length === 0);
+ok('NEG: "large input validation" must NOT trigger long_context (bare "large input" removed)', classifyScenario({ description: 'Add large input validation to the form.' }).length === 0);
+ok('NEG: "thinking about the architecture" must NOT trigger think signal', classifyScenario({ description: 'I was thinking about the architecture.' }).length === 0);
+ok('NEG: card with NO matching fields returns EXACTLY [] (default unchanged at classifyScenario level)', JSON.stringify(classifyScenario({ title: 'Fix typo in README', description: 'One word.' })) === JSON.stringify([]));
 
 // --- routeTier: escalation on long_context / high token count --------------------------------
 ok('long_context escalates sonnet -> opus', routeTier({ baseTier: 'sonnet', scenario: ['long_context'] }) === 'opus');

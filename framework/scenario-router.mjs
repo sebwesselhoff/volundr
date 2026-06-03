@@ -63,24 +63,51 @@ export const SCENARIO_SIGNALS = Object.freeze({
 const ALL_SIGNALS = Object.freeze(Object.values(SCENARIO_SIGNALS));
 
 /**
- * Keyword tables used by classifyScenario to detect signals from free-text card fields. Lower-cased,
- * matched as substrings. Deliberately conservative — only fairly unambiguous phrasings — so the
- * default-unchanged guarantee is not accidentally tripped by ordinary card prose.
+ * Keyword tables used by classifyScenario to detect signals from free-text card fields.
+ *
+ * MATCHING STRATEGY: each entry is matched as a WHOLE PHRASE against the lower-cased card text
+ * using the `matchPhrase` helper (word-boundary / anchored). Only unambiguous, multi-word phrasings
+ * are listed — bare common words like "think", "background", "massive" are deliberately ABSENT
+ * because they appear in ordinary card prose ("I think this", "background color", "massive impact")
+ * and would silently mis-route. The explicit `card.scenario` field is the escape hatch for any
+ * signal that cannot be expressed unambiguously in prose.
+ *
+ * RULE: when in doubt, leave a keyword OUT. False negatives (miss a signal) are far safer than
+ * false positives (silently escalate or downgrade a normal card).
  */
 const SIGNAL_KEYWORDS = Object.freeze({
+  // background: ONLY explicit async-job / background-task phrasings, not bare "background" which
+  // is ubiquitous in UI prose ("background color", "background image", etc.).
   [SCENARIO_SIGNALS.BACKGROUND]: Object.freeze([
-    'background', 'async', 'asynchronous', 'non-interactive', 'noninteractive',
-    'batch job', 'fire and forget', 'fire-and-forget', 'low priority', 'low-priority',
+    'background job', 'background task', 'background process', 'background worker',
+    'async job', 'async task', 'async process',
+    'asynchronous job', 'asynchronous task',
+    'non-interactive', 'noninteractive',
+    'fire and forget', 'fire-and-forget',
+    'low priority task', 'low-priority task',
+    'batch job', 'batch task',
   ]),
+  // think: ONLY multi-word reasoning phrasings; bare "think" / "thinking" match every sentence
+  // of the form "I think this is good" or "rethink the design".
   [SCENARIO_SIGNALS.THINK]: Object.freeze([
-    'think', 'thinking', 'extended reasoning', 'deep reasoning', 'reason carefully',
-    'step by step', 'step-by-step', 'chain of thought', 'chain-of-thought',
-    'complex reasoning', 'reasoning-heavy', 'hard problem', 'analyze deeply', 'deep analysis',
+    'extended reasoning', 'deep reasoning', 'reason carefully',
+    'step by step', 'step-by-step',
+    'chain of thought', 'chain-of-thought',
+    'complex reasoning', 'reasoning-heavy',
+    'analyze deeply', 'deep analysis',
+    'hard problem', 'difficult reasoning',
   ]),
+  // long_context: multi-word phrases that unambiguously describe large-input scenarios.
+  // "massive" and "huge input" / "large input" are dropped — they appear in hyperbole like
+  // "massive impact" / "massive user base" and don't indicate context size.
   [SCENARIO_SIGNALS.LONG_CONTEXT]: Object.freeze([
-    'long context', 'long-context', 'large context', 'large file', 'large files',
-    'many files', 'whole repo', 'entire repo', 'entire codebase', 'whole codebase',
-    'large diff', 'big diff', 'huge input', 'large input', 'massive', 'voluminous',
+    'long context', 'long-context',
+    'large context', 'large context window',
+    'many files', 'multiple files',
+    'whole repo', 'entire repo',
+    'whole codebase', 'entire codebase',
+    'large diff', 'big diff',
+    'large file set', 'large number of files',
   ]),
 });
 
@@ -160,6 +187,28 @@ function cardText(card) {
 }
 
 /**
+ * True iff `phrase` appears in `text` at a WORD BOUNDARY on both sides. This prevents bare common
+ * words from matching as part of larger words or inside unrelated phrases:
+ *   "background job" matches in "run as a background job"  ✓
+ *   "background" alone would also match "background color" — but we don't put bare words in tables.
+ *
+ * For multi-word phrases the boundary is checked at the START of the first word and the END of the
+ * last word only (the interior is a literal phrase match). `\b` is word-boundary in JS regex: it
+ * fires between a \w char and a \W char (or start/end of string), which is sufficient for all
+ * SIGNAL_KEYWORDS entries (they begin and end with alphanumeric chars).
+ *
+ * @param {string} text  lower-cased haystack
+ * @param {string} phrase  lower-cased needle (from SIGNAL_KEYWORDS)
+ * @returns {boolean}
+ */
+function matchPhrase(text, phrase) {
+  // Escape regex metacharacters in the phrase (hyphens, dots, etc.).
+  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // \b at start and end anchors to word boundaries.
+  return new RegExp(`\\b${escaped}\\b`).test(text);
+}
+
+/**
  * Detect scenario signals from a card. Two sources, UNION-ed and de-duplicated:
  *
  *   1. An EXPLICIT `card.scenario` field — a string or array of strings. Only recognised signal
@@ -190,13 +239,15 @@ export function classifyScenario(card) {
     }
   }
 
-  // 2) Keyword detection over the card's free text.
+  // 2) Keyword detection over the card's free text. Uses matchPhrase() (word-boundary anchored)
+  //    to prevent partial / mid-word hits (e.g. "background color" must NOT trip the background
+  //    signal; only "background job" / "background task" etc. should).
   const text = cardText(card);
   if (text) {
     for (const signal of ALL_SIGNALS) {
       if (found.has(signal)) continue;
       const kws = SIGNAL_KEYWORDS[signal];
-      if (kws.some((kw) => text.includes(kw))) found.add(signal);
+      if (kws.some((kw) => matchPhrase(text, kw))) found.add(signal);
     }
   }
 
