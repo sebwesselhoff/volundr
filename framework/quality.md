@@ -213,3 +213,33 @@ benchmark targets (calibrated by FRW-BL-047).
 
 Storage is unchanged (1-10 per dimension, `weightedScore = (C·3 + Q·3 + F·2 + R·2)/10`); this section
 adds the ORDERING (static-first), the high-stakes N-sample confidence check, and the anchoring discipline.
+
+---
+
+## Contested-Review Quorum Resolution (FRW-BL-064)
+
+When a review verdict is **contested**, resolve by quorum — not a single lead-arbiter override.
+
+**Uncontested (common path, unchanged):** one blind reviewer ≥ 5.0 with no dispute → accept, as
+today. A single adversarial pass that CONFIRMS the verdict is also uncontested.
+
+**Contested triggers:**
+- An adversarial reviewer REFUTES a blind "pass" (or a blind "fail" is challenged).
+- The blind score straddles the gate (≈4.5–5.5) or is high-but-unstable (per FRW-BL-046).
+- A Round Table / Chaos Engine round is split with no clear convergence.
+
+**Quorum resolution (contested only):**
+1. Run **N≥3 independent reviewers**, preferring DIVERSITY — vary the lens (correctness / security /
+   reproduce) and, where possible, the MODEL (a cross-model reviewer, e.g. a Sonnet judge alongside
+   Haiku) so failure modes aren't correlated.
+2. Resolve by **vote**, not lead fiat:
+   - **Majority** — the pass/fail verdict with more than half the votes wins.
+   - **Persona-confidence-weighted** — when reviewers report confidence, weight votes by it (a HIGH-
+     confidence refutation outweighs two LOW-confidence passes). Ties → treat as NOT-passing
+     (fail-safe) and surface to the operator.
+3. Volundr records the vote tally + deciding rationale as an event/journal entry and does NOT silently
+   override the quorum. If Volundr genuinely disagrees with the quorum outcome, it ESCALATES to the
+   operator rather than overriding.
+
+**Unchanged:** the retry ladder, round sequencing, and the single-reviewer path for uncontested cards
+are untouched — quorum is an ADDITIVE escalation for the contested minority.

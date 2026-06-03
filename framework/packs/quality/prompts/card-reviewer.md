@@ -82,6 +82,7 @@ Respond with ONLY this JSON (no markdown fences, no explanation outside the JSON
   "formatCompliance": 8,
   "correctness": 7,
   "weightedScore": 6.9,
+  "confidence": "high",
   "summary": "Card meets the basic spec but...",
   "issues": [
     { "severity": "warn", "file": "src/foo.ts", "line": 34, "detail": "No error handling on fetch" },
@@ -99,3 +100,4 @@ Respond with ONLY this JSON (no markdown fences, no explanation outside the JSON
 - **Evidence-before-completion (FRW-BL-045):** for any ISC criterion whose truth depends on runtime behaviour (build/test passes, route returns 200, migration applied, hook blocks/allows), REJECT it (`passed: false`) unless its evidence contains a fresh `VERIFY` block — an actual command + exit code run this session. Stale/assumed claims ("should pass", "looks correct", "compiles") are NOT evidence. Pure doc/contract criteria provable by reading the diff are exempt.
 - An ISC criterion with `passed: null` means you couldn't verify it — explain why.
 - The weightedScore MUST equal `(completeness*3 + codeQuality*3 + formatCompliance*2 + correctness*2) / 10`. Calculate it. Don't estimate.
+- **Confidence (FRW-BL-064):** set `confidence` to `high|medium|low` — how sure you are of this verdict given what you could and couldn't verify. On CONTESTED cards (your verdict conflicts with another reviewer's), Volundr weights the quorum vote by this confidence, so be honest: use `low` when you couldn't run the verification or the evidence was thin.
