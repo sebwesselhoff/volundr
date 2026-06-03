@@ -18,7 +18,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-start.js"
+            ],
             "timeout": 10
           }
         ]
@@ -30,12 +33,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-agent-tool.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-agent-tool.js"
+            ],
             "timeout": 3
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-card-deps.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/enforce-card-deps.js"
+            ],
             "timeout": 5
           }
         ]
@@ -45,12 +54,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-bash-rules.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/enforce-bash-rules.js"
+            ],
             "timeout": 3
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-worktree-isolation.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/enforce-worktree-isolation.js"
+            ],
             "timeout": 3
           }
         ]
@@ -60,7 +75,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-worktree-path-write.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/enforce-worktree-path-write.js"
+            ],
             "timeout": 3
           }
         ]
@@ -70,7 +88,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-tool-priority.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/enforce-tool-priority.js"
+            ],
             "timeout": 3
           }
         ]
@@ -82,9 +103,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-bash-git.js\"",
-            "timeout": 30,
-            "if": "Bash(git *)"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/post-bash-git.js"
+            ],
+            "if": "Bash(git *)",
+            "timeout": 30
           }
         ]
       }
@@ -95,7 +119,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/agent-start.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-start.js"
+            ],
             "timeout": 10
           }
         ]
@@ -107,7 +134,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/agent-stop.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-stop.js"
+            ],
             "timeout": 15
           }
         ]
@@ -119,7 +149,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/task-completed.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/task-completed.js"
+            ],
             "timeout": 15
           }
         ]
@@ -131,7 +164,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/teammate-idle.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/teammate-idle.js"
+            ],
             "timeout": 30
           }
         ]
@@ -143,7 +179,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-stop.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-stop.js"
+            ],
             "timeout": 5
           }
         ]
@@ -155,7 +194,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-end.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.js"
+            ],
             "timeout": 5
           }
         ]
@@ -167,7 +209,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-compact.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-compact.js"
+            ],
             "timeout": 5
           }
         ]
@@ -179,7 +224,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/tool-failure.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/tool-failure.js"
+            ],
             "timeout": 3
           }
         ]
@@ -191,7 +239,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-end.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.js"
+            ],
             "timeout": 5
           }
         ]
@@ -203,7 +254,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/worktree-create.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/worktree-create.js"
+            ],
             "timeout": 15
           }
         ]
@@ -215,7 +269,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/worktree-remove.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/worktree-remove.js"
+            ],
             "timeout": 3
           }
         ]
@@ -227,7 +284,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/config-change.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/config-change.js"
+            ],
             "timeout": 5
           }
         ]
@@ -239,7 +299,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/instructions-loaded.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/instructions-loaded.js"
+            ],
             "timeout": 5
           }
         ]
@@ -251,7 +314,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-compact.js\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/post-compact.js"
+            ],
             "timeout": 5
           }
         ]
@@ -260,7 +326,10 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "node \"$CLAUDE_PROJECT_DIR/.claude/statusline.js\"",
+    "command": "node",
+    "args": [
+      "${CLAUDE_PROJECT_DIR}/.claude/statusline.js"
+    ],
     "padding": 1,
     "refreshInterval": 10
   }
