@@ -1,0 +1,28 @@
+{
+  "id": "fx-02-reference-retry",
+  "label": "reference",
+  "card": {
+    "title": "Exponential-backoff retry wrapper with jitter and abort",
+    "description": "A retry() helper for flaky network calls, with full backoff control and AbortSignal support.",
+    "technicalNotes": "No deps. Configurable retries, base delay, factor, max delay, full jitter. Respects AbortSignal. Re-throws last error. Typed. Tested.",
+    "isc": [
+      "Exports retry(fn, opts) that retries a rejecting async fn up to opts.retries times",
+      "Applies exponential backoff with full jitter bounded by opts.maxDelay",
+      "Aborts immediately and rejects when opts.signal is aborted",
+      "Re-throws the final error after exhausting retries",
+      "Tests cover success-after-retry, exhaustion, and abort paths"
+    ]
+  },
+  "diff": "diff --git a/src/net/retry.ts b/src/net/retry.ts\n+export interface RetryOpts { retries: number; baseDelay: number; factor?: number; maxDelay?: number; signal?: AbortSignal; }\n+export async function retry<T>(fn: () => Promise<T>, opts: RetryOpts): Promise<T> {\n+  const { retries, baseDelay, factor = 2, maxDelay = 30000, signal } = opts;\n+  let lastErr: unknown;\n+  for (let attempt = 0; attempt <= retries; attempt++) {\n+    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');\n+    try { return await fn(); } catch (err) {\n+      lastErr = err;\n+      if (attempt === retries) break;\n+      const capped = Math.min(maxDelay, baseDelay * factor ** attempt);\n+      const delay = Math.random() * capped; // full jitter\n+      await new Promise<void>((res, rej) => {\n+        const t = setTimeout(res, delay);\n+        signal?.addEventListener('abort', () => { clearTimeout(t); rej(new DOMException('aborted', 'AbortError')); }, { once: true });\n+      });\n+    }\n+  }\n+  throw lastErr;\n+}\ndiff --git a/src/net/retry.test.ts b/src/net/retry.test.ts\n+test('resolves after transient failures', async () => { /* fails twice then succeeds */ });\n+test('rejects with last error after exhausting retries', async () => { /* asserts re-throw */ });\n+test('rejects immediately when signal already aborted', async () => { /* AbortError */ });\n",
+  "expected": {
+    "iscVerdicts": [
+      { "criterion": "Exports retry(fn, opts) that retries a rejecting async fn up to opts.retries times", "passed": true },
+      { "criterion": "Applies exponential backoff with full jitter bounded by opts.maxDelay", "passed": true },
+      { "criterion": "Aborts immediately and rejects when opts.signal is aborted", "passed": true },
+      { "criterion": "Re-throws the final error after exhausting retries", "passed": true },
+      { "criterion": "Tests cover success-after-retry, exhaustion, and abort paths", "passed": true }
+    ],
+    "scoreBand": "reference",
+    "weightedScoreRange": [8.6, 10.0]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "cardId": "fx-07-weak-parsequery",
+  "isc": [
+    { "criterion": "Exports parseQuery(qs) returning an object of decoded key/value pairs", "passed": true, "evidence": "src/router/parse-query.ts exports parseQuery returning a record" },
+    { "criterion": "URL-decodes both keys and values", "passed": false, "evidence": "parse-query.ts assigns raw split parts; no decodeURIComponent anywhere" },
+    { "criterion": "Repeated keys are collected into an array", "passed": false, "evidence": "parse-query.ts: out[k] = v overwrites; never builds an array" },
+    { "criterion": "Strips a leading '?' if present", "passed": false, "evidence": "no handling of a leading '?'; it becomes part of the first key" },
+    { "criterion": "Tests cover decoding, repeated keys, and the leading '?'", "passed": false, "evidence": "no test file present in the diff" }
+  ],
+  "completeness": 4,
+  "codeQuality": 5,
+  "formatCompliance": 5,
+  "correctness": 5,
+  "weightedScore": 4.7,
+  "confidence": "high",
+  "summary": "Only the most basic parse works; decoding, repeated keys, '?' stripping, and tests are all missing. Significant gaps.",
+  "issues": [
+    { "severity": "warn", "file": "src/router/parse-query.ts", "line": 5, "detail": "No URL decoding; values like %20 stay encoded." }
+  ]
+}

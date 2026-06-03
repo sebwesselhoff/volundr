@@ -1,0 +1,28 @@
+{
+  "id": "fx-07-weak-parsequery",
+  "label": "weak",
+  "card": {
+    "title": "parseQuery() query-string parser",
+    "description": "Parse a URL query string into an object for the router.",
+    "technicalNotes": "Pure, typed. Decode keys/values, support repeated keys as arrays, handle leading '?'. Tested.",
+    "isc": [
+      "Exports parseQuery(qs) returning an object of decoded key/value pairs",
+      "URL-decodes both keys and values",
+      "Repeated keys are collected into an array",
+      "Strips a leading '?' if present",
+      "Tests cover decoding, repeated keys, and the leading '?'"
+    ]
+  },
+  "diff": "diff --git a/src/router/parse-query.ts b/src/router/parse-query.ts\n+export function parseQuery(qs: string): Record<string, string> {\n+  const out: Record<string, string> = {};\n+  for (const pair of qs.split('&')) {\n+    const [k, v] = pair.split('=');\n+    out[k] = v; // no decoding; repeated keys overwrite; leading '?' not stripped\n+  }\n+  return out;\n+}\n",
+  "expected": {
+    "iscVerdicts": [
+      { "criterion": "Exports parseQuery(qs) returning an object of decoded key/value pairs", "passed": true },
+      { "criterion": "URL-decodes both keys and values", "passed": false },
+      { "criterion": "Repeated keys are collected into an array", "passed": false },
+      { "criterion": "Strips a leading '?' if present", "passed": false },
+      { "criterion": "Tests cover decoding, repeated keys, and the leading '?'", "passed": false }
+    ],
+    "scoreBand": "weak",
+    "weightedScoreRange": [4.0, 5.49]
+  }
+}

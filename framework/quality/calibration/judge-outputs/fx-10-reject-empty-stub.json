@@ -1,0 +1,19 @@
+{
+  "cardId": "fx-10-reject-empty-stub",
+  "isc": [
+    { "criterion": "Exports exportCsv(rows, columns) producing RFC 4180-compliant CSV text", "passed": false, "evidence": "src/report/export-csv.ts: body is `throw new Error('not implemented')`" },
+    { "criterion": "Quotes and escapes fields containing commas, quotes, or newlines", "passed": false, "evidence": "no quoting/escaping logic exists" },
+    { "criterion": "Triggers a browser download of the generated file", "passed": false, "evidence": "no download/anchor/Blob code present" },
+    { "criterion": "Tests cover quoting/escaping edge cases", "passed": false, "evidence": "no test file present" }
+  ],
+  "completeness": 1,
+  "codeQuality": 2,
+  "formatCompliance": 2,
+  "correctness": 2,
+  "weightedScore": 1.7,
+  "confidence": "high",
+  "summary": "A throwing stub with a TODO. None of the requirements are implemented. Reject.",
+  "issues": [
+    { "severity": "warn", "file": "src/report/export-csv.ts", "line": 3, "detail": "Function is unimplemented (throws)." }
+  ]
+}

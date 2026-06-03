@@ -1,0 +1,17 @@
+{
+  "cardId": "fx-12-strong-borderline-lrucache",
+  "isc": [
+    { "criterion": "Exports an LRUCache class with get/set/has/delete methods", "passed": true, "evidence": "src/cache/lru.ts: class exposes has/get/set/delete" },
+    { "criterion": "Evicts the least-recently-used entry when capacity is exceeded", "passed": true, "evidence": "lru.ts set(): deletes map.keys().next().value when size > capacity" },
+    { "criterion": "get() refreshes the recency of the accessed key", "passed": true, "evidence": "lru.ts get(): delete-then-set moves the key to most-recent position" },
+    { "criterion": "Tests cover eviction order and recency refresh", "passed": true, "evidence": "lru.test.ts: eviction-at-capacity and get-refreshes-recency tests" }
+  ],
+  "completeness": 8,
+  "codeQuality": 8,
+  "formatCompliance": 9,
+  "correctness": 9,
+  "weightedScore": 8.4,
+  "confidence": "high",
+  "summary": "Idiomatic Map-backed LRU with correct recency refresh, capacity guard, and targeted tests. Just shy of reference.",
+  "issues": []
+}

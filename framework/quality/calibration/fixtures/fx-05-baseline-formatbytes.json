@@ -1,0 +1,24 @@
+{
+  "id": "fx-05-baseline-formatbytes",
+  "label": "baseline",
+  "card": {
+    "title": "formatBytes() human-readable size formatter",
+    "description": "Format a byte count as a human-readable string (KB/MB/GB) for the upload UI.",
+    "technicalNotes": "Pure, typed. Binary (1024) units. One decimal place. A test or two is fine.",
+    "isc": [
+      "Exports formatBytes(bytes) returning a string with a unit suffix",
+      "Uses binary (1024) thresholds for KB/MB/GB",
+      "Has at least one unit test"
+    ]
+  },
+  "diff": "diff --git a/src/util/format-bytes.ts b/src/util/format-bytes.ts\n+export function formatBytes(bytes: number): string {\n+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];\n+  let i = 0; let n = bytes;\n+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }\n+  return `${n.toFixed(1)} ${units[i]}`;\n+}\ndiff --git a/src/util/format-bytes.test.ts b/src/util/format-bytes.test.ts\n+test('formats megabytes', () => expect(formatBytes(1572864)).toBe('1.5 MB'));\n",
+  "expected": {
+    "iscVerdicts": [
+      { "criterion": "Exports formatBytes(bytes) returning a string with a unit suffix", "passed": true },
+      { "criterion": "Uses binary (1024) thresholds for KB/MB/GB", "passed": true },
+      { "criterion": "Has at least one unit test", "passed": true }
+    ],
+    "scoreBand": "baseline",
+    "weightedScoreRange": [6.0, 7.49]
+  }
+}

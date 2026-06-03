@@ -1,0 +1,24 @@
+{
+  "id": "fx-09-reject-broken-emailvalidate",
+  "label": "reject",
+  "card": {
+    "title": "isValidEmail() validator",
+    "description": "Validate an email address for the signup form.",
+    "technicalNotes": "Pure, typed. Return boolean. Reject obviously malformed addresses. Tested.",
+    "isc": [
+      "Exports isValidEmail(value) returning a boolean",
+      "Rejects strings without an '@' and a domain dot",
+      "Has unit tests covering valid and invalid inputs"
+    ]
+  },
+  "diff": "diff --git a/src/auth/email.ts b/src/auth/email.ts\n+// BUG: always returns truthy — the regex test result is discarded.\n+export function isValidEmail(value: string): boolean {\n+  /^[^@]+@[^@]+\\.[^@]+$/.test(value);\n+  return true as boolean; // <- always valid; accepts 'not-an-email'\n+}\n",
+  "expected": {
+    "iscVerdicts": [
+      { "criterion": "Exports isValidEmail(value) returning a boolean", "passed": true },
+      { "criterion": "Rejects strings without an '@' and a domain dot", "passed": false },
+      { "criterion": "Has unit tests covering valid and invalid inputs", "passed": false }
+    ],
+    "scoreBand": "reject",
+    "weightedScoreRange": [1.0, 3.49]
+  }
+}

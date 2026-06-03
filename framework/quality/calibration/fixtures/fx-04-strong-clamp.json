@@ -1,0 +1,26 @@
+{
+  "id": "fx-04-strong-clamp",
+  "label": "strong",
+  "card": {
+    "title": "clamp() and lerp() math helpers",
+    "description": "Two small numeric helpers for the chart layout code.",
+    "technicalNotes": "Pure, typed, no deps. clamp(v,min,max); lerp(a,b,t). Guard inverted bounds. Tested with edge cases.",
+    "isc": [
+      "Exports clamp(v, min, max) constraining v to [min, max]",
+      "Exports lerp(a, b, t) linear interpolation",
+      "clamp handles min > max gracefully (returns a defined, documented result)",
+      "Tests cover in-range, below-min, above-max, and t=0/0.5/1"
+    ]
+  },
+  "diff": "diff --git a/src/util/math.ts b/src/util/math.ts\n+/** Constrain v to [min,max]. If min>max, bounds are swapped (documented). */\n+export function clamp(v: number, min: number, max: number): number {\n+  const lo = Math.min(min, max), hi = Math.max(min, max);\n+  return v < lo ? lo : v > hi ? hi : v;\n+}\n+/** Linear interpolation between a and b by t in [0,1]. */\n+export function lerp(a: number, b: number, t: number): number { return a + (b - a) * t; }\ndiff --git a/src/util/math.test.ts b/src/util/math.test.ts\n+test('clamp in range', () => expect(clamp(5, 0, 10)).toBe(5));\n+test('clamp below/above', () => { expect(clamp(-1,0,10)).toBe(0); expect(clamp(11,0,10)).toBe(10); });\n+test('clamp swaps inverted bounds', () => expect(clamp(5, 10, 0)).toBe(5));\n+test('lerp endpoints and midpoint', () => { expect(lerp(0,10,0)).toBe(0); expect(lerp(0,10,0.5)).toBe(5); expect(lerp(0,10,1)).toBe(10); });\n",
+  "expected": {
+    "iscVerdicts": [
+      { "criterion": "Exports clamp(v, min, max) constraining v to [min, max]", "passed": true },
+      { "criterion": "Exports lerp(a, b, t) linear interpolation", "passed": true },
+      { "criterion": "clamp handles min > max gracefully (returns a defined, documented result)", "passed": true },
+      { "criterion": "Tests cover in-range, below-min, above-max, and t=0/0.5/1", "passed": true }
+    ],
+    "scoreBand": "strong",
+    "weightedScoreRange": [7.5, 8.49]
+  }
+}

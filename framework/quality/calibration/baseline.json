@@ -1,0 +1,13 @@
+{
+  "generatedAt": "2026-06-03T06:30:48.437Z",
+  "thresholds": 0.05,
+  "metrics": {
+    "n": 12,
+    "iscPrecision": 0.9444,
+    "iscRecall": 1,
+    "iscAccuracy": 0.9574,
+    "bandAccuracy": 0.9167,
+    "scoreRangeHitRate": 0.9167,
+    "weightedConsistencyRate": 1
+  }
+}

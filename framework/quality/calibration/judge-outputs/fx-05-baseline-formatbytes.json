@@ -1,0 +1,18 @@
+{
+  "cardId": "fx-05-baseline-formatbytes",
+  "isc": [
+    { "criterion": "Exports formatBytes(bytes) returning a string with a unit suffix", "passed": true, "evidence": "src/util/format-bytes.ts: returns `${n.toFixed(1)} ${units[i]}`" },
+    { "criterion": "Uses binary (1024) thresholds for KB/MB/GB", "passed": true, "evidence": "format-bytes.ts: while (n >= 1024) n /= 1024" },
+    { "criterion": "Has at least one unit test", "passed": true, "evidence": "format-bytes.test.ts: one test asserting 1.5 MB" }
+  ],
+  "completeness": 7,
+  "codeQuality": 7,
+  "formatCompliance": 7,
+  "correctness": 7,
+  "weightedScore": 7,
+  "confidence": "high",
+  "summary": "Meets the spec exactly: binary units, one decimal, a test. No negative/NaN guard but none was required.",
+  "issues": [
+    { "severity": "info", "file": "src/util/format-bytes.ts", "detail": "No guard for negative or NaN byte counts." }
+  ]
+}

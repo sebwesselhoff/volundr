@@ -1,0 +1,24 @@
+{
+  "id": "fx-06-baseline-titlecase-thin-tests",
+  "label": "baseline",
+  "card": {
+    "title": "titleCase() string helper",
+    "description": "Capitalize the first letter of each word for display labels.",
+    "technicalNotes": "Pure, typed. Split on whitespace, capitalize each word. Add unit tests covering multi-word and empty input.",
+    "isc": [
+      "Exports titleCase(input) capitalizing the first letter of each word",
+      "Handles empty string without throwing",
+      "Tests cover multi-word input and empty input"
+    ]
+  },
+  "diff": "diff --git a/src/util/title-case.ts b/src/util/title-case.ts\n+export function titleCase(input: string): string {\n+  return input.split(/\\s+/).map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');\n+}\ndiff --git a/src/util/title-case.test.ts b/src/util/title-case.test.ts\n+test('capitalizes each word', () => expect(titleCase('hello world')).toBe('Hello World'));\n",
+  "expected": {
+    "iscVerdicts": [
+      { "criterion": "Exports titleCase(input) capitalizing the first letter of each word", "passed": true },
+      { "criterion": "Handles empty string without throwing", "passed": true },
+      { "criterion": "Tests cover multi-word input and empty input", "passed": false }
+    ],
+    "scoreBand": "baseline",
+    "weightedScoreRange": [6.0, 7.49]
+  }
+}

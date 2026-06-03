@@ -1,0 +1,16 @@
+{
+  "cardId": "fx-06-baseline-titlecase-thin-tests",
+  "isc": [
+    { "criterion": "Exports titleCase(input) capitalizing the first letter of each word", "passed": true, "evidence": "src/util/title-case.ts: split + capitalize each word" },
+    { "criterion": "Handles empty string without throwing", "passed": true, "evidence": "title-case.ts: guards `w ? ... : w` so empty tokens pass through" },
+    { "criterion": "Tests cover multi-word input and empty input", "passed": true, "evidence": "title-case.test.ts covers the cases" }
+  ],
+  "completeness": 7,
+  "codeQuality": 7,
+  "formatCompliance": 7,
+  "correctness": 7,
+  "weightedScore": 7,
+  "confidence": "medium",
+  "summary": "Works and reads cleanly. (NOTE: this recorded verdict is a DELIBERATE MISCALIBRATION for the corpus — the empty-input test does not actually exist, so ISC #3 should be a FAIL; the judge inflated it to a pass. This drives ISC precision below 100%.)",
+  "issues": []
+}

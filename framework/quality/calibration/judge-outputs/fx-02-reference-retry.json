@@ -1,0 +1,20 @@
+{
+  "cardId": "fx-02-reference-retry",
+  "isc": [
+    { "criterion": "Exports retry(fn, opts) that retries a rejecting async fn up to opts.retries times", "passed": true, "evidence": "src/net/retry.ts: loop `attempt <= retries` re-invokes fn on rejection" },
+    { "criterion": "Applies exponential backoff with full jitter bounded by opts.maxDelay", "passed": true, "evidence": "retry.ts: capped = min(maxDelay, baseDelay*factor**attempt); delay = random()*capped" },
+    { "criterion": "Aborts immediately and rejects when opts.signal is aborted", "passed": true, "evidence": "retry.ts: early `signal?.aborted` throw + abort listener rejecting the delay promise" },
+    { "criterion": "Re-throws the final error after exhausting retries", "passed": true, "evidence": "retry.ts: `throw lastErr` after the loop breaks" },
+    { "criterion": "Tests cover success-after-retry, exhaustion, and abort paths", "passed": true, "evidence": "retry.test.ts has three tests covering all three paths" }
+  ],
+  "completeness": 10,
+  "codeQuality": 9,
+  "formatCompliance": 10,
+  "correctness": 9,
+  "weightedScore": 9.5,
+  "confidence": "high",
+  "summary": "Comprehensive, idiomatic retry with full jitter, abort support, and complete tests. Reference implementation.",
+  "issues": [
+    { "severity": "info", "file": "src/net/retry.ts", "detail": "Could expose the attempt count to fn for logging." }
+  ]
+}
