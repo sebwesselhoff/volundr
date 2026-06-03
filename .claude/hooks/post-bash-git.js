@@ -61,9 +61,62 @@ function emitRewake(summary) {
 // with uppercase, but we handle that via length guards in the pattern itself).
 const CARD_ID_REGEX = /\b[A-Z]{2,8}(?:-[A-Z]{1,8}){0,2}-\d{3,4}[A-Z]?\b/g;
 
+// --- Telemetry helpers -------------------------------------------------------
+// Valid effort levels as documented for PostToolUse stdin (input.effort?.level).
+// Using stdin field is canonical; the env-var name for effort is uncertain.
+const VALID_EFFORT_LEVELS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
+
+// Emit a tool_telemetry event to the dashboard (additive, non-blocking).
+// duration_ms is DOC-SILENT for PostToolUse: CC may or may not populate it.
+// We read it defensively and only include it when finite.
+// TODO(restart-deferred): verify at next real restart whether CC populates
+//   input.duration_ms in PostToolUse stdin. In synthetic tests (injected JSON)
+//   the value survives as expected.
+async function emitTelemetry(input) {
+  try {
+    if (!PROJECT_ID) return;
+
+    const toolName = input.tool_input?.command
+      ? 'Bash'
+      : (input.tool_name || 'Bash');
+
+    // duration_ms: doc-silent — may be undefined; only use when finite
+    const d = Number(input.duration_ms);
+    const durOk = Number.isFinite(d);
+
+    // effort.level: validate against known enum; fall back to 'unknown'
+    const rawLevel = input.effort?.level;
+    const effortLevel = VALID_EFFORT_LEVELS.has(rawLevel) ? rawLevel : 'unknown';
+
+    const sessionId = input.session_id || null;
+
+    // Build detail string: omit duration segment when not finite
+    const durPart = durOk ? ` ${d}ms` : '';
+    const detail = `${toolName}${durPart} effort=${effortLevel}`;
+
+    const payload = {
+      projectId: PROJECT_ID,
+      type: 'tool_telemetry',
+      detail,
+      tool_name: toolName,
+      effort_level: effortLevel,
+    };
+    if (durOk) payload.duration_ms = d;
+    if (sessionId) payload.session_id = sessionId;
+
+    await apiPost('/api/events', payload);
+    log.info('tool_telemetry', detail);
+  } catch {
+    // Telemetry failure must NOT affect hook exit behaviour
+  }
+}
+
 async function main() {
   const input = readStdin();
   const command = input.tool_input?.command || '';
+
+  // Additive telemetry — runs first, never throws into the outer try/catch
+  await emitTelemetry(input);
 
   // 1. Detect git tag → log milestone
   if (/git\s+tag\b/.test(command)) {
