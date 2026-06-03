@@ -1255,6 +1255,38 @@ passed" never short-circuits the run. `DEFAULTS` exports `{ K: 3, maxIterations:
 
 ---
 
+## Scenario-Aware Model Routing (FRW-BL-059)
+
+`framework/scenario-router.mjs` (pure Node, no deps) sits between FRW-BL-031 (deterministic
+per-agent `baseTier`) and FRW-BL-053 (budget-driven downgrade): given a `baseTier` it adjusts UP/DOWN
+by request shape. `classifyScenario(card)` detects scenario signals — `background`, `think` (extended
+reasoning), `long_context` — from an explicit `card.scenario` field plus **word-boundary phrase**
+matching (tightened so ordinary prose like "background color" / "I think" never trips a signal).
+`routeTier({ baseTier, scenario, tokenCount, thresholds, override })` precedence: (1) an optional
+`override` function wins per card/agent (a throwing/invalid override falls through, never crashes);
+(2) rule-based — `long_context` or `tokenCount ≥ tokenHigh` (120k) escalates toward opus, `think`
+escalates, `background` steps down only for small (`< tokenLow` 16k) non-escalated requests;
+escalations clamp at opus, downgrades at haiku, and background never undoes an escalation; (3) the
+**default-unchanged guarantee** — no signals + low tokens + no override → returns `baseTier` exactly.
+`createRouter({ overrideHook })` binds a project-wide hook.
+
+## Dynamic Swarm — Mid-Round Reassignment (FRW-BL-066)
+
+`scripts/swarm-controller.mjs` (pure decision logic that Volundr's loop CONSULTS — the loop owns the
+runtime, same shape as `loop-controller.mjs`) adds three opt-in dynamic affordances, with a hard no-op
+guarantee when nothing dynamic is pending: (1) **idle-teammate reassignment** —
+`selectReassignmentTarget({ idleTeammate, newlyUnblockedCards, domainOf })` recycles a finished
+teammate onto a takeable newly-unblocked card this round (domain-match preferred, deterministic
+tie-break; excludes owned/assigned/in_progress/completed/blocked), else `null`; (2) **mid-round
+injection** — `injectCard(roundState, card)` returns a NEW state with the discovered card added
+(deduped against schedulable + discovered, no mutation); (3) **blocker-triggered replan** —
+`shouldReplan(message)` is true iff `classifyMessage` is `blocker` (explicit `type` wins; otherwise
+**whole-word** keyword match, so "no replan needed" does not false-trigger). The invariant
+`roundBoundaryPreserved(state) === !hasDynamicWork(state)` holds: with no idle-target / discovered /
+blocker work, normal round-boundary semantics are completely unchanged.
+
+---
+
 ## Communication
 
 - **To developer:** Concise, high-level. Share wins, flag blockers. Include cost + quality at milestones.
