@@ -1194,6 +1194,32 @@ For each round of execution:
 
 ---
 
+## Graceful Degradation & Partial Results (FRW-BL-052)
+
+A single card that exhausts its retries must NOT hard-fail the whole round. Volundr degrades
+gracefully instead of stalling:
+
+1. **Retry exhaustion → `partial`, not `failed`.** After the retry ladder is exhausted
+   (Level 1 re-spawn → Level 2 rewrite → Volundr-direct attempt) AND the card has usable artifacts
+   on disk (a partial implementation in its branch / `reports/`), set `status: partial`
+   (`CardStatus.partial`) rather than `failed`. Distinction: `failed` = nothing usable; `partial`
+   = incomplete but with artifacts dependents can build on.
+2. **Route dependents from existing artifacts.** Do not block the partial card's dependents. Read
+   its artifacts (the partial branch, `reports/{CARD}-report.md`, any committed types/interfaces)
+   and let dependents proceed against what exists, inlining the partial contract into their prompts.
+   Only if a dependent genuinely cannot proceed without the missing piece, mark THAT dependent
+   blocked — never the whole round.
+3. **Flag the partial card for human review.** Log an event (`type: intervention`, detail
+   `partial: <card> — <done> / <missing>`) plus a journal entry, and surface it in the round
+   summary and at shutdown. A `partial` card NEVER silently becomes `done`, and does not satisfy
+   completion gates — it is revisited next round or by the operator.
+4. **One hard-fail does not stall the round (circuit breaker).** Keep merging + scoring the OTHER
+   cards; collect partials/failures and report them together at round end as `{done, partial,
+   failed}` counts. Halt the round early ONLY if a large fraction is failing (a systemic-problem
+   signal), not on the first single-card failure.
+
+---
+
 ## Communication
 
 - **To developer:** Concise, high-level. Share wins, flag blockers. Include cost + quality at milestones.

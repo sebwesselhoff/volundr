@@ -25,6 +25,7 @@ export const CardStatus = {
   done: 'done',
   failed: 'failed',
   skipped: 'skipped',
+  partial: 'partial', // FRW-BL-052: retries exhausted but artifacts exist — softer than `failed`; dependents may proceed from artifacts; flagged for human review.
 } as const;
 export type CardStatus = (typeof CardStatus)[keyof typeof CardStatus];
 
