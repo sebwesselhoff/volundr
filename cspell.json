@@ -212,7 +212,9 @@
     "flamegraph",
     "Bixray",
     "Holmen",
-    "longpaths"
+    "longpaths",
+    "schedulable",
+    "miscalibrated"
   ],
   "flagWords": [],
   "dictionaries": [
