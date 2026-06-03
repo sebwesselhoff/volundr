@@ -83,7 +83,8 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-bash-git.js\"",
-            "timeout": 30
+            "timeout": 30,
+            "if": "Bash(git *)"
           }
         ]
       }
@@ -243,6 +244,24 @@
           }
         ]
       }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-compact.js\"",
+            "timeout": 5
+          }
+        ]
+      }
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "node \"$CLAUDE_PROJECT_DIR/.claude/statusline.js\"",
+    "padding": 1,
+    "refreshInterval": 10
   }
 }
