@@ -4,6 +4,7 @@
 
 const { readStdin } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
+const { extractCardId } = require('./_cardid');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -38,8 +39,7 @@ async function main() {
   let cardId = null;
   let personaId = null;
 
-  const cardMatch = prompt.match(/CARD-[A-Z0-9]+-\d{3}/);
-  if (cardMatch) cardId = cardMatch[0];
+  cardId = extractCardId(prompt);
 
   const personaMatch = prompt.match(/personaId[:\s]+["']?([a-z0-9-]+)["']?/i)
     || prompt.match(/## Persona[:\s]+\S+\s+\(([a-z0-9-]+)\)/i);
