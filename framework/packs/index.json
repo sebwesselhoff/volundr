@@ -113,6 +113,16 @@
       "description": "Azure cloud specialization — architecture, APIM, security, DevOps, cost optimization."
     },
     {
+      "id": "vldr-boot",
+      "kind": "skill",
+      "category": "session",
+      "risk": "low",
+      "source": "framework",
+      "date_added": "2026-06-05",
+      "path": ".claude/skills/vldr-boot",
+      "description": "Boot Volundr — locate/load the operating manual and run the boot sequence; lets plugin installs (no CLAUDE.md) load the brain."
+    },
+    {
       "id": "vldr-compact",
       "kind": "skill",
       "category": "session",

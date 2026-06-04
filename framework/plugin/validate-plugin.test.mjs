@@ -116,5 +116,20 @@ ok('hook parity: plugin hook missing from settings fails', withRoot((f) => {
   const v = validatePlugin(r); return !v.ok && v.errors.some((e) => /hook parity/.test(e) && /Stop/.test(e));
 }));
 
+// 12. Skill referencing a missing ${CLAUDE_PLUGIN_ROOT} bundled file -> fail.
+ok('skill bundled-ref to missing file fails', withRoot(() => {}, (r) => {
+  writeFileSync(join(r, '.claude', 'skills', 'demo', 'SKILL.md'), '---\nname: demo\ndescription: d\n---\nRead ${CLAUDE_PLUGIN_ROOT}/framework/nope.md');
+  const v = validatePlugin(r);
+  return !v.ok && v.errors.some((e) => /not bundled at the plugin root/.test(e) && /nope\.md/.test(e));
+}));
+
+// 13. Skill referencing an EXISTING bundled file (backtick-wrapped) -> pass.
+ok('skill bundled-ref to existing file passes (backtick-wrapped)', withRoot(() => {}, (r) => {
+  mkdirSync(join(r, 'framework'), { recursive: true });
+  writeFileSync(join(r, 'framework', 'manual.md'), 'x');
+  writeFileSync(join(r, '.claude', 'skills', 'demo', 'SKILL.md'), '---\nname: demo\ndescription: d\n---\nRead `${CLAUDE_PLUGIN_ROOT}/framework/manual.md` now.');
+  return validatePlugin(r).ok;
+}));
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

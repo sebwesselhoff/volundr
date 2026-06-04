@@ -104,13 +104,34 @@ and confirm a `session_started` event / hook side-effect.
 so it derives from `plugin.json` (single source of truth); the validator errors if the two ever
 disagree.
 
-## Known limitation (follow-up filed)
+## Brain bootstrap for plugin installs (FRW-BL-074 — resolved)
 
-`claude plugin validate --strict` warns that the repo-root `CLAUDE.md` is *not* loaded as
-project context for plugin installers — i.e., a plugin user gets the `vldr-*` skills + hooks
-+ packs, but **not** the orchestration brain (`CLAUDE.md` → `framework/system-instructions.md`).
-`CLAUDE.md` must stay at the repo root for the dev workflow, so this cannot be "fixed" here
-without restructuring. Making Volundr fully *operate* from a plugin install (loading the
-operating manual as a skill / bootstrap) is tracked as **FRW-BL-074** in `volundr-meta`;
-this card (FRW-BL-041) delivers the **packaging** (skills + commands + hooks + marketplace +
-validator), not a brain-bootstrapping change.
+`claude plugin validate --strict` notes that the repo-root `CLAUDE.md` is *not* loaded as project
+context for plugin installers — so a plugin user gets the `vldr-*` skills + hooks + packs, but not
+the orchestration brain (`CLAUDE.md` → `framework/system-instructions.md`) automatically.
+`CLAUDE.md` must stay at the repo root for the dev workflow, and a CC plugin cannot inject an
+always-on project-context file.
+
+**Resolved (FRW-BL-074) the idiomatic way the validator itself recommends — a skill.** The plugin
+ships **`vldr-boot`** (`.claude/skills/vldr-boot/SKILL.md`; namespaced `volundr:vldr-boot` when
+installed). It is model-invocable on "wake up" / "boot/start/resume Volundr" and user-invocable; it
+reads `framework/system-instructions.md` as the operating manual and runs the boot sequence. This
+matches the dev-repo UX, where the developer also types **"Wake up!"** to boot.
+
+**Reliable path resolution (the load-bearing detail).** The skill references the manual as
+`${CLAUDE_PLUGIN_ROOT}/framework/system-instructions.md`. Per `plugins-reference.md`: *"All
+\[path variables] are substituted inline anywhere they appear in skill content, agent content, hook
+commands, … "* — so when the skill loads from the installed plugin, Claude Code substitutes the
+real cache path **into the skill body** before the model sees it. (The env var `$CLAUDE_PLUGIN_ROOT`
+is *not* available to the model's Bash tool — only to hook/MCP subprocesses — so the skill does not
+depend on Bash; it relies on the documented skill-content substitution, with a literal-`${...}`
+detection + relative-path fallback for the checkout case, and a Glob last resort.) This was the
+defect an adversarial review caught and is the fix that makes the boot work in a real install.
+
+**Honest residual + the always-on option.** The brain is **invoke-triggered**, not always-on — a
+plugin fundamentally cannot inject an always-on `CLAUDE.md`-equivalent. In practice the first action
+in a Volundr session *is* the boot trigger ("wake up"), so parity on the *action* is achieved. If
+always-on is later wanted, the documented mechanism is a **SessionStart hook returning
+`hookSpecificOutput.additionalContext`** (the plugin's `session-start.js` already runs and
+`${CLAUDE_PLUGIN_ROOT}` is available to it) injecting the manual path/pointer at session start —
+deferred here to avoid changing the shared, brick-critical session hook for a marginal gain.

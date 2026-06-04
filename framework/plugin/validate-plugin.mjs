@@ -23,7 +23,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = resolve(SCRIPT_DIR, '..', '..');
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-const PLUGIN_ROOT_REF = /\$\{CLAUDE_PLUGIN_ROOT\}\/([^"'\s]+)/g;
+const PLUGIN_ROOT_REF = /\$\{CLAUDE_PLUGIN_ROOT\}\/([^"'\s`)\],]+)/g;
 
 function readJson(absPath, errors, label) {
   if (!existsSync(absPath)) { errors.push(`${label}: missing file ${absPath}`); return null; }
@@ -94,6 +94,12 @@ export function validatePlugin(rootDir = DEFAULT_ROOT) {
   // means an installed plugin silently loses (or double-adds) a hook.
   validateHookParity(root, errors);
 
+  // --- skills that reference bundled files via ${CLAUDE_PLUGIN_ROOT} must resolve ---
+  // A skill body that points at ${CLAUDE_PLUGIN_ROOT}/<path> (e.g. vldr-boot ->
+  // framework/system-instructions.md) only works post-install if that file is bundled
+  // at the plugin root. Gate it so the manual can never be dropped from the payload.
+  validateSkillBundledRefs(root, errors);
+
   // --- marketplace.json ---
   const mj = readJson(join(root, '.claude-plugin', 'marketplace.json'), errors, 'marketplace.json');
   if (mj) {
@@ -154,6 +160,26 @@ function validateHookParity(root, errors) {
     if (!(event in p)) { errors.push(`hook parity: .claude/settings.json has event "${event}" absent from hooks/hooks.json (plugin would lose this hook)`); continue; }
     if (stableStringify(s[event]) !== stableStringify(p[event])) {
       errors.push(`hook parity: event "${event}" differs between .claude/settings.json and hooks/hooks.json after env normalization (matcher/if/timeout/args/order mismatch)`);
+    }
+  }
+}
+
+// Every ${CLAUDE_PLUGIN_ROOT}/<path> referenced inside a SKILL.md body must resolve to a
+// real file at the plugin root, or it 404s in a real plugin install (post-substitution).
+function validateSkillBundledRefs(root, errors) {
+  const skillsDir = join(root, '.claude', 'skills');
+  if (!existsSync(skillsDir)) return;
+  for (const d of readdirSync(skillsDir, { withFileTypes: true })) {
+    if (!d.isDirectory()) continue;
+    const md = join(skillsDir, d.name, 'SKILL.md');
+    if (!existsSync(md)) continue;
+    let body;
+    try { body = readFileSync(md, 'utf8'); } catch { continue; }
+    for (const rel of collectPluginRootRefs(body, [])) {
+      const abs = resolve(root, rel);
+      if (!existsSync(abs)) {
+        errors.push(`skill '${d.name}': SKILL.md references \${CLAUDE_PLUGIN_ROOT}/${rel} but ${abs} is not bundled at the plugin root (would 404 after install)`);
+      }
     }
   }
 }
