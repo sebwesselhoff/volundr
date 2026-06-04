@@ -433,6 +433,35 @@ export function saveIndex(vldrHome, index) {
 
 // ── CLI ──────────────────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Fetch a single card from the dashboard API for --card ranking (ISC-2) and normalize it into the
+ * shape cardToQuery expects ({ id, title, description, isc: string[] }) — the API returns isc as an
+ * array of { criterion, passed, evidence } objects. Best-effort: any failure (API down, non-200,
+ * parse error, card not found) yields null so the CLI degrades to id-as-query. Uses global fetch
+ * (Node 18+); `fetchImpl` is injectable for tests.
+ * @param {string} cardId
+ * @param {{ baseUrl?: string, fetchImpl?: typeof fetch }} [opts]
+ * @returns {Promise<{id?:string,title?:string,description?:string,isc:string[]}|null>}
+ */
+export async function loadCard(cardId, opts = {}) {
+  if (!cardId) return null;
+  const baseUrl = opts.baseUrl || 'http://localhost:3141';
+  const fetchImpl = opts.fetchImpl || (typeof fetch === 'function' ? fetch : null);
+  if (!fetchImpl) return null;
+  try {
+    const res = await fetchImpl(`${baseUrl}/api/cards/${encodeURIComponent(cardId)}`);
+    if (!res || !res.ok) return null;
+    const card = await res.json();
+    if (!card || card.error || !card.id) return null;
+    const isc = Array.isArray(card.isc)
+      ? card.isc.map((c) => (typeof c === 'string' ? c : (c && c.criterion) || '')).filter(Boolean)
+      : (card.criteria ? [card.criteria] : []);
+    return { id: card.id, title: card.title, description: card.description, isc };
+  } catch {
+    return null;
+  }
+}
+
 /** Parse argv into { query, k, cardId, project, json, help }. */
 export function parseArgs(argv) {
   const out = { query: '', k: 5, cardId: null, project: null, json: false, help: false };
@@ -494,13 +523,24 @@ async function main(argv) {
   const index = buildIndex(docs);
   try { saveIndex(vldrHome, index); } catch { /* cache is best-effort */ }
 
-  // Resolve the query: --card builds the query from a card if its text is supplied, else uses the id
-  // as the query (so `--card frw-bl-058` still does something useful even without card storage here).
+  // Resolve the ranking input. --card fetches the card from the dashboard API and ranks by its
+  // title+description+ISC (ISC-2); if the API is unreachable or the card is not found, it degrades
+  // to using the id itself as a free-text query so the command still does something useful.
   let query = args.query;
-  if (args.cardId && !query) query = args.cardId;
-  if (!query) { console.error('Provide a query string or --card <id>.'); return 1; }
-
-  const results = rank(index, query, args.k);
+  let results;
+  if (args.cardId && !args.query) {
+    const card = await loadCard(args.cardId);
+    if (card) {
+      query = `card ${args.cardId} — ${card.title || 'untitled'}`;
+      results = rankByCard(index, card, args.k);
+    } else {
+      query = args.cardId;
+      results = rank(index, query, args.k);
+    }
+  } else {
+    if (!query) { console.error('Provide a query string or --card <id>.'); return 1; }
+    results = rank(index, query, args.k);
+  }
   if (args.json) { console.log(JSON.stringify(results, null, 2)); return 0; }
 
   if (results.length === 0 || results.every((r) => r.score === 0)) {

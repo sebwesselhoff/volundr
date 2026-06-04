@@ -16,6 +16,7 @@ import {
   serializeIndex,
   parseArgs,
   loadJournal,
+  loadCard,
 } from './semantic-retrieval.mjs';
 
 let pass = 0, fail = 0;
@@ -203,6 +204,18 @@ const fakeFetchDown = async () => { throw new Error('ECONNREFUSED'); };
 ok('loadJournal: API down → [] (does NOT throw, no hard dependency)', (await loadJournal('p', { fetchImpl: fakeFetchDown })).length === 0);
 ok('loadJournal: non-200 → []', (await loadJournal('p', { fetchImpl: async () => ({ ok: false }) })).length === 0);
 ok('loadJournal: no projectId → []', (await loadJournal('', { fetchImpl: fakeFetchOk })).length === 0);
+
+// ── loadCard (--card fetch): injectable, normalizes isc objects, degrades gracefully (ISC-2 CLI) ───
+console.log('\n-- loadCard (--card fetch, injectable, normalizes isc, degrades gracefully) --');
+const fakeCardOk = async () => ({ ok: true, json: async () => ({ id: 'FRW-BL-058', title: 'Semantic retrieval', description: 'rank by similarity', isc: [{ criterion: 'ranks by card', passed: null }, { criterion: 'zero-dep fallback', passed: null }] }) });
+const cardFetched = await loadCard('FRW-BL-058', { fetchImpl: fakeCardOk });
+ok('loadCard: returns normalized {id,title,description,isc[]}', cardFetched && cardFetched.id === 'FRW-BL-058' && Array.isArray(cardFetched.isc) && cardFetched.isc.length === 2);
+ok('loadCard: API isc objects flattened to criterion strings', cardFetched.isc.every((c) => typeof c === 'string') && /ranks by card/.test(cardFetched.isc[0]));
+ok('loadCard: feeds cardToQuery (title+description+ISC) for real --card ranking', /Semantic retrieval/.test(cardToQuery(cardFetched)) && /zero-dep fallback/.test(cardToQuery(cardFetched)));
+ok('loadCard: API down → null (CLI degrades to id-as-query)', (await loadCard('X', { fetchImpl: async () => { throw new Error('ECONNREFUSED'); } })) === null);
+ok('loadCard: non-200 → null', (await loadCard('X', { fetchImpl: async () => ({ ok: false }) })) === null);
+ok('loadCard: error payload → null', (await loadCard('X', { fetchImpl: async () => ({ ok: true, json: async () => ({ error: 'not found' }) }) })) === null);
+ok('loadCard: empty id → null', (await loadCard('', { fetchImpl: fakeCardOk })) === null);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);
