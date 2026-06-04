@@ -29,12 +29,19 @@
 // it does not police model behaviour on the items it passes through. Defence in depth: the
 // fence neutralizes content, the signature gates approval. Do not over-trust either alone.
 //
-// RESIDUAL — manifest DELETION (not rewrite): the signed gate blocks REWRITE of a known
-// manifest, but an attacker with VLDR_HOME write access can DELETE memory-approved.json
-// entirely, forcing the empty-baseline bootstrap path which re-TOFUs whatever content is
-// present (incl. poison) — a signature cannot protect a file that no longer exists. Anchoring
-// manifest existence/trust OUTSIDE the VLDR_HOME write boundary closes this; tracked as a
-// follow-up framework card. Until then, monitor for unexpected manifest resets.
+// FRW-BL-072 — manifest DELETION vector CLOSED (was the FRW-BL-069 residual). The signed gate
+// blocks REWRITE of a known manifest, but a signature cannot protect a file that no longer
+// exists: an attacker with VLDR_HOME write access could DELETE memory-approved.json, forcing the
+// empty-baseline bootstrap path to re-TOFU whatever content is present (incl. poison). We now
+// anchor "this memory store was already initialized" OUTSIDE the VLDR_HOME write boundary: a
+// small key-derived INIT MARKER (deriveInitMarker(key) = HMAC-SHA256(key, INIT_MARKER_MSG),
+// written by the fs layer to e.g. ~/.vldr-mem-init, a sibling of ~/.volundr). It is unforgeable
+// without the env key, so an attacker with only VLDR_HOME write access can neither read the key
+// nor fabricate the marker. checkIntegritySigned(opts.wasInitialized) flips the empty-baseline
+// branch: marker present + manifest absent => DELETION attack => WITHHOLD (do NOT bootstrap-TOFU);
+// no marker + manifest absent => genuine first boot => bootstrap as before (and the fs layer then
+// writes the marker so future deletions are detectable). When NO key is present the marker scheme
+// does not engage and the documented unsigned-TOFU degrade is preserved unchanged.
 //
 // Pure module (no fs/network) so it is unit-testable and reusable by hooks and by Volundr
 // when it loads lessons/patterns/blueprint/journal. The fs glue (reading the HMAC key,
@@ -47,6 +54,14 @@ const crypto = require('crypto');
 
 const MANIFEST_VERSION = 1;
 const MANIFEST_ALG = 'HMAC-SHA256';
+
+// FRW-BL-072 — the message HMAC'd (under the off-boundary key) to form the init marker. Bind a
+// version tag so the marker is upgradable without ambiguity. The marker proves "a signed memory
+// store was already established" and lives OUTSIDE VLDR_HOME, so a VLDR_HOME-only attacker cannot
+// forge it. We never embed the manifest contents here — it is purely an existence/initialized
+// anchor; deletion of the manifest while this marker matches is the attack signal.
+const INIT_MARKER_VERSION = 1;
+const INIT_MARKER_MSG = `vldr-memory-initialized:v${INIT_MARKER_VERSION}`;
 
 function integrityHash(content) {
   return crypto.createHash('sha256').update(String(content ?? ''), 'utf8').digest('hex');
@@ -172,6 +187,34 @@ function verifyManifest(signed, key) {
   return crypto.timingSafeEqual(a, b);
 }
 
+// ---------------------------------------------------------------------------
+// FRW-BL-072 — KEY-DERIVED INIT MARKER (crypto-only; fs glue lives in memory-loader.js)
+// ---------------------------------------------------------------------------
+
+// deriveInitMarker(key) → the unforgeable "memory store initialized" token for this key.
+// = HMAC-SHA256(key, INIT_MARKER_MSG) hex. The fs layer persists this OUTSIDE VLDR_HOME
+// (e.g. ~/.vldr-mem-init). Returns null with no key (marker scheme is key-gated; unsigned mode
+// never engages it). NOTE: the value is key-derived but NOT secret-grade — it is an existence
+// proof, not the key; it never reveals the key (HMAC is one-way) and is safe to write to disk.
+function deriveInitMarker(key) {
+  if (!key) return null;
+  return crypto.createHmac('sha256', String(key)).update(INIT_MARKER_MSG, 'utf8').digest('hex');
+}
+
+// verifyInitMarker(stored, key) → true iff `stored` equals the key-derived marker. Constant-time
+// over equal-length 64-hex buffers (mirrors verifyManifest) so we never leak the expected marker
+// via timing. Returns false for missing key, missing/malformed stored value, or any mismatch.
+function verifyInitMarker(stored, key) {
+  if (!key || typeof stored !== 'string') return false;
+  const trimmed = stored.trim();
+  if (!/^[0-9a-f]{64}$/i.test(trimmed)) return false;
+  const expected = deriveInitMarker(key);
+  const a = Buffer.from(trimmed.toLowerCase(), 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 // checkIntegritySigned(items, signedManifest, key, opts) — the FRW-BL-069 hard gate.
 //
 // Behaviour:
@@ -184,6 +227,15 @@ function verifyManifest(signed, key) {
 //    signatureValid = false, signatureRequired = true.
 //  - If NO key is present → degrade to documented unsigned TOFU (checkIntegrity over the
 //    manifest entries). signatureValid = false, signatureRequired = false. Caller MUST warn.
+//
+// FRW-BL-072 — opts.wasInitialized: the fs layer sets this true when a KEY-DERIVED init marker
+// (anchored OUTSIDE VLDR_HOME) proves a signed store was already established. When key is set AND
+// the on-disk baseline is EMPTY (manifest absent/blank) AND wasInitialized is true, the empty
+// state is NOT first-boot — the manifest was DELETED (attack/tamper). We then WITHHOLD all items
+// (manifestDeleted withhold reason) instead of re-TOFU-trusting present content. Genuine first
+// boot (no marker → wasInitialized false) bootstraps exactly as before. An explicit operator
+// recovery (opts.bootstrapConsent === true) overrides the withhold and re-bootstraps. The marker
+// scheme is key-gated: with NO key, wasInitialized is ignored and unsigned TOFU is unchanged.
 //
 // Returns { trusted, withheld, manifest /* plain entries, mutated for TOFU */,
 //           signatureValid, signatureRequired, signed /* re-signed when a key is present */ }.
@@ -201,6 +253,28 @@ function checkIntegritySigned(items, signedManifest, key, opts = {}) {
   const baselineIsEmpty = !rawEntries || Object.keys(rawEntries).length === 0;
 
   if (key) {
+    // FRW-BL-072 — DELETION GATE. An EMPTY baseline normally means "first boot" (bootstrap). But
+    // if the off-boundary init marker says this store was ALREADY initialized, an empty baseline
+    // means the signed manifest was DELETED — a downgrade-to-bootstrap attack to re-TOFU poison.
+    // Refuse: withhold every present item; do NOT learn anything into a fresh baseline. An
+    // explicit operator recovery (bootstrapConsent) is the only way past this.
+    if (baselineIsEmpty && opts.wasInitialized === true && opts.bootstrapConsent !== true) {
+      const withheld = [];
+      for (const item of items || []) {
+        const kind = item.kind || 'memory';
+        withheld.push({
+          id: item.id, kind, recordedHash: null, currentHash: integrityHash(item.content),
+          reason: 'manifest-deleted',
+        });
+      }
+      return {
+        // Return an UNSIGNED empty envelope so the caller's persist logic does NOT overwrite the
+        // (deleted) signed manifest with a fresh bootstrap — preserving the deletion as evidence
+        // and keeping the store withheld until an operator re-approves with consent.
+        trusted: [], withheld, manifest: {}, signatureValid: false, signatureRequired: true,
+        signed: signManifest({}, null), manifestDeleted: true,
+      };
+    }
     const signatureValid = (hasEnvelope || !baselineIsEmpty)
       ? verifyManifest(incoming, key)
       : false;
@@ -252,4 +326,5 @@ function checkIntegritySigned(items, signedManifest, key, opts = {}) {
 module.exports = {
   integrityHash, wrapAsData, checkIntegrity, buildSafeInjection, defangMarkers, DATA_PREAMBLE,
   signManifest, verifyManifest, checkIntegritySigned, MANIFEST_VERSION, MANIFEST_ALG,
+  deriveInitMarker, verifyInitMarker, INIT_MARKER_MSG, INIT_MARKER_VERSION,
 };
