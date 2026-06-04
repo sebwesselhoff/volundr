@@ -1,5 +1,5 @@
 // Self-test for goal-evaluator.mjs (FRW-BL-036). Run: node scripts/goal-evaluator.test.mjs
-import { evaluateGoal } from './goal-evaluator.mjs';
+import { evaluateGoal, evaluateGoalAndNotify } from './goal-evaluator.mjs';
 
 let pass = 0, fail = 0;
 function ok(label, cond) { if (cond) { pass++; console.log(`  ✓ ${label}`); } else { fail++; console.log(`  ✗ ${label}`); } }
@@ -108,6 +108,36 @@ ok('failedCards:"2" → blocking names unknown failedCards', failedStr.blocking.
 // ── no-arg call does not throw and is NOT met (defaults are all "not done") ──────────────────────
 const empty = evaluateGoal();
 ok('evaluateGoal() with no args → not met, does not throw', empty.goalMet === false && empty.blocking.length >= 1);
+
+// ── evaluateGoalAndNotify: FRW-BL-063 ISC-3 project_complete emit site ───────────────────────────
+{
+  const makeNotify = () => { const calls = []; const fn = async (e, p, o) => { calls.push({ e, p, o }); return { fired: true }; }; fn.calls = calls; return fn; };
+
+  // goalMet → fires project_complete exactly once.
+  {
+    const notify = makeNotify();
+    const r = await evaluateGoalAndNotify(DONE, { notify, notifyOpts: { channels: ['terminal-bell'] } });
+    ok('evaluateGoalAndNotify: goalMet true preserved', r.goalMet === true);
+    ok('each-event-fires (project_complete): fired once with event+reason', notify.calls.length === 1 && notify.calls[0].e === 'project_complete' && /goal met/i.test(notify.calls[0].p.message));
+    ok('evaluateGoalAndNotify: notified true when dispatcher fires', r.notified === true);
+  }
+  // NOT met → NO notification.
+  {
+    const notify = makeNotify();
+    const r = await evaluateGoalAndNotify({ ...DONE, readyCardCount: 2 }, { notify, notifyOpts: { channels: ['terminal-bell'] } });
+    ok('evaluateGoalAndNotify: NOT met → no project_complete fired', r.goalMet === false && r.notified === false && notify.calls.length === 0);
+  }
+  // off-by-default real path: goalMet, no notify config → no throw, decision intact.
+  {
+    const r = await evaluateGoalAndNotify(DONE, { notifyOpts: { env: {} } });
+    ok('evaluateGoalAndNotify: off-by-default → goalMet intact, no throw', r.goalMet === true);
+  }
+  // throwing dispatcher swallowed.
+  {
+    const r = await evaluateGoalAndNotify(DONE, { notify: async () => { throw new Error('boom'); } });
+    ok('evaluateGoalAndNotify: throwing dispatcher swallowed', r.goalMet === true && r.notified === false);
+  }
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

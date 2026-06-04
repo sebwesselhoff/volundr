@@ -7,6 +7,7 @@ import {
   classifyError,
   nextFallback,
   createTokenLedger,
+  checkBudgetGate,
 } from './budget-controller.mjs';
 
 let pass = 0, fail = 0;
@@ -121,6 +122,44 @@ ok('overloaded precedence over 429 when both present', classifyError('429 overlo
   const rn = led2.record('C', -5);
   ok('negative usage coerced to 0 but still recorded once', rn.recorded === true && rn.value === 0 && led2.total() === 0);
   ok('re-record after a 0-usage card is still a duplicate', led2.record('C', 100).duplicate === true && led2.total() === 0);
+}
+
+// --- checkBudgetGate: FRW-BL-063 ISC-3 cost_gate_pause emit site --------------------------------
+{
+  // Recording dispatcher stands in for notify-event.notifyEvent.
+  const makeNotify = () => { const calls = []; const fn = async (e, p, o) => { calls.push({ e, p, o }); return { fired: true }; }; fn.calls = calls; return fn; };
+
+  // Under budget → no pause, no notification.
+  {
+    const notify = makeNotify();
+    const r = await checkBudgetGate({ scopeId: 'card-1', spentTokens: 100, limitTokens: 1000, notify });
+    ok('checkBudgetGate: under budget → not paused, not notified', r.paused === false && r.notified === false && notify.calls.length === 0);
+  }
+  // At/over token budget → PAUSE + fire cost_gate_pause.
+  {
+    const notify = makeNotify();
+    const r = await checkBudgetGate({ scopeId: 'card-1', spentTokens: 1000, limitTokens: 1000, notify, notifyOpts: { channels: ['terminal-bell'] } });
+    ok('checkBudgetGate: spent==limit → paused', r.paused === true && /token budget reached/.test(r.reason));
+    ok('each-event-fires (cost_gate_pause): notify called with event+payload', notify.calls.length === 1 && notify.calls[0].e === 'cost_gate_pause' && notify.calls[0].p.scopeId === 'card-1');
+    ok('checkBudgetGate: notified true when dispatcher fires', r.notified === true);
+  }
+  // USD ceiling tripped → pause + fire.
+  {
+    const notify = makeNotify();
+    const r = await checkBudgetGate({ scopeId: 'card-2', spentTokens: 0, limitTokens: 1e9, spentUsd: 12, ceilingUsd: 10, notify, notifyOpts: { channels: ['terminal-bell'] } });
+    ok('checkBudgetGate: USD ceiling reached → paused + cost_gate_pause fired', r.paused === true && /USD cost ceiling/.test(r.reason) && notify.calls.length === 1 && notify.calls[0].e === 'cost_gate_pause');
+  }
+  // Off-by-default real path: no notify injected, no config → never throws, no side effect (uses
+  // real notifyEvent which is OFF). The pure pause decision still holds.
+  {
+    const r = await checkBudgetGate({ scopeId: 'c', spentTokens: 5, limitTokens: 5, notifyOpts: { env: {} } });
+    ok('checkBudgetGate: off-by-default real path → paused decision holds, no throw', r.paused === true);
+  }
+  // A throwing dispatcher must never break the gate.
+  {
+    const r = await checkBudgetGate({ scopeId: 'c', spentTokens: 5, limitTokens: 5, notify: async () => { throw new Error('boom'); } });
+    ok('checkBudgetGate: throwing dispatcher swallowed (pause still returned)', r.paused === true && r.notified === false);
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
