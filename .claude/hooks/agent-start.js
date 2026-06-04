@@ -5,6 +5,7 @@
 const { apiGet, apiPatch, apiPost, readStdin, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
 const { updateHeartbeat } = require('./vldr-heartbeat');
+const { extractCardId } = require('./_cardid');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -263,8 +264,7 @@ async function main() {
         );
         if (member && member.prompt) {
           if (!preToolCardId) {
-            const cardMatch = member.prompt.match(/CARD-[A-Z0-9]+-\d{3}/);
-            if (cardMatch) preToolCardId = cardMatch[0];
+            preToolCardId = extractCardId(member.prompt);
           }
           if (!preToolPersonaId) {
             const personaMatch = member.prompt.match(/personaId[:\s]+["']?([a-z0-9-]+)["']?/i);
