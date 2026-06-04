@@ -4,6 +4,7 @@
 
 const { apiPatch, apiPost, apiGet, readStdin, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
+const { extractCardId } = require('./_cardid');
 const path = require('path');
 const log = createLogger('task-completed');
 
@@ -36,11 +37,12 @@ async function main() {
     return;
   }
 
-  // Try to extract card ID from task subject
-  const cardMatch = (input.task_subject || '').match(/^(CARD-[A-Z]+-\d+)/);
+  // Try to extract card ID from task subject (FRW-BL-073: shared multi-segment matcher — the
+  // leading id of "CARD-FRW-BL-073: title" / "FRW-BL-073: title" is the first match)
+  const subjectCardId = extractCardId(input.task_subject || '');
 
-  if (cardMatch) {
-    const cardId = cardMatch[1];
+  if (subjectCardId) {
+    const cardId = subjectCardId;
 
     // Dep check: verify all card deps are done before allowing completion
     const card = await apiGet(`/api/cards/${cardId}`);

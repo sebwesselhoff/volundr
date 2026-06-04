@@ -10,8 +10,13 @@ const { extractCardId } = require('./_cardid');
 
 // Verify the hooks import the shared module (pattern-drift guard).
 // If either require fails, the test crashes — which is itself a test failure.
-const preAgentToolSrc = require('fs').readFileSync(require('path').join(__dirname, 'pre-agent-tool.js'), 'utf8');
-const agentStartSrc = require('fs').readFileSync(require('path').join(__dirname, 'agent-start.js'), 'utf8');
+const readHook = (f) => require('fs').readFileSync(require('path').join(__dirname, f), 'utf8');
+const preAgentToolSrc = readHook('pre-agent-tool.js');
+const agentStartSrc = readHook('agent-start.js');
+// FRW-BL-073: the same shared matcher must back the remaining cardId-extracting hooks.
+const agentStopSrc = readHook('agent-stop.js');
+const enforceCardDepsSrc = readHook('enforce-card-deps.js');
+const taskCompletedSrc = readHook('task-completed.js');
 
 let pass = 0;
 let fail = 0;
@@ -48,6 +53,16 @@ ok('agent-start.js calls extractCardId', agentStartSrc.includes('extractCardId('
 // Confirm neither hook contains the old hardcoded regex pattern
 ok('pre-agent-tool.js does NOT contain old regex', !preAgentToolSrc.includes('CARD-[A-Z0-9]+-\\d{3}'));
 ok('agent-start.js does NOT contain old regex', !agentStartSrc.includes('CARD-[A-Z0-9]+-\\d{3}'));
+// FRW-BL-073: agent-stop.js + enforce-card-deps.js + task-completed.js now route through the shared matcher
+ok('agent-stop.js requires ./_cardid', agentStopSrc.includes("require('./_cardid')"));
+ok('agent-stop.js calls extractCardId', agentStopSrc.includes('extractCardId('));
+ok('agent-stop.js does NOT contain old regex', !agentStopSrc.includes('CARD-[A-Z0-9]+-\\d{3}'));
+ok('enforce-card-deps.js requires ./_cardid', enforceCardDepsSrc.includes("require('./_cardid')"));
+ok('enforce-card-deps.js calls extractCardId', enforceCardDepsSrc.includes('extractCardId('));
+ok('enforce-card-deps.js does NOT contain old single-segment regex', !enforceCardDepsSrc.includes('CARD-[A-Z]+-\\d+'));
+ok('task-completed.js requires ./_cardid', taskCompletedSrc.includes("require('./_cardid')"));
+ok('task-completed.js calls extractCardId', taskCompletedSrc.includes('extractCardId('));
+ok('task-completed.js does NOT contain old single-segment regex', !taskCompletedSrc.includes('CARD-[A-Z]+-\\d+'));
 
 // ---------------------------------------------------------------------------
 // 2. POSITIVE — multi-segment IDs extracted correctly from realistic prompts

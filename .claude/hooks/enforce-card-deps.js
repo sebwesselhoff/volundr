@@ -3,6 +3,7 @@
 
 const { readStdin, apiGet, apiPost, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
+const { extractCardId } = require('./_cardid');
 const log = createLogger('enforce-card-deps');
 
 async function main() {
@@ -29,11 +30,10 @@ async function main() {
     }
   }
 
-  // Try to extract a card ID from the prompt/description
-  const cardMatch = text.match(/CARD-[A-Z]+-\d+/);
-  if (!cardMatch) return; // No card ID found - allow spawn
-
-  const cardId = cardMatch[0];
+  // Try to extract a card ID from the prompt/description (FRW-BL-073: shared multi-segment matcher;
+  // standardizes on the 3-digit NNN convention so FRW-BL-NNN / CLR-FE-NNN / CARD-XX-NNN all match)
+  const cardId = extractCardId(text);
+  if (!cardId) return; // No card ID found - allow spawn
 
   // Check card deps
   const card = await apiGet(`/api/cards/${cardId}`);
