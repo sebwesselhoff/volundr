@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "volundr",
+  "version": "5.0.0",
+  "description": "Volundr - autonomous agent orchestration for Claude Code: PM/architect/orchestrator skills, full session-lifecycle hooks, and agent packs.",
+  "author": {
+    "name": "Sebastian Wesselhoff",
+    "email": "sebastian.wesselhoff@contica.se"
+  },
+  "homepage": "https://github.com/sebwesselhoff/volundr",
+  "repository": "https://github.com/sebwesselhoff/volundr",
+  "license": "MIT",
+  "keywords": ["orchestration", "agents", "autonomous", "project-management", "volundr"],
+  "skills": "./.claude/skills",
+  "commands": ["./.claude/commands"],
+  "hooks": "./hooks/hooks.json"
+}

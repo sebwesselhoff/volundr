@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-marketplace.json",
+  "name": "volundr",
+  "description": "Volundr framework marketplace - the Volundr plugin (skills, lifecycle hooks, agent packs) for Claude Code.",
+  "owner": {
+    "name": "Sebastian Wesselhoff",
+    "email": "sebastian.wesselhoff@contica.se"
+  },
+  "plugins": [
+    {
+      "name": "volundr",
+      "source": "./",
+      "description": "Autonomous agent orchestration for Claude Code (skills + lifecycle hooks + agent packs).",
+      "category": "orchestration",
+      "keywords": ["orchestration", "agents", "autonomous", "volundr"]
+    }
+  ]
+}

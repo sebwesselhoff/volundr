@@ -95,3 +95,9 @@ jobs:
 
       - name: Garden drift + size-cap lint (FRW-BL-067)
         run: node scripts/garden-lint.mjs
+
+      - name: Plugin manifest validation (FRW-BL-041)
+        run: node framework/plugin/validate-plugin.mjs
+
+      - name: Plugin validator self-test (FRW-BL-041)
+        run: node framework/plugin/validate-plugin.test.mjs
