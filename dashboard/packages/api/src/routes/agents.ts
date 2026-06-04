@@ -1,15 +1,20 @@
 import { Router } from 'express';
 import { getDb, schema } from '@vldr/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
 import { estimateCost, normalizeModel } from '@vldr/shared';
 import type { Agent } from '@vldr/shared';
 import { ApiError } from '../middleware/error-handler.js';
 import { broadcastToAll } from '../ws/broadcast.js';
+import { classifyLiveness, toEpochMs, type Liveness } from '../lib/liveness.js';
 
 const router = Router();
 
 // GET /projects/:projectId/agents — list agents (filter by status, type, cardId)
+// Each returned agent is annotated with a computed `liveness` ('working'|'idle'|'stalled')
+// derived from process/activity-mtime via classifyLiveness (FRW-BL-063 ISC-2). The activity
+// signal is the latest event timestamp for the agent (heartbeat-equivalent), falling back to
+// startedAt. Completed/failed agents are never 'stalled'.
 router.get('/projects/:projectId/agents', (req, res) => {
   const db = getDb();
   const rows = db.select().from(schema.agents).where(eq(schema.agents.projectId, req.params.projectId)).all();
@@ -25,7 +30,31 @@ router.get('/projects/:projectId/agents', (req, res) => {
   if (type) filtered = filtered.filter(a => a.type === type);
   if (cardId) filtered = filtered.filter(a => a.cardId === cardId);
 
-  res.json(filtered);
+  // Last-activity per agent = newest event timestamp for that agent (the heartbeat-equivalent
+  // signal). One grouped query; agents with no events fall back to startedAt inside classify.
+  const lastEventRows = db
+    .select({ agentId: schema.events.agentId, lastTs: sql<string>`max(${schema.events.timestamp})` })
+    .from(schema.events)
+    .where(eq(schema.events.projectId, req.params.projectId))
+    .groupBy(schema.events.agentId)
+    .all();
+  const lastEventByAgent = new Map<string, string>();
+  for (const r of lastEventRows) {
+    if (r.agentId && r.lastTs) lastEventByAgent.set(r.agentId, r.lastTs);
+  }
+
+  const now = Date.now();
+  const annotated = filtered.map((a) => {
+    const lastEventTs = lastEventByAgent.get(a.id);
+    const lastActivityMs = lastEventTs != null ? toEpochMs(lastEventTs) : null;
+    const liveness: Liveness = classifyLiveness(
+      { status: a.status, startedAt: a.startedAt, lastActivityMs },
+      now,
+    );
+    return { ...a, liveness };
+  });
+
+  res.json(annotated);
 });
 
 // GET /projects/:projectId/agents/tree — agent hierarchy as nested tree
