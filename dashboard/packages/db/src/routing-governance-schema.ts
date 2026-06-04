@@ -40,7 +40,7 @@ export const skills = sqliteTable('skills', {
   description: text('description').notNull(),
   domain: text('domain').notNull(),
   confidence: text('confidence').notNull().default('medium'), // low|medium|high
-  source: text('source').notNull().default('seed'),    // seed|earned|extracted|imported
+  source: text('source').notNull().default('seed'),    // provenance: seed|framework|earned|community (FRW-BL-061 index enum) — legacy: extracted|imported
   version: integer('version').notNull().default(1),
   validatedAt: text('validated_at').notNull().default(sql`(date('now'))`),
   reviewByDate: text('review_by_date').notNull().default(sql`(date('now', '+90 days'))`),
