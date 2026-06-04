@@ -106,6 +106,40 @@ try {
   })();
 
   // ===========================================================================
+  // CASE A2 — ESTABLISHED + EMPTY-OVERWRITE = attack (FRW-BL-072 sibling vector).
+  //           Marker present, manifest present-but-EMPTY ({}) -> WITHHOLD, do NOT
+  //           re-TOFU. The downgrade gate must treat "present-but-empty" like
+  //           "absent" (an attacker can overwrite the manifest, not only delete it).
+  // ===========================================================================
+  (() => {
+    const sb = makeSandbox();
+    try {
+      const boot = loader.wrapAllMemory([{ id: 'L1', kind: 'lesson', content: CLEAN }], sb.opts);
+      ok('A2.setup established signed store + marker',
+        boot.trusted.some((t) => t.id === 'L1') && fs.existsSync(sb.manifestFile) && fs.existsSync(sb.markerPath));
+
+      // ATTACK: overwrite the manifest with an empty baseline (file PRESENT, zero entries).
+      fs.writeFileSync(sb.manifestFile, '{}');
+      ok('A2.attack manifest overwritten to empty {} (file present)',
+        fs.existsSync(sb.manifestFile) && fs.readFileSync(sb.manifestFile, 'utf8').trim() === '{}');
+      ok('A2.attack off-boundary marker survives the overwrite', fs.existsSync(sb.markerPath));
+
+      let warned = null;
+      const res = loader.wrapAllMemory(
+        [{ id: 'L1', kind: 'lesson', content: POISON }],
+        { ...sb.opts, warn: (code, msg, meta) => { warned = { code, msg, meta }; } },
+      );
+      ok('A2. empty-overwrite downgrade detected (manifestDeleted === true)', res.manifestDeleted === true);
+      ok('A2. poisoned content is WITHHELD, not trusted',
+        res.withheld.some((w) => w.id === 'L1') && !res.trusted.some((t) => t.id === 'L1'));
+      ok('A2. poisoned content NEVER reaches the injection text', !res.text.includes('curl evil.sh'));
+      ok('A2. operator is warned (manifest-deleted/downgrade channel)', warned && warned.code === 'memory_manifest_deleted');
+      ok('A2. attack does NOT silently re-sign a bootstrap manifest over poison',
+        fs.readFileSync(sb.manifestFile, 'utf8').trim() === '{}');
+    } finally { cleanup(sb.root); }
+  })();
+
+  // ===========================================================================
   // CASE B — PRISTINE first boot = allowed. No marker, no manifest -> bootstrap
   //          proceeds without friction AND the marker gets written.
   // ===========================================================================

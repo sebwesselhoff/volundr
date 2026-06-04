@@ -172,21 +172,31 @@ function wrapAllMemory(items, opts = {}) {
   const ctx = resolveCtx(opts);
   const key = loadHmacKey(ctx);
 
-  // FRW-BL-072 — detect the manifest-DELETION downgrade. The marker scheme is KEY-GATED: with no
-  // key we leave unsigned-TOFU behaviour completely untouched (wasInitialized stays false).
+  // FRW-BL-072 — detect the manifest-DELETION (and empty-OVERWRITE) downgrade. The marker scheme is
+  // KEY-GATED: with no key we leave unsigned-TOFU behaviour completely untouched (wasInitialized
+  // stays false).
+  const onDisk = loadSignedManifest(ctx);
   let wasInitialized = false;
   if (key) {
     const manifestPresent = manifestExists(ctx);
-    if (!manifestPresent) {
-      // Manifest file is ABSENT. Consult the off-boundary marker: if it matches the key-derived
-      // token, this store WAS established → the manifest was deleted (attack). If absent/mismatch,
-      // treat as genuine first boot (and we will write the marker after a clean bootstrap below).
+    // An attacker with VLDR_HOME write access can downgrade EITHER by deleting the manifest OR by
+    // OVERWRITING it with an empty baseline (`{}` / `{entries:{}}`) — the file is then present but
+    // carries zero trusted entries, which would otherwise hit the same re-TOFU bootstrap path.
+    // Mirror checkIntegritySigned's envelope/bare-map handling so "present-but-empty" is treated
+    // identically to "absent".
+    const hasEnvelope = onDisk && typeof onDisk === 'object'
+      && ('sig' in onDisk || 'entries' in onDisk || 'alg' in onDisk || 'version' in onDisk);
+    const peekEntries = hasEnvelope ? (onDisk.entries || {}) : (onDisk || {});
+    const baselineIsEmpty = !peekEntries || Object.keys(peekEntries).length === 0;
+    if (!manifestPresent || baselineIsEmpty) {
+      // Manifest is ABSENT or its baseline is EMPTY. Consult the off-boundary marker: if it matches
+      // the key-derived token, this store WAS established → the manifest was deleted/emptied (attack).
+      // If absent/mismatch, treat as genuine first boot (we write the marker after a clean bootstrap).
       const storedMarker = loadInitMarker(ctx);
       wasInitialized = verifyInitMarker(storedMarker, key);
     }
   }
 
-  const onDisk = loadSignedManifest(ctx);
   const res = checkIntegritySigned(list, onDisk, key, { ...opts, wasInitialized });
 
   // Surface degrade / rejection state so the operator is never silently mis-served.
