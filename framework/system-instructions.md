@@ -214,6 +214,8 @@ Parallelism is controlled by:
 
 ## Git Strategy
 
+Reproducibility guardrails (forbidden settings, model pinning): see framework/guardrails.md.
+
 ### Branch per card
 ```
 main                          ← stable code only
