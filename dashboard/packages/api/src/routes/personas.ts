@@ -686,7 +686,11 @@ router.post('/personas/:id/extract-skills', (req, res) => {
           description: skill.description,
           domain: skill.domain,
           confidence: skill.confidence ?? 'medium',
-          source: 'extracted',
+          // FRW-BL-061 ISC4: persist the provenance computed by
+          // extractSkillsFromHistory (index-enum aligned: framework|earned|
+          // community) instead of the old hardcoded 'extracted'. Extraction
+          // yields 'earned'; fall back to 'earned' if a record lacks a source.
+          source: skill.source ?? 'earned',
           version: 1,
           validatedAt: skill.validatedAt ?? now.slice(0, 10),
           reviewByDate: skill.reviewByDate ?? now.slice(0, 10),

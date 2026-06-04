@@ -14,6 +14,7 @@ import { getDb, schema } from '@vldr/db';
 import { eq } from 'drizzle-orm';
 import { ApiError } from '../middleware/error-handler.js';
 import { broadcastToAll } from '../ws/broadcast.js';
+import { loadPacksIndex, filterIndexEntries, type PackIndex } from '../lib/packs-index.js';
 
 const router = Router();
 
@@ -116,7 +117,47 @@ router.post('/packs/install', (req, res) => {
   res.status(201).json(result);
 });
 
-// TODO(FRW-BL-061): dashboard browse/search reads framework/packs/index.json (validated skills/packs index w/ provenance) — add GET /api/packs/index + UI here.
+// GET /api/packs/index — browse/search the validated skills/packs index
+// (framework/packs/index.json). FRW-BL-061 ISC3.
+//
+// Query params (all optional, ANDed):
+//   ?category=domain   exact category match
+//   ?risk=high         exact risk match (low|medium|high)
+//   ?kind=skill        exact kind match (pack|skill)
+//   ?source=framework  exact provenance match (framework|earned|community)
+//   ?q=azure           free-text substring over id/category/source/description
+//
+// Response: { version, generated, total, count, entries }
+router.get('/packs/index', (req, res) => {
+  let index: PackIndex;
+  try {
+    index = loadPacksIndex();
+  } catch (err) {
+    throw new ApiError(
+      500,
+      err instanceof Error ? err.message : 'Failed to read packs index',
+    );
+  }
+
+  const pick = (v: unknown): string | undefined =>
+    typeof v === 'string' && v.length > 0 ? v : undefined;
+
+  const entries = filterIndexEntries(index.entries, {
+    category: pick(req.query.category),
+    risk: pick(req.query.risk),
+    kind: pick(req.query.kind),
+    source: pick(req.query.source),
+    q: pick(req.query.q),
+  });
+
+  res.json({
+    version: index.version,
+    generated: index.generated,
+    total: index.entries.length,
+    count: entries.length,
+    entries,
+  });
+});
 
 // GET /api/packs/installed/:projectId — list packs installed for a project
 // (proxied from events log — looks for 'Pack installed:' events)
