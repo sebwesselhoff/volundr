@@ -239,7 +239,15 @@ async function main() {
   //   "CLAUDE_CODE_TASK_LIST_ID": "{project-id}"
 
   // Register Volundr agent for the active project
-  // This replaces manual POST /api/agents calls in the boot sequence
+  // This replaces manual POST /api/agents calls in the boot sequence.
+  //
+  // FRW-BL-068: the registration POST MUST carry `sessionId: input.session_id` so the mother
+  // Volundr's CC session_id is persisted ON its agent row (agents.session_id, migration 018).
+  // agent-start.js then resolves a spawned subagent's parent by matching that row's session_id
+  // to the subagent's input.session_id — a CODE INVARIANT that is correct under concurrent
+  // sessions WITHOUT relying on the tmpdir session-<id> file or any LLM-followed boot step.
+  // (If the boot sequence / Volundr ever registers the mother via a different POST path, that
+  // path must include sessionId too; this hook is the canonical PROJECT_ID-set registration.)
   if (PROJECT_ID) {
     // Check if a running volundr agent already exists
     const existingAgents = await apiGet(`/api/projects/${PROJECT_ID}/agents?type=volundr&status=running`);
@@ -248,6 +256,8 @@ async function main() {
         projectId: PROJECT_ID,
         type: 'volundr',
         model: 'opus-4',
+        // FRW-BL-068: persist the mother session_id on the row for invariant parent attribution.
+        ...(input.session_id ? { sessionId: input.session_id } : {}),
         detail: 'Volundr orchestrator',
       });
       if (agent) {
@@ -257,7 +267,9 @@ async function main() {
         try {
           fs.mkdirSync(mapDir, { recursive: true });
           fs.writeFileSync(path.join(mapDir, 'volundr-lead'), agent.id);
-          // FRW-BL-029: session-keyed map → concurrent-session-safe parent resolution in agent-start.js
+          // FRW-BL-029 → demoted to FALLBACK by FRW-BL-068: the session-keyed tmpdir map is now
+          // only used when agents.session_id is NULL (legacy rows). The primary path is the
+          // sessionId persisted on the row by the POST above. Kept for back-compat / legacy rows.
           if (input.session_id) fs.writeFileSync(path.join(mapDir, `session-${input.session_id}`), agent.id);
         } catch (e) { /* ignore */ }
       }

@@ -54,6 +54,11 @@ export const agents = sqliteTable(
     cardId: text('card_id').references(() => cards.id, { onDelete: 'cascade' }),
     parentAgentId: text('parent_agent_id').references((): any => agents.id, { onDelete: 'cascade' }),
     personaId: text('persona_id'),
+    // FRW-BL-068: the MOTHER Volundr's CC session_id, stored on the volundr agent row so a
+    // spawned subagent can resolve its parent by matching input.session_id === agents.session_id.
+    // Makes concurrent-session parent attribution a CODE INVARIANT (no tmpdir map / boot step).
+    // Nullable for back-compat with rows created before migration 018.
+    sessionId: text('session_id'),
     type: text('type').notNull(),
     model: text('model').notNull(),
     status: text('status').notNull().default('running'),

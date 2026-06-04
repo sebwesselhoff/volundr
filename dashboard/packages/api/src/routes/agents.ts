@@ -100,13 +100,16 @@ router.get('/agents/:id', (req, res) => {
 // POST /agents — register agent spawn
 router.post('/agents', (req, res) => {
   try {
-    const { projectId, type, model, cardId, parentAgentId, personaId, detail } = req.body as {
+    const { projectId, type, model, cardId, parentAgentId, personaId, sessionId, detail } = req.body as {
       projectId?: string;
       type?: string;
       model?: string;
       cardId?: string;
       parentAgentId?: string;
       personaId?: string;
+      // FRW-BL-068: the mother Volundr's CC session_id, persisted on its agent row so a spawned
+      // subagent resolves its parent by sessionId match (concurrent-session-safe). Optional.
+      sessionId?: string;
       detail?: string;
     };
     if (!projectId || !type || !model) throw new ApiError(400, 'projectId, type, and model are required');
@@ -124,6 +127,7 @@ router.post('/agents', (req, res) => {
       ...(cardId != null ? { cardId } : {}),
       ...(parentAgentId != null ? { parentAgentId } : {}),
       ...(personaId != null ? { personaId } : {}),
+      ...(sessionId != null ? { sessionId } : {}),
       ...(detail != null ? { detail } : {}),
     }).run();
 

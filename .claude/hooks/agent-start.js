@@ -150,48 +150,56 @@ function emitAdditionalContext() {
   }
 }
 
-// Resolve the parent Volundr's DASHBOARD agent id for a spawning subagent (FRW-BL-029).
+// Resolve the parent Volundr's DASHBOARD agent id for a spawning subagent (FRW-BL-029 / FRW-BL-068).
 //
 // Background: `parent_agent_id` is NOT present in the SubagentStart hook input on
 // CLI 2.1.161 (verified live 2026-06-02 — it lives only in OTEL spans / the
 // x-claude-code-parent-agent-id header, not the hook stdin). The reliable signal is
 // `input.session_id`, which for an Agent-tool subagent equals the PARENT session's id.
-// The mother Volundr writes a `session-<session_id>` → dashboard-id mapping at
-// registration, so we resolve the parent by session.
+//
+// FRW-BL-068 (the INVARIANT fix): the mother Volundr's session_id is now persisted ON its
+// agent row (agents.session_id, migration 018). We therefore resolve the parent by matching
+// a running `volundr` agent whose row `sessionId === input.session_id`. This needs NO tmpdir
+// file and NO LLM-followed boot step, so it is correct even when two Volundr sessions run
+// concurrently and even when the boot-sequence file write is skipped. The old
+// `session-<session_id>` tmpdir map is DEMOTED to a fallback for legacy rows whose
+// session_id is still NULL (created before migration 018 ships on the next image rebuild).
 //
 // Scope + caveats (be precise — do NOT overclaim):
-//   * Agent-tool subagents: session-keyed resolution disambiguates two concurrent
-//     Volundr sessions, which the old `agents[0]`-of-running-volundr fallback could not.
-//   * Agent Teams TEAMMATES carry their OWN session_id (not the lead's), so they miss
-//     the session map and fall through to single-volundr / ambiguous — same as the old
-//     behaviour, i.e. no regression, but no improvement for teammates either.
-//   * The map must exist before the first spawn. session-start.js writes it on hot
-//     re-entry (PROJECT_ID already set at SessionStart); on a CLEAN boot the boot
-//     sequence (system-instructions Step 6) writes it after registering the mother.
-//     If that write is skipped AND two sessions run concurrently, path 4 falls back to
-//     best-effort agents[0] and logs `parent_ambiguous` (visible, not silent). The
-//     invariant fix — store session_id ON the agent row so resolution needs no file /
-//     boot step — requires a schema migration and is tracked as FRW-BL-068.
+//   * Agent-tool subagents: row-based resolution disambiguates two concurrent Volundr
+//     sessions, which the old `agents[0]`-of-running-volundr fallback could not.
+//   * Agent Teams TEAMMATES carry their OWN session_id (not the lead's), so they match
+//     neither a row nor the file map and fall through to single-volundr / ambiguous — same
+//     as before, i.e. no regression, but no improvement for teammates either.
 //
-// Resolution order:
+// Resolution order (row-based match wins — only the order changed vs FRW-BL-029):
 //   1. parent_agent_id (forward-compat — lights up automatically if a future CC
 //      version adds it to hook input) → its CLI→dashboard map file.
-//   2. session-<session_id> map → the mother Volundr's dashboard id.
-//   3. exactly one running Volundr → use it, and LEARN the session map for next time.
-//   4. multiple running Volundr, no session map → ambiguous; best-effort [0] + caller warns.
-//   5. none → null (register without parent).
+//   2. ROW MATCH: a running Volundr whose agents.session_id === input.session_id (FRW-BL-068).
+//   3. session-<session_id> tmpdir map → fallback for legacy NULL-session_id rows.
+//   4. exactly one running Volundr → use it, and LEARN the session map for next time.
+//   5. multiple running Volundr, no match/map → ambiguous; best-effort [0] + caller warns.
+//   6. none → null (register without parent).
 //
 // Pure + dependency-injected (readMap/writeMap/runningVolundr) so it is unit-testable
-// without fs or HTTP. Returns { id, source }.
+// without fs or HTTP. `runningVolundr` entries are dashboard agent rows; FRW-BL-068 reads
+// each row's `.sessionId`. Returns { id, source }.
 function resolveParentDashboardId(opts) {
   const { parentAgentId, sessionId, readMap, writeMap, runningVolundr = [] } = opts;
   if (parentAgentId && typeof readMap === 'function') {
     const mapped = readMap(parentAgentId);
     if (mapped) return { id: mapped, source: 'parent_agent_id' };
   }
+  // FRW-BL-068: prefer the row whose persisted session_id matches this spawn's session.
+  // This is the code invariant — independent of any tmpdir file or boot step.
+  if (sessionId) {
+    const rowMatch = runningVolundr.find((a) => a && a.sessionId === sessionId);
+    if (rowMatch) return { id: rowMatch.id, source: 'session-row' };
+  }
+  // Fallback: the legacy tmpdir session map (covers NULL-session_id rows from before migration 018).
   if (sessionId && typeof readMap === 'function') {
     const mapped = readMap(`session-${sessionId}`);
-    if (mapped) return { id: mapped, source: 'session' };
+    if (mapped) return { id: mapped, source: 'session-file' };
   }
   if (runningVolundr.length === 1) {
     if (sessionId && typeof writeMap === 'function') writeMap(`session-${sessionId}`, runningVolundr[0].id);
@@ -367,8 +375,11 @@ async function main() {
     log.warn('reactivation_failed', `Could not reactivate ${existingDashboardId} - creating fresh agent`);
   }
 
-  // Resolve parent agent ID (FRW-BL-029): prefer the session-keyed mother mapping over
-  // the legacy agents[0] guess so concurrent Volundr sessions don't mis-parent.
+  // Resolve parent agent ID (FRW-BL-029 / FRW-BL-068): prefer the running Volundr whose
+  // persisted agents.session_id matches this spawn's session_id (a code invariant — no
+  // tmpdir file / boot step), with the legacy session-<id> file map demoted to a fallback,
+  // so concurrent Volundr sessions don't mis-parent. The API rows carry `sessionId` (it is
+  // NULL for rows created before migration 018; those fall through to the file/heuristic).
   const runningVolundr = await apiGet(`/api/projects/${PROJECT_ID}/agents?type=volundr&status=running`) || [];
   const parentRes = resolveParentDashboardId({
     parentAgentId: input.parent_agent_id,
