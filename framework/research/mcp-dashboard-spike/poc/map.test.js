@@ -34,7 +34,7 @@ t('maps a valid call to PATCH /api/cards/:id with { status } body', () => {
 
 // 2. Trailing slash on apiUrl is normalised (no double slash).
 t('normalises a trailing slash on apiUrl', () => {
-  const req = mapUpdateCardStatus({ cardId: 'X-1', status: 'todo', apiUrl: 'http://host:3141/' });
+  const req = mapUpdateCardStatus({ cardId: 'X-1', status: 'in_progress', apiUrl: 'http://host:3141/' });
   assert.strictEqual(req.url, 'http://host:3141/api/cards/X-1');
 });
 
@@ -55,6 +55,19 @@ t('accepts every valid status', () => {
   for (const s of VALID_STATUSES) {
     const req = mapUpdateCardStatus({ cardId: 'C-1', status: s });
     assert.deepStrictEqual(req.body, { status: s });
+  }
+});
+
+// 4b. VALID_STATUSES is in lockstep with the canonical CardStatus enum (FRW-BL-040 review fix):
+//     no invented statuses ('todo'/'blocked'), and the real ones must be present.
+t('VALID_STATUSES matches the canonical CardStatus enum (no invented/missing)', () => {
+  const canonical = ['backlog', 'in_progress', 'review', 'testing', 'done', 'failed', 'skipped', 'partial'];
+  assert.deepStrictEqual([...VALID_STATUSES].sort(), [...canonical].sort());
+  for (const bogus of ['todo', 'blocked']) {
+    assert.throws(() => mapUpdateCardStatus({ cardId: 'C-1', status: bogus }), /must be one of/);
+  }
+  for (const real of ['testing', 'failed', 'skipped', 'partial']) {
+    assert.deepStrictEqual(mapUpdateCardStatus({ cardId: 'C-1', status: real }).body, { status: real });
   }
 });
 

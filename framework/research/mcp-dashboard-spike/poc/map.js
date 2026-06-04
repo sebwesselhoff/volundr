@@ -13,10 +13,11 @@
 
 'use strict';
 
-// The card statuses the dashboard recognises (mirrors the values the PATCH
-// route + UI use). The MCP tool surface should validate here so a bad status
-// never reaches the API as a silent no-op.
-const VALID_STATUSES = ['backlog', 'todo', 'in_progress', 'review', 'blocked', 'done'];
+// The card statuses the dashboard recognises — kept in lockstep with the canonical
+// CardStatus enum in dashboard/packages/shared/src/enums.ts (the PATCH route writes
+// status verbatim with no server-side enum check, so the MCP tool surface MUST validate
+// here, against the real enum, so a bad status never silently corrupts card state).
+const VALID_STATUSES = ['backlog', 'in_progress', 'review', 'testing', 'done', 'failed', 'skipped', 'partial'];
 
 const CARD_ID_RE = /^[A-Za-z0-9._-]+$/;
 
