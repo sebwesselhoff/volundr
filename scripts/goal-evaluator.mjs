@@ -28,6 +28,7 @@
  */
 
 import { detectCompletion } from './loop-controller.mjs';
+import { notifyEvent as defaultNotifyEvent } from './notify-event.mjs';
 
 /**
  * Resolve a "list of pending cards" value to either a non-negative integer count or the sentinel
@@ -141,6 +142,34 @@ export function evaluateGoal(state = {}) {
     : `goal NOT met — ${blocking.length} blocking condition(s): ${blocking.join('; ')}`;
 
   return { goalMet, reason, blocking };
+}
+
+/**
+ * Evaluate the goal AND, when it is MET, fire the `project_complete` notification (FRW-BL-063 ISC-3
+ * `project_complete` emit site). This is the authoritative single completion-decision point: the
+ * `/goal` loop's verdict function. We notify EXACTLY when goalMet flips true — `evaluateGoal` stays
+ * a PURE verdict; this async wrapper adds the guarded, OFF-BY-DEFAULT, never-throws notification.
+ *
+ * @param {object} state same shape as evaluateGoal's state.
+ * @param {object} [opts]
+ * @param {object} [opts.notifyOpts] forwarded to notifyEvent (config/channels/env/fetch/…).
+ * @param {(eventType: string, payload: object, opts: object) => Promise<any>} [opts.notify]
+ *        dispatcher (default notify-event.notifyEvent). Injectable for tests.
+ * @returns {Promise<{ goalMet: boolean, reason: string, blocking: string[], notified: boolean }>}
+ */
+export async function evaluateGoalAndNotify(state = {}, opts = {}) {
+  const verdict = evaluateGoal(state);
+  let notified = false;
+  if (verdict.goalMet) {
+    const notify = opts.notify ?? defaultNotifyEvent;
+    try {
+      const res = await notify('project_complete', { message: verdict.reason, ...(opts.payload || {}) }, opts.notifyOpts || {});
+      notified = !!(res && res.fired);
+    } catch {
+      /* notifyEvent never throws, but double-guard the completion path regardless. */
+    }
+  }
+  return { ...verdict, notified };
 }
 
 // Allow `node scripts/goal-evaluator.mjs` to print a quick self-demo of a met / not-met verdict.

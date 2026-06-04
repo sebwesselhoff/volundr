@@ -9,6 +9,32 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * Fire-and-forget operator notification from a CJS hook (FRW-BL-063 ISC-3 `build_gate_fail` emit
+ * site). notify-event.mjs is ESM; we cross the CJS→ESM boundary with a dynamic import() that is
+ * NEVER awaited and whose promise is fully swallowed (.then(...).catch(()=>{})). This guarantees
+ * the hook is NEVER blocked or crashed by the notifier, and respects off-by-default (no
+ * VLDR_NOTIFY config ⇒ notifyEvent does nothing). Exported so it can be unit-tested in isolation.
+ *
+ * @param {string} eventType e.g. 'build_gate_fail'
+ * @param {object} payload structured detail
+ * @param {object} [opts] forwarded to notifyEvent; `opts._import` overrides the dynamic import (tests)
+ * @returns {void} returns immediately — does not block the hook
+ */
+function fireNotify(eventType, payload, opts = {}) {
+  try {
+    const importer = opts._import || ((p) => import(p));
+    const modUrl = require('url').pathToFileURL(path.join(__dirname, '..', '..', 'scripts', 'notify-event.mjs')).href;
+    Promise.resolve(importer(modUrl))
+      .then((m) => (m && typeof m.notifyEvent === 'function' ? m.notifyEvent(eventType, payload, opts.notifyOpts || {}) : undefined))
+      .catch(() => {}); // ESM/CJS boundary + async failures NEVER surface
+  } catch {
+    // even constructing the import URL must not throw out of the hook
+  }
+}
+
+module.exports = { fireNotify };
+
 async function main() {
   const input = readStdin();
   if (!PROJECT_ID) return;
@@ -45,6 +71,14 @@ async function main() {
       projectId: PROJECT_ID,
       type: 'build_gate_failed',
       detail: `Build gate failed for ${input.teammate_name || 'teammate'}: ${stderr.slice(0, 100)}`,
+    });
+
+    // FRW-BL-063 ISC-3: fire the build_gate_fail operator notification (fire-and-forget, off by
+    // default, never blocks/throws — see fireNotify).
+    fireNotify('build_gate_fail', {
+      teammate: input.teammate_name || 'teammate',
+      projectId: PROJECT_ID,
+      message: `Build gate failed for ${input.teammate_name || 'teammate'}: ${stderr.slice(0, 100)}`,
     });
 
     log.warn('build_gate_failed', `Build gate failed for ${input.teammate_name || 'teammate'}`, { error: stderr });

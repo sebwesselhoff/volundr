@@ -31,7 +31,15 @@
  * source of truth for the names, but this module must not edit or import it (worktree has no TS
  * toolchain). Pure Node, NO external deps. Exported functions are pure / closure-based so they
  * unit-test without I/O. Self-test: scripts/budget-controller.test.mjs.
+ *
+ * NOTIFICATIONS (FRW-BL-063 ISC-3): the runtime budget gate is the REAL `cost_gate_pause` emit
+ * site. `checkBudgetGate` decides whether spend has hit a cap (a "pause" — the run must stop
+ * burning budget on this scope) and, when it has, best-effort fires `notifyEvent('cost_gate_pause',
+ * …)`. notifyEvent is OFF BY DEFAULT (no VLDR_NOTIFY config ⇒ no side effect) and NEVER throws, so
+ * the pure budget logic is never affected — the notification is purely additive.
  */
+
+import { notifyEvent as defaultNotifyEvent } from './notify-event.mjs';
 
 /**
  * DOWNGRADE order: highest-capability first, lowest last. The REVERSE of hierarchy-config.ts's
@@ -299,4 +307,61 @@ export function createTokenLedger() {
       return [...ledger.entries()];
     },
   };
+}
+
+/**
+ * Runtime cost-gate decision + notification (FRW-BL-063 ISC-3 `cost_gate_pause` emit site).
+ *
+ * Decides whether the run should PAUSE on a scope because spend has reached/exceeded its token
+ * budget OR an optional USD ceiling. When it decides to pause, it best-effort fires
+ * `notifyEvent('cost_gate_pause', …)`. The decision itself is PURE/deterministic; the notification
+ * is a guarded, never-throws, OFF-BY-DEFAULT side effect (no config ⇒ nothing dispatched).
+ *
+ * @param {object} args
+ * @param {string} [args.scopeId] the card / teammate id the budget applies to (for the payload).
+ * @param {number} args.spentTokens tokens spent on this scope.
+ * @param {number} args.limitTokens the token cap for this scope (pause iff spent >= limit).
+ * @param {number} [args.spentUsd] optional cumulative USD spend.
+ * @param {number|null} [args.ceilingUsd] optional USD ceiling (pause iff spentUsd >= ceiling).
+ * @param {object} [args.notifyOpts] forwarded to notifyEvent (config/channels/env/fetch/…).
+ * @param {(eventType: string, payload: object, opts: object) => Promise<any>} [args.notify]
+ *        dispatcher (default notify-event.notifyEvent). Injectable for tests.
+ * @returns {Promise<{paused: boolean, reason: string|null, notified: boolean}>}
+ */
+export async function checkBudgetGate({
+  scopeId = null,
+  spentTokens = 0,
+  limitTokens = Infinity,
+  spentUsd = 0,
+  ceilingUsd = null,
+  notifyOpts = {},
+  notify = defaultNotifyEvent,
+} = {}) {
+  let paused = false;
+  let reason = null;
+
+  if (Number.isFinite(limitTokens) && spentTokens >= limitTokens) {
+    paused = true;
+    reason = `token budget reached for ${scopeId ?? 'scope'} (${spentTokens} >= ${limitTokens})`;
+  } else if (ceilingUsd != null && Number.isFinite(ceilingUsd) && spentUsd >= ceilingUsd) {
+    paused = true;
+    reason = `USD cost ceiling reached for ${scopeId ?? 'scope'} ($${spentUsd} >= $${ceilingUsd})`;
+  }
+
+  if (!paused) return { paused: false, reason: null, notified: false };
+
+  // PAUSE decision point — fire the operator notification (best-effort, off-by-default, no throw).
+  let notified = false;
+  try {
+    const res = await notify(
+      'cost_gate_pause',
+      { scopeId, spentTokens, limitTokens, spentUsd, ceilingUsd, message: reason },
+      notifyOpts,
+    );
+    notified = !!(res && res.fired);
+  } catch {
+    /* notifyEvent already never throws, but double-guard the budget path regardless. */
+  }
+
+  return { paused: true, reason, notified };
 }

@@ -4,7 +4,30 @@
 
 const { apiPatch, apiPost, apiGet, readStdin, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
+const path = require('path');
 const log = createLogger('task-completed');
+
+/**
+ * Fire-and-forget operator notification from this CJS hook (FRW-BL-063 ISC-3). Crosses the CJS→ESM
+ * boundary via a dynamic import() that is NEVER awaited and fully swallowed, so the hook is never
+ * blocked/crashed; off-by-default is enforced by notifyEvent. Exported for unit testing.
+ * @param {string} eventType
+ * @param {object} payload
+ * @param {object} [opts] `opts._import` overrides the dynamic import (tests); `opts.notifyOpts` → notifyEvent
+ */
+function fireNotify(eventType, payload, opts = {}) {
+  try {
+    const importer = opts._import || ((p) => import(p));
+    const modUrl = require('url').pathToFileURL(path.join(__dirname, '..', '..', 'scripts', 'notify-event.mjs')).href;
+    Promise.resolve(importer(modUrl))
+      .then((m) => (m && typeof m.notifyEvent === 'function' ? m.notifyEvent(eventType, payload, opts.notifyOpts || {}) : undefined))
+      .catch(() => {});
+  } catch {
+    /* never throw out of the hook */
+  }
+}
+
+module.exports = { fireNotify };
 
 async function main() {
   const input = readStdin();
@@ -37,6 +60,14 @@ async function main() {
     // Per-card build gate events aren't always available — teammate-idle hook logs them without cardId
     const events = await apiGet(`/api/projects/${PROJECT_ID}/events?type=build_gate_passed&limit=1`);
     if (!events || events.length === 0) {
+      // FRW-BL-063 ISC-3: build gate not satisfied for this card → fire build_gate_fail
+      // (fire-and-forget, off by default, never blocks/throws).
+      fireNotify('build_gate_fail', {
+        cardId,
+        projectId: PROJECT_ID,
+        teammate: input.teammate_name || 'agent',
+        message: `Build gate not satisfied for ${cardId}: no build_gate_passed event found`,
+      });
       process.stderr.write(`Build gate: No build_gate_passed event found for project. Run build gate first.\n`);
       process.exit(2);
     }
