@@ -48,7 +48,10 @@ Volundr is an autonomous PM, architect, and orchestrator that runs inside Claude
 - **Persona Builder** — Create custom personas from the dashboard with expertise tags, traits, and role selection
 - **Pack System** — Installable bundles of agent configurations and persona seeds
 - **Cross-Project Memory** — Lessons, patterns, and extracted skills persist across projects
-- **13 Lifecycle Hooks** — Session start/stop, agent spawn/complete, task completion, worktree management
+- **Lifecycle hooks across 17 Claude Code events** — Session start/stop, tool use, agent spawn/complete, task completion, worktree management, compaction, and more, plus a statusLine HUD
+- **Installable as a Claude Code Plugin** — Add the marketplace and install to ship the `vldr-*` skills, lifecycle hooks, and packs into any session (additive and non-destructive)
+- **Autonomous-Run Safety** — Circuit breaker on repeated failure signatures, risk-gating for destructive/deploy actions, graceful degradation (a card that exhausts retries becomes `partial`, not failed), and budget-aware model-tier downgrade
+- **Memory-Injection Defense** — All model-loaded memory (lessons, journal, summaries) is wrapped as untrusted data and gated by an HMAC-SHA256-signed integrity manifest; tampered memory is withheld, never obeyed
 - **Cost Tracking** — Per-card, per-agent, per-session token usage and dollar cost with budget gating
 
 ---
@@ -133,6 +136,8 @@ Create your own via the dashboard's **Persona Builder** or install persona packs
 
 ## Quick Start
 
+### Option 1 — Clone the dev repo (primary)
+
 ```bash
 git clone https://github.com/sebwesselhoff/volundr.git
 cd volundr
@@ -156,18 +161,38 @@ That's it. Volundr activates, checks the dashboard, and starts a discovery inter
 
 > To start Claude manually instead: `claude` from the volundr directory, then type "Wake up!". Add `--dangerously-skip-permissions` for fully autonomous operation.
 
-> **[Full getting started guide →](https://github.com/sebwesselhoff/volundr/wiki/Getting-Started)**
+### Option 2 — Install as a Claude Code plugin
+
+```bash
+claude plugin marketplace add sebwesselhoff/volundr
+claude plugin install volundr@volundr
+```
+
+After install, start a session and say "wake up" — or run `/volundr:vldr-boot`. The `vldr-boot` skill locates and loads `framework/system-instructions.md` and runs the boot sequence (a plugin install has no project `CLAUDE.md`, so the skill is what loads the "brain"). The plugin ships the `vldr-*` skills, the lifecycle hooks, and the packs; it is additive and non-destructive. The Forge dashboard still runs via Docker.
+
+> **Do not install the plugin into the Volundr dev repo itself** — the repo's `settings.json` hooks and the plugin hooks would both fire (double-fire).
+
+> **[Installing as a Plugin](https://github.com/sebwesselhoff/volundr/wiki/Installing-as-a-Plugin)** · **[Full getting started guide →](https://github.com/sebwesselhoff/volundr/wiki/Getting-Started)**
 
 ---
 
 ## Commands
 
+Eleven `vldr-*` skills ship with the framework. When installed as a plugin they are namespaced as `volundr:<skill>`.
+
 | Command | Description |
 |---------|-------------|
+| `/vldr-boot` | Load the brain (`framework/system-instructions.md`) and run the boot sequence |
+| `/vldr-doctor` | Validate setup — checks Docker, dashboard, VLDR_HOME, registry, DB, Git, Node, Claude Code version, hooks |
+| `/vldr-journal` | Log a journal entry (decision, insight, blocker, pivot, feedback, milestone) |
 | `/vldr-shutdown` | Graceful shutdown — saves WIP, session summary, self-review, lessons, checkpoint |
-| `/vldr-journal <type> <entry>` | Log a journal entry (decision, insight, blocker, pivot, feedback, milestone) |
-| `/vldr-doctor` | Validate setup — checks Docker, dashboard, DB, Git, Node, hooks |
-| `/vldr-pack install <name>` | Install an agent pack with persona seeds |
+| `/vldr-pack` | Pack management — install, list, and inspect agent packs |
+| `/vldr-verify` | Evidence-before-completion gate — run a fresh command, capture output and exit code |
+| `/vldr-route` | Test routing rules — match a work description and show tier selection |
+| `/vldr-economy` | Toggle or check economy mode — downgrade agent models to reduce cost |
+| `/vldr-directive` | Manage governance directives — list, add, suppress, or supersede |
+| `/vldr-status` | Show project status |
+| `/vldr-compact` | State-preserving compaction |
 
 ---
 
@@ -177,15 +202,17 @@ That's it. Volundr activates, checks the dashboard, and starts a discovery inter
 volundr/                          (this repo)
 ├── framework/
 │   ├── system-instructions.md        Volundr's operating manual
-│   ├── packs/                        8 agent packs with persona seeds
-│   │   ├── core/                       Baldr, Týr, Hermóðr, Saga
-│   │   ├── frontend/                   Iðunn, Höðr, Freyja
-│   │   ├── infrastructure/             Brokkr, Skaði, Rán
-│   │   ├── security/                   Víðarr, Heimdall
-│   │   ├── testing/                    Forseti, Magni
-│   │   ├── research/                   Muninn, Skuld, Mímir
-│   │   ├── languages/                  Sigyn, Eitri, Sleipnir, Huginn
-│   │   └── roundtable/                 Debate voices
+│   ├── packs/                        10 agent packs with persona seeds
+│   │   ├── azure/                       Azure specialists
+│   │   ├── core/                        Baldr, Týr, Hermóðr, Saga (always loaded)
+│   │   ├── frontend/                    Iðunn, Höðr, Freyja
+│   │   ├── infrastructure/              Brokkr, Skaði, Rán
+│   │   ├── languages/                   Sigyn, Eitri, Sleipnir, Huginn
+│   │   ├── quality/                     Quality gates + reviewers (always loaded)
+│   │   ├── research/                    Muninn, Skuld, Mímir
+│   │   ├── roundtable/                  Debate voices
+│   │   ├── security/                    Víðarr, Heimdall
+│   │   └── testing/                     Forseti, Magni
 │   ├── quality.md                    Scoring rubric + blind reviewer
 │   └── agents/                       Registry, traits, team patterns
 ├── dashboard/                        The Forge (Turborepo monorepo)
@@ -194,7 +221,7 @@ volundr/                          (this repo)
 │   ├── packages/db/                    Drizzle ORM + SQLite
 │   ├── packages/sdk/                   TypeScript SDK
 │   └── packages/shared/                Types, enums, constants
-├── .claude/hooks/                    13 lifecycle hooks
+├── .claude/hooks/                    Lifecycle hooks across 17 Claude Code events
 └── start.bat / start.sh              One-click launchers
 
 ~/.volundr/                           (user data, private)
