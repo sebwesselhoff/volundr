@@ -2,7 +2,7 @@
 
 Auto-detected environment info shared across all projects. Refreshed if older than 7 days.
 
-**Last refresh:** 2026-05-15 (CARD-000 for co-azure-audit)
+**Last refresh:** 2026-06-11 (boot for ata-mcp)
 
 ---
 
@@ -12,18 +12,19 @@ Auto-detected environment info shared across all projects. Refreshed if older th
 - **Shell:** PowerShell 7+ (pwsh) primary; Bash available via Bash tool
 - **Node.js:** v24.4.1
 - **npm:** 11.4.2
-- **TypeScript:** 5.9.3 (global via npx)
-- **Claude Code CLI:** 2.1.161 (min supported **2.1.120** — see `framework/cc-version-baseline.md`)
+- **TypeScript:** per-project devDependency (no global tsc; run via the project's `npx tsc`/`npm` scripts)
+- **Claude Code CLI:** 2.1.173 (min supported **2.1.120** — see `framework/cc-version-baseline.md`)
 
 ## Azure tooling
 
-- **Azure CLI:** 2.76.0 (2 updates available; non-blocking)
-- **GitHub Copilot CLI:** 1.0.48
+- **Azure CLI:** 2.87.0
+- **GitHub Copilot CLI:** 1.0.61
 - On Windows: `az` resolves to `az.cmd`; `copilot` resolves to `copilot.cmd`. Subprocess
   spawners must use the `.cmd` form.
 
 ## Git
 
+- **Version:** git 2.54.0.windows.1
 - **User:** Sebastian Wesselhoff <sebastian.wesselhoff@contica.se>
 - **Long path support:** required on Windows for deep `node_modules` trees;
   set `git config --global core.longpaths true` if not already.
