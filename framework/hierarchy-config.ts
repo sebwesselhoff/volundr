@@ -56,8 +56,12 @@ export const MODEL_TIERS = {
     opus: 'opus',
   } as const,
 
-  // Default model per role
+  // Default model per role (single source of truth — model-resolution.ts derives from this).
   roles: {
+    // The volundr lead/orchestrator tier. The LIVE main-session model is set by Claude Code, not
+    // resolved here; this entry is the canonical tier used for economy/cost accounting and is never
+    // downgraded (see model-resolution.ts NON_DOWNGRADABLE_ROLES).
+    'volundr': 'opus',
     'developer': 'sonnet',
     'architect': 'sonnet',
     'qa-engineer': 'sonnet',
