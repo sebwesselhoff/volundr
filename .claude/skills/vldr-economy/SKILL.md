@@ -9,9 +9,9 @@ disallowed-tools: Write, Edit
 # Volundr Economy Mode
 
 Economy mode reduces cost by downgrading non-critical agent models. When enabled:
-- `volundr` stays on `claude-opus-4-6` (always full model)
-- `architect` stays on `claude-sonnet-4-6`
-- All other agents (developer, qa, reviewer, guardian, researcher, etc.) downgrade to `claude-haiku-4-5-20251001`
+- `volundr` stays on `claude-opus-4-8` (always full model)
+- `architect` stays on `claude-sonnet-5`
+- All other agents (developer, qa, reviewer, guardian, researcher, etc.) downgrade to `claude-haiku-4-5`
 
 ## Current State
 
@@ -34,13 +34,13 @@ Economy mode reduces cost by downgrading non-critical agent models. When enabled
 
 | Agent type | Normal model | Economy model |
 |---|---|---|
-| volundr | claude-opus-4-6 | claude-opus-4-6 (unchanged) |
-| architect | claude-opus-4-6 | claude-sonnet-4-6 |
-| developer | claude-sonnet-4-6 | claude-haiku-4-5-20251001 |
-| qa-engineer | claude-sonnet-4-6 | claude-haiku-4-5-20251001 |
-| reviewer | claude-sonnet-4-6 | claude-haiku-4-5-20251001 |
-| guardian | claude-sonnet-4-6 | claude-haiku-4-5-20251001 |
-| researcher | claude-sonnet-4-6 | claude-haiku-4-5-20251001 |
-| content | claude-sonnet-4-6 | claude-haiku-4-5-20251001 |
-| fixer | claude-sonnet-4-6 | claude-haiku-4-5-20251001 |
-| planner | claude-sonnet-4-6 | claude-haiku-4-5-20251001 |
+| volundr | claude-opus-4-8 | claude-opus-4-8 (unchanged) |
+| architect | claude-opus-4-8 | claude-sonnet-5 |
+| developer | claude-sonnet-5 | claude-haiku-4-5 |
+| qa-engineer | claude-sonnet-5 | claude-haiku-4-5 |
+| reviewer | claude-sonnet-5 | claude-haiku-4-5 |
+| guardian | claude-sonnet-5 | claude-haiku-4-5 |
+| researcher | claude-sonnet-5 | claude-haiku-4-5 |
+| content | claude-sonnet-5 | claude-haiku-4-5 |
+| fixer | claude-sonnet-5 | claude-haiku-4-5 |
+| planner | claude-sonnet-5 | claude-haiku-4-5 |

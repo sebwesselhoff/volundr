@@ -35,11 +35,13 @@ Volundr pins model aliases via environment variables in `.claude/settings.json` 
 | Alias env var | Pinned model ID | Role |
 |---|---|---|
 | `ANTHROPIC_DEFAULT_OPUS_MODEL` | `claude-opus-4-8` | High-capability tasks (architecture, planning, adversarial review) |
-| `ANTHROPIC_DEFAULT_SONNET_MODEL` | `claude-sonnet-4-6` | Standard developer and orchestrator tasks |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL` | `claude-sonnet-5` | Standard developer and orchestrator tasks |
 
 **When to update:** Update both values here AND in `.claude/settings.json` when the project intentionally moves to a new model family. Never change them mid-sprint — mid-sprint model swaps cause non-reproducible behaviour across cards already in flight.
 
 **How they are consumed:** Any Volundr SDK call or framework script that spawns agents uses these env vars as defaults. Pinning them ensures that a session started today and a session started next week call identical model endpoints, all else being equal.
+
+**Runtime effect requires a restart:** these env vars are read at Claude Code boot (SessionStart), so editing a value here only takes effect on the **next session restart** — it does not re-tier agents already running in the current session. This is also why a family bump must land at a clean boundary (no cards in flight), never mid-sprint.
 
 ---
 
@@ -50,4 +52,4 @@ Volundr pins model aliases via environment variables in `.claude/settings.json` 
 | `worktree.bgIsolation` | MUST NOT be `none` |
 | `worktree.baseRef` | `head` — required if using native-CC worktree delegation |
 | `ANTHROPIC_DEFAULT_OPUS_MODEL` | `claude-opus-4-8` (update on intentional family bump) |
-| `ANTHROPIC_DEFAULT_SONNET_MODEL` | `claude-sonnet-4-6` (update on intentional family bump) |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL` | `claude-sonnet-5` (update on intentional family bump) |

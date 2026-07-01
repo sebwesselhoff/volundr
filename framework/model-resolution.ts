@@ -7,9 +7,9 @@
 
 /** Model downgrades applied in economy mode */
 const ECONOMY_DOWNGRADES: Record<string, string> = {
-  'claude-opus-4-6': 'claude-sonnet-4-6',
-  'claude-sonnet-4-6': 'claude-haiku-4-5-20251001',
-  'claude-haiku-4-5-20251001': 'claude-haiku-4-5-20251001', // floor
+  'claude-opus-4-8': 'claude-sonnet-5',
+  'claude-sonnet-5': 'claude-haiku-4-5',
+  'claude-haiku-4-5': 'claude-haiku-4-5', // floor
   // Legacy aliases
   'opus-4': 'sonnet-4',
   'sonnet-4': 'haiku-4',
@@ -39,18 +39,18 @@ export function resolveModel(
 
 /** Default models per agent type (normal mode) */
 export const DEFAULT_MODELS: Record<string, string> = {
-  volundr: 'claude-opus-4-6',
-  architect: 'claude-opus-4-6',
-  developer: 'claude-sonnet-4-6',
-  'qa-engineer': 'claude-sonnet-4-6',
-  'devops-engineer': 'claude-sonnet-4-6',
-  designer: 'claude-sonnet-4-6',
-  reviewer: 'claude-sonnet-4-6',
-  guardian: 'claude-sonnet-4-6',
-  researcher: 'claude-sonnet-4-6',
-  content: 'claude-sonnet-4-6',
-  fixer: 'claude-sonnet-4-6',
-  planner: 'claude-sonnet-4-6',
+  volundr: 'claude-opus-4-8',
+  architect: 'claude-opus-4-8',
+  developer: 'claude-sonnet-5',
+  'qa-engineer': 'claude-sonnet-5',
+  'devops-engineer': 'claude-sonnet-5',
+  designer: 'claude-sonnet-5',
+  reviewer: 'claude-sonnet-5',
+  guardian: 'claude-sonnet-5',
+  researcher: 'claude-sonnet-5',
+  content: 'claude-sonnet-5',
+  fixer: 'claude-sonnet-5',
+  planner: 'claude-sonnet-5',
 };
 
 /**
@@ -61,6 +61,6 @@ export function resolveModelForAgentType(
   economyMode: boolean,
   explicitOverride?: string,
 ): string {
-  const base = DEFAULT_MODELS[agentType] ?? 'claude-sonnet-4-6';
+  const base = DEFAULT_MODELS[agentType] ?? 'claude-sonnet-5';
   return resolveModel(base, economyMode, explicitOverride);
 }
