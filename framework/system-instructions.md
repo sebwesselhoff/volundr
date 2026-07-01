@@ -1297,6 +1297,57 @@ injection** — `injectCard(roundState, card)` returns a NEW state with the disc
 `roundBoundaryPreserved(state) === !hasDynamicWork(state)` holds: with no idle-target / discovered /
 blocker work, normal round-boundary semantics are completely unchanged.
 
+## Workflow-Tool Model Tiering (FRW-BL-075)
+
+The **Workflow tool**'s `agent(prompt, opts)` call, authored **without** `opts.model`, does **not**
+inherit the main-loop (session) model the way the tool docs imply — empirically it resolves to
+**Haiku** for every workflow subagent. Left unmanaged this silently runs synthesis, judging, and
+review roles on the cheapest tier, and makes strict structured-output schemas fail-and-retry.
+`framework/workflow-model.mjs` is the tested, canonical role-to-model map (mirroring
+`hierarchy-config.ts` MODEL_TIERS: `haiku < sonnet < opus`); this section is the authoring rule it
+backs.
+
+> **Scope:** this governs the **Workflow-authoring path only**. It does NOT change Volundr's
+> registry-driven teammate/subagent tiering (FRW-BL-031 / MODEL_TIERS), and it leaves the built-in
+> `Explore` agent on Haiku (locate-only breadth search is correctly cheap).
+
+**Role to model map (with rationale):**
+
+| Tier | Roles | Why |
+|------|-------|-----|
+| `haiku` | locate, extract, search, format, classify, dedupe, count | Mechanical, no judgment — the cheapest tier is correct. |
+| `sonnet` | comprehension-reader, read, implement/implementation, transform, review, verify, test, research | Standard comprehension / build / check work. |
+| `opus` | synthesis, architecture, design, plan, judge, critic, high-risk-review | Deep judgment, cross-cutting design, adversarial review. |
+
+**Rules when authoring a workflow:**
+
+1. **Never let a judgment role default to Haiku.** Any synthesis / critic / judge / architecture /
+   implementation / review agent MUST pass an explicit `opts.model`. Only pure locate/extract/format
+   agents may omit it — and even then prefer passing `model: 'haiku'` explicitly so the tier is
+   intentional, not accidental.
+2. **Resolve by role, not by feel.** The canonical map lives in `framework/workflow-model.mjs`
+   (`resolveWorkflowModel(role)` returns the tier; `workflowModelOpts(role, {...})` returns a
+   ready-to-spread `{ model, label }`). Because workflow scripts run sandboxed with **no module
+   import**, mirror the tiny map inline at the top of the script:
+   ```js
+   // FRW-BL-075: never let a judgment role default to Haiku.
+   // (abridged — full alias list is in framework/workflow-model.mjs WORKFLOW_ROLE_TIERS)
+   const M = { locate:'haiku', extract:'haiku', read:'sonnet', implement:'sonnet',
+               review:'sonnet', synthesis:'opus', architecture:'opus', judge:'opus' }
+   await agent(prompt, { model: M.synthesis, label: `synthesis:${M.synthesis}` })
+   ```
+3. **Make the tier observable (ISC-3).** Label every agent with its resolved model — e.g.
+   ``label: `synthesis:${M.synthesis}` `` renders `synthesis:opus` in `/workflows`, so a silent
+   Haiku default is visible at a glance. `workflowModelOpts()` does this automatically;
+   `log(describeResolution(role))` puts it in the narrator stream instead.
+4. **Strict structured-output schemas need `sonnet`+ (ISC-4).** A strict schema
+   (`additionalProperties:false` plus many `required` fields) triggers repeated schema-validation
+   retries on Haiku (observed roughly 5x wall-clock). If a stage passes a `schema`, target `sonnet`
+   or higher, or relax the schema for a Haiku-tier stage. `resolveWorkflowModel(role, { strictSchema:
+   true })` floors the result at `sonnet` for exactly this reason.
+
+The canonical map + resolver are self-tested: `node framework/workflow-model.test.mjs`.
+
 ---
 
 ## Communication
