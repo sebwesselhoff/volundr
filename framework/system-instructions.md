@@ -1105,7 +1105,8 @@ For each round of execution:
         **Model/effort resolution (FRW-BL-031):** the selected model is passed as the Agent tool's
         `model` param (the real `--model` for subagents) / `CLAUDE_CODE_SUBAGENT_MODEL` for teammates;
         effort via `CLAUDE_CODE_EFFORT_LEVEL`. Economy mode (`vldr-economy`) DOWNGRADES that selection
-        (e.g. → haiku/sonnet) and a "Use Opus for {X}" escalation UPGRADES it — both by changing the
+        **one tier** (opus→sonnet→haiku, floored at haiku; the `volundr` lead is exempt), and a
+        "Use Opus for {X}" escalation UPGRADES it — both by changing the
         model param Volundr passes, not a post-hoc edit. `pre-agent-tool.js` captures that param and
         `agent-start.js` registers it at spawn, so the dashboard shows the real model immediately.
      d. Select traits: card signals + project constraints + steering rules + registry `defaultTraits`

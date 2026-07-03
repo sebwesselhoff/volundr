@@ -13,7 +13,7 @@ Economy mode reduces cost by downgrading spawned agents **one tier** (`opus` →
 - Every other spawned role steps down one tier (e.g. a `sonnet` role → `haiku`).
 - Roles already at the `haiku` floor (`fixer`, `content`) are unchanged.
 
-Tiers are shown as **aliases** (`opus`/`sonnet`/`haiku`). Each alias resolves to a concrete model outside this doc: `opus` and `sonnet` are pinned in `.claude/settings.json` via `ANTHROPIC_DEFAULT_OPUS_MODEL` / `ANTHROPIC_DEFAULT_SONNET_MODEL` (see `framework/guardrails.md` ISC-3); `haiku` uses Claude Code's built-in default. Role→tier is the single source of truth in `framework/hierarchy-config.ts` `MODEL_TIERS`; this doc is derived from it and `model-resolution.ts`, so it never needs a model-version edit.
+Tiers are shown as **aliases** (`opus`/`sonnet`/`haiku`). Each alias resolves to a concrete model outside this doc: `opus` and `sonnet` are pinned in `.claude/settings.json` via `ANTHROPIC_DEFAULT_OPUS_MODEL` / `ANTHROPIC_DEFAULT_SONNET_MODEL` (see `framework/guardrails.md` ISC-3); `haiku` uses Claude Code's built-in default. Role→tier is the single source of truth in `framework/hierarchy-config.ts` `MODEL_TIERS`; this doc is derived from it, so it never needs a model-version edit.
 
 ## Current State
 

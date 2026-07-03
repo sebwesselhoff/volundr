@@ -56,11 +56,13 @@ export const MODEL_TIERS = {
     opus: 'opus',
   } as const,
 
-  // Default model per role (single source of truth — model-resolution.ts derives from this).
+  // Default model per role — the single source of truth for tiering. Economy downgrade and explicit
+  // overrides are applied by Volundr when it selects each spawn model (see the vldr-economy skill and
+  // system-instructions.md § model selection), not by a separate resolver module.
   roles: {
     // The volundr lead/orchestrator tier. The LIVE main-session model is set by Claude Code, not
     // resolved here; this entry is the canonical tier used for economy/cost accounting and is never
-    // downgraded (see model-resolution.ts NON_DOWNGRADABLE_ROLES).
+    // downgraded in economy mode (the volundr lead is always full).
     'volundr': 'opus',
     'developer': 'sonnet',
     'architect': 'sonnet',
