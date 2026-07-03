@@ -1058,7 +1058,7 @@ ISC is enforced by the API - cards cannot transition to `done` without all crite
 
 **Assess hierarchy level and build agent roster (registry-driven):**
   - Read `framework/agents/registry.ts` for agent types, routing rules, model tiers, and default traits
-  - Read `framework/hierarchy-config.ts` for thresholds and MODEL_TIERS
+  - Read `framework/hierarchy-config.ts` for thresholds and MODEL_TIERS (see `framework/model-tiering.md` for how the model-selection surfaces relate)
   - Consult registry for ALL spawn decisions - registry is the single source of truth
   - Check if project has hierarchy override in `VLDR_HOME/projects/{id}/constraints.md` under `## Hierarchy Config`
   - If no override, use DEFAULT_HIERARCHY_CONFIG
