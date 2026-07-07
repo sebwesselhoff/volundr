@@ -6,7 +6,10 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" }
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
   "scripts": {
     "build": "tsc",
@@ -15,7 +18,7 @@
   },
   "dependencies": {
     "@vldr/shared": "*",
-    "ws": "^8"
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/ws": "^8",
