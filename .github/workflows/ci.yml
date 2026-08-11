@@ -99,5 +99,57 @@ jobs:
       - name: Plugin manifest validation (FRW-BL-041)
         run: node framework/plugin/validate-plugin.mjs
 
-      - name: Plugin validator self-test (FRW-BL-041)
-        run: node framework/plugin/validate-plugin.test.mjs
+  calibration:
+    name: Judge calibration drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # FRW-BL-087: the judge prompt is a versioned artifact. --check fails on metric drift
+      # beyond threshold AND on a prompt whose sha256 no longer matches the recordings, so an
+      # edit to card-reviewer.md cannot silently invalidate the calibration corpus.
+      - name: Judge calibration drift gate (FRW-BL-087)
+        run: node scripts/judge-calibration.mjs --check
+
+  selftest:
+    name: Framework self-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # FRW-BL-081: discover and run EVERY self-test. These are dependency-free
+      # by design and self-report via exit code. Do NOT narrow this glob to make
+      # the job green — a failing self-test is a finding, not a glob problem.
+      - name: Run all framework self-tests
+        run: |
+          set -uo pipefail
+          fail=0
+          count=0
+          while IFS= read -r t; do
+            count=$((count + 1))
+            echo "::group::$t"
+            if node "$t"; then
+              echo "PASS $t"
+            else
+              echo "::error file=$t::self-test failed"
+              fail=$((fail + 1))
+            fi
+            echo "::endgroup::"
+          done < <(find framework scripts .claude/hooks \
+                     \( -name '*.test.mjs' -o -name '*.test.js' \) \
+                     -not -path '*/node_modules/*' | sort)
+          echo "---"
+          echo "$count self-tests run, $fail failed"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::no self-tests discovered — the glob is broken"
+            exit 1
+          fi
+          exit "$fail"
