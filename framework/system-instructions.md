@@ -576,6 +576,14 @@ the event log (`type: intervention`) so there is a record of what was authorized
 destructive-guard does this automatically (`Destructive command APPROVED …`); deploy/delete/secrets
 approvals follow the same receipt convention.
 
+**Branch-protection bypass is an override, so it is receipted (FRW-BL-091).** `main` is guarded by
+a repository *ruleset* (not classic protection — the classic endpoint 404s, which is why it has
+looked absent when checked the obvious way). Its `pull_request` rule demands a non-author approving review, which a
+single-maintainer repo cannot satisfy, so autonomous pushes have bypassed it every time. Until the
+rule is adjudicated, each bypassed push MUST log a `type: intervention` receipt naming the ruleset
+and the checks skipped — an unremarked bypass is what produced four sessions of re-noticing the
+same thing. Facts, measured check runtimes, and the standing posture: `framework/branch-protection.md`.
+
 ---
 
 ## Cross-Project Memory

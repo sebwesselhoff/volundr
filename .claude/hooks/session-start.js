@@ -15,24 +15,108 @@ async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// FRW-BL-089 — the boot sweeps must never delete artifacts belonging to the session they are
+// booting. Claude Code initialises this session's own team directory (~/.claude/teams/session-<id>)
+// at startup, in the same window this hook runs; an unconditional "delete everything from the prior
+// session" sweep therefore raced it and destroyed it, and EVERY named/addressable Agent call then
+// failed with `team file for "session-<id>" not found` for the rest of the session. Because the
+// named path IS the Agent Teams teammate path, that silently removed all teammate delegation.
+
+// Grace window for the mtime guard. The cost here is deliberately asymmetric: failing to clean a
+// stale directory leaves harmless debris that the next boot collects, while deleting a live one
+// breaks delegation for the whole session. When in doubt, do not delete.
+const TEAM_CLEANUP_GRACE_MS = 120000;
+
+// True when `dirName` is the team directory for `sessionId`. Claude Code names it from a TRUNCATED
+// session id (session 244933cb-b4fb-4190-9caf-704f58759797 -> "session-244933cb"), so match by
+// prefix rather than hardcoding a truncation length that a platform change could invalidate.
+function isCurrentSessionTeamDir(dirName, sessionId) {
+  if (!dirName || !sessionId) return false;
+  if (dirName === `session-${sessionId}`) return true;
+  const m = /^session-(.+)$/.exec(dirName);
+  return !!m && sessionId.startsWith(m[1]);
+}
+
+// Sweep stale team directories. Returns { cleaned, skipped } so callers (and the self-test) can
+// assert what was preserved, not just what was removed.
+function cleanupTeamDirs(teamsDir, opts = {}) {
+  const { sessionId = null, now = Date.now(), graceMs = TEAM_CLEANUP_GRACE_MS, onError = () => {} } = opts;
+  const result = { cleaned: [], skipped: [] };
+
+  let entries;
+  try {
+    entries = fs.readdirSync(teamsDir);
+  } catch (e) {
+    return result; // teams dir doesn't exist - fine
+  }
+
+  for (const dirName of entries) {
+    // 'default' is Claude Code's internal directory — never delete it.
+    if (dirName === 'default') { result.skipped.push({ dirName, reason: 'default' }); continue; }
+
+    if (isCurrentSessionTeamDir(dirName, sessionId)) {
+      result.skipped.push({ dirName, reason: 'current-session' });
+      continue;
+    }
+
+    const teamPath = path.join(teamsDir, dirName);
+
+    // Secondary guard for the case where session_id is absent from the hook input: anything
+    // touched inside the grace window may belong to a session that is still starting.
+    try {
+      if (fs.statSync(teamPath).mtimeMs > now - graceMs) {
+        result.skipped.push({ dirName, reason: 'recently-active' });
+        continue;
+      }
+    } catch (e) { /* stat failed - fall through and attempt cleanup */ }
+
+    try {
+      const removeDir = (dir) => {
+        for (const entry of fs.readdirSync(dir)) {
+          const entryPath = path.join(dir, entry);
+          if (fs.statSync(entryPath).isDirectory()) removeDir(entryPath);
+          else fs.unlinkSync(entryPath);
+        }
+        fs.rmdirSync(dir);
+      };
+      removeDir(teamPath);
+      result.cleaned.push(dirName);
+    } catch (e) {
+      onError(dirName, e);
+    }
+  }
+
+  return result;
+}
+
+// Sweep stale agent-mapping files. `preserve` names files that must survive the sweep — the
+// `current-session` file is written AFTER this runs, but keeping it in the preserve set means a
+// future reordering cannot silently reintroduce the bug.
+function cleanupAgentMaps(mapDir, opts = {}) {
+  const { preserve = ['current-session'] } = opts;
+  const result = { cleaned: [], skipped: [] };
+  let files;
+  try {
+    files = fs.readdirSync(mapDir);
+  } catch (e) {
+    return result; // map dir doesn't exist yet - fine
+  }
+  for (const f of files) {
+    if (preserve.includes(f)) { result.skipped.push(f); continue; }
+    try { fs.unlinkSync(path.join(mapDir, f)); result.cleaned.push(f); } catch (e) { /* ignore */ }
+  }
+  return result;
+}
+
 async function main() {
   const input = readStdin();
 
   // Only handle lead/standalone sessions - teammates are tracked by SubagentStart
   if (input.team_name && input.teammate_name) return;
 
-  // FRW-BL-029: record THIS lead session's id. In the normal clean boot, activeProject
-  // is null at SessionStart, so the mother Volundr is registered later by the boot
-  // sequence (after project selection) — which reads this file to write the
-  // session-<id> → dashboard-id map used for concurrent-session-safe parent attribution
-  // in agent-start.js. Written unconditionally; harmless if unused.
-  if (input.session_id) {
-    try {
-      const mapDir = path.join(os.tmpdir(), 'mc-agent-map');
-      fs.mkdirSync(mapDir, { recursive: true });
-      fs.writeFileSync(path.join(mapDir, 'current-session'), input.session_id);
-    } catch (e) { /* ignore */ }
-  }
+  // NOTE (FRW-BL-089): the `current-session` file is written AFTER the startup sweeps below, not
+  // here. It used to be written at this point and the map sweep then deleted it moments later, so
+  // Boot Step 6's documented read of it could never succeed on a startup boot.
 
   if (input.source === 'startup') {
     // Retry up to 3 times - dashboard may still be starting
@@ -94,45 +178,40 @@ async function main() {
   // Cleaning mappings mid-session would orphan those agents.
   if (input.source === 'startup') {
     const mapDir = path.join(os.tmpdir(), 'mc-agent-map');
-    try {
-      const files = fs.readdirSync(mapDir);
-      for (const f of files) {
-        try { fs.unlinkSync(path.join(mapDir, f)); } catch (e) { /* ignore */ }
-      }
-      if (files.length > 0) {
-        log.info('agent_maps_cleaned', `Cleaned ${files.length} stale agent mapping(s) from prior session`);
-      }
-    } catch (e) { /* map dir doesn't exist yet - fine */ }
+    const maps = cleanupAgentMaps(mapDir);
+    if (maps.cleaned.length > 0) {
+      log.info('agent_maps_cleaned', `Cleaned ${maps.cleaned.length} stale agent mapping(s) from prior session`);
+    }
 
-    // Clean up stale team directories from prior sessions
-    // Teams that weren't properly deleted (crash, timeout, etc.) leave directories in ~/.claude/teams/
-    // The 'default' directory is Claude Code's internal — never delete it.
+    // Clean up stale team directories from prior sessions.
+    // Teams that weren't properly deleted (crash, timeout, etc.) leave directories in ~/.claude/teams/.
+    // FRW-BL-089: this session's OWN team directory is excluded — deleting it breaks every named
+    // agent (and therefore all Agent Teams teammates) for the remainder of the session.
     const teamsDir = path.join(process.env.HOME || process.env.USERPROFILE || '', '.claude', 'teams');
+    const teams = cleanupTeamDirs(teamsDir, {
+      sessionId: input.session_id || null,
+      onError: (dirName, e) => log.debug('team_cleanup_failed', `Could not remove stale team dir ${dirName}: ${e.message}`),
+    });
+    if (teams.cleaned.length > 0) {
+      log.info('stale_teams_cleaned', `Cleaned ${teams.cleaned.length} stale team director(ies) from prior session`);
+    }
+    const preserved = teams.skipped.filter(s => s.reason === 'current-session');
+    if (preserved.length > 0) {
+      log.info('current_team_preserved', `Preserved this session's team dir: ${preserved.map(s => s.dirName).join(', ')}`);
+    }
+  }
+
+  // FRW-BL-029/089: record THIS lead session's id, AFTER the sweeps above so it cannot be deleted
+  // by them. In the normal clean boot, activeProject is null at SessionStart, so the mother Volundr
+  // is registered later by the boot sequence (after project selection) — which reads this file to
+  // write the session-<id> → dashboard-id map used for concurrent-session-safe parent attribution
+  // in agent-start.js. Written unconditionally; harmless if unused.
+  if (input.session_id) {
     try {
-      const teamDirs = fs.readdirSync(teamsDir).filter(d => d !== 'default');
-      let cleanedTeams = 0;
-      for (const teamDir of teamDirs) {
-        const teamPath = path.join(teamsDir, teamDir);
-        try {
-          // Recursively remove the team directory and all contents
-          const removeDir = (dir) => {
-            for (const entry of fs.readdirSync(dir)) {
-              const entryPath = path.join(dir, entry);
-              if (fs.statSync(entryPath).isDirectory()) removeDir(entryPath);
-              else fs.unlinkSync(entryPath);
-            }
-            fs.rmdirSync(dir);
-          };
-          removeDir(teamPath);
-          cleanedTeams++;
-        } catch (e) {
-          log.debug('team_cleanup_failed', `Could not remove stale team dir ${teamDir}: ${e.message}`);
-        }
-      }
-      if (cleanedTeams > 0) {
-        log.info('stale_teams_cleaned', `Cleaned ${cleanedTeams} stale team director(ies) from prior session`);
-      }
-    } catch (e) { /* teams dir doesn't exist - fine */ }
+      const mapDir = path.join(os.tmpdir(), 'mc-agent-map');
+      fs.mkdirSync(mapDir, { recursive: true });
+      fs.writeFileSync(path.join(mapDir, 'current-session'), input.session_id);
+    } catch (e) { /* ignore */ }
   }
 
   // FRW-BL-033: SessionStart emits a SINGLE hookSpecificOutput (sessionTitle +
@@ -284,6 +363,10 @@ async function main() {
     });
   }
 }
+
+// Exported for the self-test (session-start.test.js). The hook still runs only via the
+// require.main guard below, so importing this module never triggers a boot sweep.
+module.exports = { isCurrentSessionTeamDir, cleanupTeamDirs, cleanupAgentMaps, TEAM_CLEANUP_GRACE_MS };
 
 if (require.main === module) {
   main().catch((e) => {

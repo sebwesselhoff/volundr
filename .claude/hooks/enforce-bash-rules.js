@@ -42,6 +42,61 @@ function stripQuotes(command) {
     .replace(/'(?:[^'\\]|\\.)*'/g, "''");
 }
 
+// FRW-BL-090 — remove heredoc BODIES before matching. A heredoc body is not a quoted string, so
+// stripQuotes leaves it intact and a document that merely WRITES ABOUT a forbidden command was
+// blocked as if it were running one. In a self-documenting framework that happens often: the
+// observed false positive was a heredoc containing the nested-session CLI flag as prose.
+//
+// Returns { text, unterminated }. `unterminated` is the fail-closed signal: if a heredoc is opened
+// and never closed we cannot know where its body ends, so callers must scan the ORIGINAL text
+// rather than risk hiding a real command inside an unterminated body.
+function stripHeredocs(command) {
+  const src = command || '';
+  if (!src.includes('<<')) return { text: src, unterminated: false };
+
+  const lines = src.split('\n');
+  const out = [];
+  let i = 0;
+  let unterminated = false;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    out.push(line);
+    i++;
+
+    // `<<WORD`, `<<-WORD`, `<<'WORD'`, `<<"WORD"`. A here-STRING (`<<<`) is not a heredoc: its
+    // delimiter pattern requires a letter/underscore or quote right after the optional `-`, and
+    // `<` is neither, so `<<<foo` never matches here.
+    const openers = [...line.matchAll(/<<(-?)\s*(?:'([^']+)'|"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))/g)];
+
+    for (const m of openers) {
+      const allowIndent = m[1] === '-';
+      const delim = m[2] || m[3] || m[4];
+      let closed = false;
+      while (i < lines.length) {
+        const bodyLine = lines[i];
+        i++;
+        const candidate = allowIndent ? bodyLine.replace(/^\t+/, '') : bodyLine;
+        if (candidate.trim() === delim) { out.push(bodyLine); closed = true; break; }
+        out.push(''); // body dropped, line count preserved
+      }
+      if (!closed) unterminated = true;
+    }
+  }
+
+  return { text: out.join('\n'), unterminated };
+}
+
+// Remove shell comments. Runs AFTER stripQuotes, so a `#` inside a quoted string is already gone
+// and cannot truncate a real command. A commented-out command is never executed, so matching it
+// is a false positive by definition.
+function stripComments(text) {
+  return (text || '')
+    .split('\n')
+    .map(line => line.replace(/(^|\s)#.*$/, '$1'))
+    .join('\n');
+}
+
 // Extract the content of any `-c <quoted|token>` argument (bash/sh/psql -c "..."). These carry
 // a literal command to EXECUTE, so a destructive command hidden there must be scanned —
 // otherwise top-level stripQuotes erases it (e.g. `sh -c 'rm -rf /'` would bypass even the
@@ -58,10 +113,23 @@ function extractDashCContents(command) {
   return out;
 }
 
-// Scan targets: the top-level command (quotes stripped, so commit messages don't false-positive)
-// PLUS the inner content of any -c argument (its own quotes stripped). Patterns run against all.
+// Scan targets: the top-level command PLUS the inner content of any -c argument. Each target has
+// its non-command context removed first — heredoc bodies (FRW-BL-090), then quoted strings, then
+// comments — so that WRITING a forbidden command is distinguished from RUNNING one.
+//
+// Order matters: heredocs are stripped from the RAW text, because stripQuotes would otherwise
+// mangle a quoted delimiter (`<<'EOF'` -> `<<''`) and the body would never be found.
+//
+// FAIL CLOSED: an unterminated heredoc means the body's extent is unknowable, so we fall back to
+// the original pre-FRW-BL-090 behaviour (quote-stripping only) and keep matching inside it. A
+// false positive costs one blocked call; a false negative costs a hung nested session.
 function scanTargets(command) {
-  return [stripQuotes(command), ...extractDashCContents(command).map(stripQuotes)];
+  const { text, unterminated } = stripHeredocs(command || '');
+  if (unterminated) {
+    return [stripQuotes(command), ...extractDashCContents(command).map(stripQuotes)];
+  }
+  const clean = (s) => stripComments(stripQuotes(s));
+  return [clean(text), ...extractDashCContents(text).map(clean)];
 }
 
 function matchBlocked(command) {
@@ -119,4 +187,7 @@ if (require.main === module) {
   main().catch((e) => { try { log.error('unhandled_error', e.message); } catch { /* ignore */ } });
 }
 
-module.exports = { matchBlocked, matchDestructive, stripQuotes, BLOCKED_PATTERNS, DESTRUCTIVE_PATTERNS };
+module.exports = {
+  matchBlocked, matchDestructive, stripQuotes, stripHeredocs, stripComments, scanTargets,
+  BLOCKED_PATTERNS, DESTRUCTIVE_PATTERNS,
+};

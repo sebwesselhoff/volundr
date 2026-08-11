@@ -111,6 +111,56 @@ async function emitTelemetry(input) {
   }
 }
 
+// --- FRW-BL-091: branch-protection push receipt ------------------------------
+// `main` is guarded by the repository ruleset "Protect main", whose `pull_request` rule requires a
+// non-author approving review — unsatisfiable on a single-maintainer repo — so every autonomous
+// push has overridden it, been noted in the journal, and then forgotten. § Risk Gating says an
+// override leaves a receipt, but prose asking the lead to remember is the same weak pattern
+// FRW-BL-084 criticised in the 529-fallback guidance. This makes it a mechanism instead.
+const PROTECTED_BRANCHES = new Set(['main']);
+const PROTECTION_RULESET = 'Protect main';
+const REQUIRED_CHECKS = ['Typecheck & lint', 'Build dashboard', 'Docs & spelling'];
+
+// A push only warrants a receipt when it targets a ruleset-protected branch. Explicit refspecs
+// (`git push origin main`) and bare pushes from a checked-out protected branch both count.
+function shouldReceiptPush(command, currentBranch) {
+  if (!/git\s+push\b/.test(command || '')) return false;
+  for (const b of PROTECTED_BRANCHES) {
+    if (new RegExp(`\\b${b}\\b`).test(command)) return true;
+  }
+  return PROTECTED_BRANCHES.has((currentBranch || '').trim());
+}
+
+// Deliberately FACTUAL rather than accusatory: it records that a protected-branch push happened
+// and what the ruleset demands, without asserting the push was illegitimate. If the operator
+// later adjudicates the `pull_request` rule (see framework/branch-protection.md), the same receipt
+// stays accurate.
+function buildPushReceipt(branch) {
+  return `Branch-protection receipt (FRW-BL-091): push to protected branch '${branch}'. `
+    + `Ruleset "${PROTECTION_RULESET}" requires a non-author approving review plus status checks `
+    + `[${REQUIRED_CHECKS.join(', ')}]. If those were not satisfied this push was an admin override. `
+    + `See framework/branch-protection.md.`;
+}
+
+async function emitPushReceipt(command) {
+  let branch = '';
+  try {
+    branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: process.cwd(), encoding: 'utf8' }).trim();
+  } catch {
+    return; // non-git cwd or git unavailable — nothing to receipt
+  }
+  if (!shouldReceiptPush(command, branch)) return;
+
+  const detail = buildPushReceipt(PROTECTED_BRANCHES.has(branch) ? branch : 'main');
+  log.warn('branch_protection_push', detail);
+  if (PROJECT_ID) {
+    try {
+      await apiPost('/api/events', { projectId: PROJECT_ID, type: 'intervention', detail });
+    } catch { /* receipt is best-effort, never affects the push that already happened */ }
+  }
+  process.stderr.write(`[branch-protection] ${detail}\n`);
+}
+
 async function main() {
   const input = readStdin();
   const command = input.tool_input?.command || '';
@@ -147,6 +197,11 @@ async function main() {
   if (/git\s+commit\b/.test(command)) {
     const canRewake = detectRewakeCapability(input);
     await validateCardIds(canRewake);
+  }
+
+  // 4. FRW-BL-091: receipt every push to a ruleset-protected branch.
+  if (/git\s+push\b/.test(command)) {
+    await emitPushReceipt(command);
   }
 }
 
@@ -235,4 +290,7 @@ if (require.main === module) {
   });
 }
 
-module.exports = { detectRewakeCapability, emitRewake, CARD_ID_REGEX };
+module.exports = {
+  detectRewakeCapability, emitRewake, CARD_ID_REGEX,
+  shouldReceiptPush, buildPushReceipt, PROTECTED_BRANCHES, REQUIRED_CHECKS,
+};

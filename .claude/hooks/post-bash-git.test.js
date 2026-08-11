@@ -144,6 +144,61 @@ test('(g) Does not match git commit hashes embedded in prose', () => {
 });
 
 // ---------------------------------------------------------------------------
+// FRW-BL-091 — branch-protection push receipt
+// ---------------------------------------------------------------------------
+// NOTE: unlike the card-ID section above (which inlines its regex to avoid an import), these
+// assertions require the REAL module. Requiring it was measured clean — no side effects, ~30ms,
+// exits normally, because main() sits behind a `require.main === module` guard. Testing a copied
+// implementation is the duplicate-encoding drift hazard FRW-BL-077/078/085 each had to undo, so
+// the real functions are used here on purpose.
+const { shouldReceiptPush, buildPushReceipt, REQUIRED_CHECKS } = require('./post-bash-git.js');
+
+test('receipts a bare push while on main', () => {
+  assert.strictEqual(shouldReceiptPush('git push', 'main'), true);
+});
+
+test('receipts an explicit push to main from another branch', () => {
+  assert.strictEqual(shouldReceiptPush('git push origin main', 'feature/x'), true);
+});
+
+test('receipts a push with upstream flags', () => {
+  assert.strictEqual(shouldReceiptPush('git push -u origin main', 'main'), true);
+});
+
+test('does NOT receipt a push to an unprotected branch', () => {
+  assert.strictEqual(shouldReceiptPush('git push origin feature/x', 'feature/x'), false);
+});
+
+test('does NOT receipt non-push git commands', () => {
+  assert.strictEqual(shouldReceiptPush('git commit -m "main work"', 'main'), false);
+  assert.strictEqual(shouldReceiptPush('git status', 'main'), false);
+  assert.strictEqual(shouldReceiptPush('git log --oneline main', 'feature/x'), false);
+});
+
+test('does not crash on empty/undefined input', () => {
+  assert.strictEqual(shouldReceiptPush('', ''), false);
+  assert.strictEqual(shouldReceiptPush(undefined, undefined), false);
+});
+
+test('receipt names the ruleset, the branch and every required check', () => {
+  const r = buildPushReceipt('main');
+  assert.ok(r.includes('FRW-BL-091'), 'receipt cites the card');
+  assert.ok(r.includes('Protect main'), 'receipt names the ruleset');
+  assert.ok(r.includes("'main'"), 'receipt names the branch');
+  for (const c of REQUIRED_CHECKS) {
+    assert.ok(r.includes(c), `receipt lists required check: ${c}`);
+  }
+  assert.ok(r.includes('framework/branch-protection.md'), 'receipt points at the decision record');
+});
+
+test('receipt is factual, not an unconditional accusation', () => {
+  // It must stay accurate if the operator later adjudicates the pull_request rule and pushes
+  // become legitimate, so the override claim is conditional rather than asserted.
+  const r = buildPushReceipt('main');
+  assert.ok(/If those were not satisfied/.test(r), 'override wording is conditional');
+});
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 console.log('');
