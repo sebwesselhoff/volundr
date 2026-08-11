@@ -43,13 +43,19 @@
  * (run: `node framework/workflow-model.test.mjs`).
  */
 
+import { TIER_ORDER as SHARED_TIER_ORDER } from './tiers.mjs';
+
 /**
  * Tier order LOW -> HIGH, mirroring hierarchy-config.ts MODEL_TIERS.escalation.tierOrder
- * (['haiku','sonnet','opus']). Higher index = more capable / costlier. Mirrored locally on purpose
- * (a workflow / worktree context must not import the TS config without a tsc toolchain).
+ * (['haiku','sonnet','opus']). Higher index = more capable / costlier. Re-exported from
+ * framework/tiers.mjs — the single encoding (FRW-BL-085).
+ *
+ * NOTE the sandbox caveat still applies to WORKFLOW SCRIPTS, which cannot import at all and must
+ * inline the map from the authoring guidance. That inline copy mirrors tiers.mjs; this module is
+ * the tested reference it mirrors.
  * @type {readonly ['haiku','sonnet','opus']}
  */
-export const TIER_ORDER = Object.freeze(['haiku', 'sonnet', 'opus']);
+export const TIER_ORDER = SHARED_TIER_ORDER;
 
 /**
  * SAFE_DEFAULT_TIER — what an UNKNOWN or unspecified workflow role resolves to. Deliberately

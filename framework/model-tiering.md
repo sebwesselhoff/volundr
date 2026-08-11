@@ -63,3 +63,30 @@ same `settings.json` pins, so they cannot conflict.
 | A native **`.claude/agents/*.md`** agent's model / depth tiers | `framework/agents/registry.data.mjs`, then regenerate via `generate-agents.mjs` |
 | A **workflow-script** role's tier | `WORKFLOW_ROLE_TIERS` in `framework/workflow-model.mjs` (+ the inline map in the workflow-authoring guidance) |
 | What a tier **alias resolves to** (a model-family bump) | `.claude/settings.json` (+ `framework/guardrails.md` ISC-3) — the **only** place concrete versions live |
+| The tier **ORDER** (haiku < sonnet < opus) | `framework/tiers.mjs` — one encoding, imported by every consumer (FRW-BL-085) |
+
+## Degradation: native `fallbackModel` vs budget-controller (FRW-BL-084 / FRW-BL-088)
+
+These look like two answers to the same question. They are not — they cover **disjoint error
+classes**, and the split is deliberate.
+
+| | Native `fallbackModel` (settings.json) | `scripts/budget-controller.mjs` |
+|---|---|---|
+| **Covers** | Model **overload** only | Rate limit (429), transient (ETIMEDOUT / ECONNRESET / EAI_AGAIN), and budget depletion |
+| **Explicitly does NOT cover** | auth, billing, **rate limit**, request size, transport | overload (the platform handles it first) |
+| **Scope** | **Turn-scoped** — the next message retries the primary | Run-length / sticky degradation as budget depletes |
+| **Actor** | Platform, transparently | Volundr, from an observed signal |
+
+**Decision (FRW-BL-088): WIRED, not deleted.** Deleting `classifyError` / `nextFallback` once
+native fallback existed was tempting and wrong — the platform never switches on 429 or transport
+errors, so deletion would have silently dropped those classes with no replacement.
+
+They now have a real caller: `.claude/hooks/tool-failure.js` (`PostToolUseFailure`) classifies every
+tool failure and attaches `error_class`, `retryable` and `recommended_tier` to the dashboard event.
+The hook **observes and recommends**; Volundr reads the event stream and **decides** — the same
+split the framework uses everywhere else between JS hooks and the model loop.
+
+> This closes the dead-code-that-reads-as-live-policy trap that produced the `model-resolution.ts`
+> deletion in FRW-BL-078. The distinction: `model-resolution.ts` was a *duplicate encoding* of a
+> rule stated elsewhere, so it was deleted; these are *unique coverage* of classes nothing else
+> handles, so they were wired.

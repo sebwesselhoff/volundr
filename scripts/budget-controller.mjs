@@ -40,6 +40,7 @@
  */
 
 import { notifyEvent as defaultNotifyEvent } from './notify-event.mjs';
+import { TIER_ORDER_DESC } from '../framework/tiers.mjs';
 
 /**
  * DOWNGRADE order: highest-capability first, lowest last. The REVERSE of hierarchy-config.ts's
@@ -47,7 +48,7 @@ import { notifyEvent as defaultNotifyEvent } from './notify-event.mjs';
  * toward the end ('haiku') as budget depletes or retryable errors recur.
  * @type {readonly ['opus','sonnet','haiku']}
  */
-export const TIER_ORDER = Object.freeze(['opus', 'sonnet', 'haiku']);
+export const TIER_ORDER = TIER_ORDER_DESC;
 
 /** Lowest tier — the clamp floor for every downgrade / fallback step. */
 const FLOOR_TIER = TIER_ORDER[TIER_ORDER.length - 1];

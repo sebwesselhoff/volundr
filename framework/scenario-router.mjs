@@ -5,9 +5,10 @@
  *
  * COMPLEMENTS the existing model-selection machinery rather than replacing it:
  *
- *   - hierarchy-config.ts MODEL_TIERS is the SOURCE OF TRUTH for the tier names
- *     (haiku < sonnet < opus) and the per-role default tier. We do NOT import or edit it (the
- *     worktree has no TS toolchain); the tier order is mirrored LOCALLY here as TIER_ORDER.
+ *   - hierarchy-config.ts MODEL_TIERS is the SOURCE OF TRUTH for the per-role default tier. We do
+ *     NOT import or edit it (the worktree has no TS toolchain); the tier ORDER comes from
+ *     framework/tiers.mjs, the single shared encoding (FRW-BL-085), whose self-test asserts it
+ *     agrees with hierarchy-config.ts.
  *   - FRW-BL-031 picks a DETERMINISTIC per-agent base tier from the persona/role. That base tier is
  *     the `baseTier` INPUT to this module.
  *   - FRW-BL-053 (budget-controller.mjs) walks a tier DOWN as a budget depletes (opus->haiku).
@@ -31,13 +32,16 @@
  * unit-test in isolation. Self-test: framework/scenario-router.test.mjs.
  */
 
+import { TIER_ORDER as SHARED_TIER_ORDER } from './tiers.mjs';
+
 /**
  * Tier order LOW -> HIGH, mirroring hierarchy-config.ts MODEL_TIERS escalation `tierOrder`
  * (['haiku','sonnet','opus']). Index = capability rank: higher index = more capable / costlier.
- * Mirrored locally on purpose (must not import the TS config from a worktree without tsc).
+ * Re-exported from framework/tiers.mjs — the single encoding (FRW-BL-085). Previously a local
+ * literal; three hand-mirrored copies had drifted, one of them reversed.
  * @type {readonly ['haiku','sonnet','opus']}
  */
-export const TIER_ORDER = Object.freeze(['haiku', 'sonnet', 'opus']);
+export const TIER_ORDER = SHARED_TIER_ORDER;
 
 /** Lowest / highest tiers — convenience clamps. */
 const FLOOR_TIER = TIER_ORDER[0];
