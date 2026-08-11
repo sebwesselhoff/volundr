@@ -1,6 +1,8 @@
 {
-  "generatedAt": "2026-06-03T06:30:48.437Z",
+  "generatedAt": "2026-08-11T09:58:16.433Z",
   "thresholds": 0.05,
+  "promptPath": "framework/packs/quality/prompts/card-reviewer.md",
+  "promptSha256": "46afdb6301468ea2bdc8afede7cfd698d5c36eb4859e403e0dcac65de8e36be7",
   "metrics": {
     "n": 12,
     "iscPrecision": 0.9444,

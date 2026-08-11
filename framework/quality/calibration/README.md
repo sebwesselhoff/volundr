@@ -86,18 +86,52 @@ node scripts/judge-calibration.test.mjs             # deterministic self-test
 Wire it into the docs/CI guard alongside `garden-lint`. When the judge legitimately improves (or
 you intentionally re-calibrate), regenerate the baseline with `--write-baseline` and commit it.
 
+## The prompt fingerprint gate (FRW-BL-087)
+
+`baseline.json` stores a **sha256 of `framework/packs/quality/prompts/card-reviewer.md`** — the
+prompt the recordings were produced under. `--check` fails when the live prompt's hash differs,
+because the recordings then describe a judge that no longer exists and the drift metrics would
+silently validate it. The hash is computed over newline-normalized text, so a CRLF checkout is not
+mistaken for a behavioral change.
+
+Two ways forward when the gate fires:
+
+| Situation | Action |
+|---|---|
+| Behaviour changed (rubric, bands, output contract) | **Re-record** — `node scripts/judge-calibration-record.mjs` |
+| Cosmetic edit only (typo, reflow, comment) | `node scripts/judge-calibration.mjs --check --accept-prompt-hash`, then `--write-baseline` to store the new hash |
+
+The escape hatch exists deliberately: without it the gate would fire on every trivial edit, and a
+gate that cries wolf gets disabled. Using it is a **human judgment** that behaviour is unchanged.
+
+CI runs `--check` as the `calibration` job on every push and PR to `main`.
+
 ## Regenerating judge-outputs (when the prompt changes)
 
-The committed judge-outputs are a *recording* so the harness runs with no live LLM. When
-`card-reviewer.md` changes, re-run the judge on each fixture to refresh them:
+The committed judge-outputs are a *recording* so the harness runs with no live LLM.
 
-1. For each `fixtures/<id>.json`, fill the card-reviewer template slots from the fixture:
-   `{CARD_ID}=id`, `{CARD_TITLE}/{CARD_DESCRIPTION}/{CARD_TECHNICAL_NOTES}` from `card`,
-   `{ISC_CRITERIA}` from `card.isc`, `{FILE_CONTENTS}`/`{GIT_DIFF_STAT}` from `diff`.
-2. Run the prompt (manually or scripted) and save the JSON verdict to
-   `judge-outputs/<id>.json`, setting `cardId` to the fixture `id`.
-3. `node scripts/judge-calibration.mjs` to inspect, then `--write-baseline` to accept the new
-   numbers, and commit both the refreshed outputs and the baseline.
+```bash
+node scripts/judge-calibration-record.mjs            # all fixtures
+node scripts/judge-calibration-record.mjs --dry-run  # show what would be recorded, no API calls
+node scripts/judge-calibration-record.mjs --only fx-03-strong-slugify
+```
+
+> ⚠️ **Run the recorder from a plain shell, never from inside a Volundr / Claude Code session.**
+> It shells out to the CLI's `-p` flag, which hangs indefinitely when nested
+> (`framework/system-instructions.md` § *NEVER use `claude -p`*). The recorder detects a surrounding
+> session and refuses to start rather than appearing to stall.
+
+Then:
+
+1. **Inspect the diff** in `judge-outputs/` — a large swing is a finding to investigate, not a
+   rubber stamp.
+2. `node scripts/judge-calibration.mjs --check` — are the metrics still within threshold?
+3. `node scripts/judge-calibration.mjs --write-baseline` — store the new metrics **and** the new
+   prompt hash; commit the refreshed outputs and the baseline together.
+
+This replaces the former by-hand procedure (fill the template slots for each fixture, run the
+prompt, paste the verdict). That procedure was the reason the corpus went stale: it was tedious,
+undocumented in code, and nobody ran it.
 
 Keep most outputs honest; keep a couple deliberately-miscalibrated so precision stays a live,
 testable signal rather than a constant 100%.

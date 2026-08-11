@@ -32,6 +32,31 @@
 import { readFileSync, readdirSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createHash } from 'crypto';
+
+/** The judge prompt these recordings calibrate (FRW-BL-087). */
+export const JUDGE_PROMPT_REL = 'framework/packs/quality/prompts/card-reviewer.md';
+
+/** Repo root, derived from this file's location (scripts/ -> repo root). */
+function repoRoot() {
+  return join(dirname(fileURLToPath(import.meta.url)), '..');
+}
+
+/**
+ * Pure: sha256 of a prompt's text, newline-normalised so a CRLF checkout does not read as a
+ * behavioural change. Returns null when the prompt is absent (callers fail closed).
+ */
+export function hashPromptText(text) {
+  if (typeof text !== 'string') return null;
+  return createHash('sha256').update(text.replace(/\r\n/g, '\n'), 'utf8').digest('hex');
+}
+
+/** Read + hash the live judge prompt, or null if it is missing. */
+export function readPromptHash(root = repoRoot()) {
+  const p = join(root, JUDGE_PROMPT_REL);
+  if (!existsSync(p)) return null;
+  return hashPromptText(readFileSync(p, 'utf8'));
+}
 
 // --- band model -------------------------------------------------------------
 
@@ -294,11 +319,21 @@ function main() {
   const metrics = evaluateCorpus(corpus.fixtures, corpus.judgeOutputs);
   const snapshot = metricsSnapshot(metrics);
 
+  const promptHash = readPromptHash();
+
   if (argv.includes('--write-baseline')) {
-    const payload = { generatedAt: new Date().toISOString(), thresholds: DEFAULT_DRIFT_THRESHOLD, metrics: snapshot };
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      thresholds: DEFAULT_DRIFT_THRESHOLD,
+      // FRW-BL-087: fingerprint of the judge prompt these recordings were produced under.
+      promptPath: JUDGE_PROMPT_REL,
+      promptSha256: promptHash,
+      metrics: snapshot,
+    };
     writeFileSync(baselinePath, JSON.stringify(payload, null, 2) + '\n');
     process.stdout.write(formatReport(metrics) + '\n');
     process.stdout.write(`[judge-calibration] baseline written → ${baselinePath}\n`);
+    process.stdout.write(`[judge-calibration] prompt fingerprint: ${promptHash || '(prompt not found)'}\n`);
     process.exit(0);
   }
 
@@ -310,6 +345,45 @@ function main() {
       process.exit(1);
     }
     const baselineDoc = JSON.parse(readFileSync(baselinePath, 'utf8'));
+
+    // FRW-BL-087 — prompt-fingerprint gate.
+    //
+    // The recordings in judge-outputs/ were produced by running a SPECIFIC version of the judge
+    // prompt. If that prompt changes, the recordings no longer describe the live judge, and the
+    // drift metrics below silently validate a judge that no longer exists. Treat the prompt as a
+    // versioned artifact whose behaviour is regression-tested on every edit.
+    //
+    // The `--accept-prompt-hash` escape exists so a cosmetic edit (a typo, reflowing a paragraph)
+    // does not force a full re-record — without it the gate would be pure friction and would get
+    // disabled. Using it is a human decision that the behaviour did NOT change.
+    const acceptHash = argv.includes('--accept-prompt-hash');
+    if (baselineDoc.promptSha256) {
+      if (!promptHash) {
+        process.stderr.write(
+          `[judge-calibration] --check: judge prompt not found at ${JUDGE_PROMPT_REL} — cannot verify the fingerprint (failing closed)\n`
+        );
+        process.exit(1);
+      }
+      if (promptHash !== baselineDoc.promptSha256 && !acceptHash) {
+        process.stderr.write('[judge-calibration] PROMPT CHANGED — the judge prompt no longer matches the recordings.\n');
+        process.stderr.write(`  prompt   : ${JUDGE_PROMPT_REL}\n`);
+        process.stderr.write(`  baseline : ${baselineDoc.promptSha256}\n`);
+        process.stderr.write(`  current  : ${promptHash}\n`);
+        process.stderr.write('  The recorded judge outputs were produced under the OLD prompt, so the drift\n');
+        process.stderr.write('  metrics below are validating a judge that no longer exists. Fix by EITHER:\n');
+        process.stderr.write('    (a) re-recording:  node scripts/judge-calibration-record.mjs   <- if behaviour changed\n');
+        process.stderr.write('    (b) accepting it:  node scripts/judge-calibration.mjs --check --accept-prompt-hash\n');
+        process.stderr.write('        then re-run --write-baseline to store the new hash. Use ONLY when the edit\n');
+        process.stderr.write('        was cosmetic and you have judged that behaviour is unchanged.\n');
+        process.exit(1);
+      }
+      if (promptHash !== baselineDoc.promptSha256 && acceptHash) {
+        process.stdout.write('[judge-calibration] prompt hash differs but --accept-prompt-hash was passed — proceeding.\n');
+      }
+    } else {
+      process.stdout.write('[judge-calibration] NOTE: baseline predates the prompt fingerprint; run --write-baseline to add it.\n');
+    }
+
     const baseMetrics = baselineDoc.metrics || baselineDoc;
     const thresholds = baselineDoc.thresholds != null ? baselineDoc.thresholds : DEFAULT_DRIFT_THRESHOLD;
     const drift = detectDrift(snapshot, baseMetrics, thresholds);

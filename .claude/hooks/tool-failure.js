@@ -91,15 +91,69 @@ async function main() {
     return; // Don't pollute the dashboard
   }
 
+  // FRW-BL-088: classify the failure and surface a degradation recommendation.
+  //
+  // Native `fallbackModel` (settings.json) covers the OVERLOAD class only — the platform never
+  // switches models on rate-limit (429), request-size, auth/billing or transport errors. Those
+  // classes are exactly what budget-controller's classifyError/nextFallback handle, which is why
+  // they were kept rather than deleted when native fallback was declared (FRW-BL-084).
+  //
+  // This hook is the one JS error path that sees every tool failure, so it is where the
+  // classification becomes observable. The hook OBSERVES and RECOMMENDS; Volundr (reading the
+  // event stream) decides — matching the framework's split between JS hooks and the model loop.
+  const degradation = await classifyFailure(error);
+
   log.warn('tool_failed', `${toolName} failed: ${error}`, {
     agentId: input.agent_id || null,
+    errorClass: degradation ? degradation.errorClass : null,
   });
 
+  const classSuffix = degradation ? ` [${degradation.errorClass}]` : '';
   await apiPost('/api/events', {
     projectId: PROJECT_ID,
     type: 'error',
-    detail: `Tool failure: ${toolName} - ${error}`.slice(0, 200),
+    detail: `Tool failure: ${toolName} - ${error}${classSuffix}`.slice(0, 200),
+    ...(degradation && {
+      error_class: degradation.errorClass,
+      retryable: degradation.retry,
+      recommended_tier: degradation.tier,
+      degradation_reason: degradation.reason,
+    }),
   });
+}
+
+/**
+ * Classify a failure string and derive a fallback recommendation.
+ *
+ * budget-controller is ESM and this hook is CommonJS, so it is loaded via dynamic import().
+ * Returns null on any problem — a classification failure must never change the hook's behaviour,
+ * which is purely observational.
+ */
+async function classifyFailure(errorText) {
+  try {
+    if (!errorText) return null;
+    const { pathToFileURL } = require('url');
+    const modPath = require('path').join(__dirname, '..', '..', 'scripts', 'budget-controller.mjs');
+    if (!require('fs').existsSync(modPath)) return null;
+    const { classifyError, nextFallback } = await import(pathToFileURL(modPath).href);
+
+    const errorClass = classifyError(errorText);
+    // Only the retryable classes carry a useful recommendation; 'fatal' escalates.
+    if (errorClass === 'fatal') {
+      return { errorClass, retry: false, tier: null, reason: 'non-retryable — escalate' };
+    }
+    // The current tier is not observable from this hook's stdin, so ask for the recommendation
+    // from the top of the ladder; the shape of the advice (retry + step down) is what matters.
+    const advice = nextFallback('opus', errorClass);
+    return {
+      errorClass,
+      retry: !!advice.retry,
+      tier: advice.tier,
+      reason: advice.reason,
+    };
+  } catch {
+    return null;
+  }
 }
 
 if (require.main === module) {

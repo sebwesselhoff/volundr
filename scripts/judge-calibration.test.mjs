@@ -159,5 +159,45 @@ console.log('\nmetricsSnapshot');
 const snap = metricsSnapshot(corpus);
 ok('snapshot keeps n + 6 metrics, drops perFixture', snap.n === 2 && snap.perFixture === undefined && 'iscPrecision' in snap && 'weightedConsistencyRate' in snap);
 
+// --- FRW-BL-087: prompt fingerprint + recorder guards ---
+{
+  const { readFileSync: rf } = await import('fs');
+  const { hashPromptText, readPromptHash, JUDGE_PROMPT_REL } = await import('./judge-calibration.mjs');
+  const { detectNestedSession, buildJudgePrompt, extractJson } = await import('./judge-calibration-record.mjs');
+
+  console.log('\nprompt fingerprint (FRW-BL-087)');
+  ok('hashPromptText is deterministic', hashPromptText('abc') === hashPromptText('abc'));
+  ok('hashPromptText distinguishes different text', hashPromptText('abc') !== hashPromptText('abd'));
+  ok('hashPromptText normalises CRLF (a line-ending change is not a behaviour change)',
+    hashPromptText('a\r\nb') === hashPromptText('a\nb'));
+  ok('hashPromptText returns null for non-string', hashPromptText(null) === null);
+  ok('readPromptHash finds the live judge prompt',
+    typeof readPromptHash() === 'string' && readPromptHash().length === 64);
+  ok('JUDGE_PROMPT_REL points at card-reviewer.md', /card-reviewer\.md$/.test(JUDGE_PROMPT_REL));
+
+  // Without a stored fingerprint the gate is inert, so assert the baseline carries one.
+  const baseline = JSON.parse(
+    rf(new URL('../framework/quality/calibration/baseline.json', import.meta.url), 'utf8')
+  );
+  ok('baseline.json records a promptSha256',
+    typeof baseline.promptSha256 === 'string' && baseline.promptSha256.length === 64);
+  ok('baseline promptSha256 matches the live prompt', baseline.promptSha256 === readPromptHash());
+
+  console.log('\nrecorder guards (FRW-BL-087)');
+  // The recorder shells out to the CLI's -p flag, which hangs when nested — it must refuse.
+  ok('detectNestedSession flags a Claude Code session', detectNestedSession({ CLAUDECODE: '1' }).nested);
+  ok('detectNestedSession flags a teammate context', detectNestedSession({ CLAUDE_AGENT_TEAMS_MEMBER: '1' }).nested);
+  ok('detectNestedSession names the marker it saw',
+    detectNestedSession({ CLAUDE_PROJECT_DIR: '/x' }).marker === 'CLAUDE_PROJECT_DIR');
+  ok('detectNestedSession is false in a plain shell', !detectNestedSession({ PATH: '/usr/bin' }).nested);
+
+  ok('buildJudgePrompt embeds the fixture', buildJudgePrompt('RUBRIC', { id: 'fx-1' }).includes('"id": "fx-1"'));
+  ok('buildJudgePrompt keeps the rubric first', buildJudgePrompt('RUBRIC', {}).startsWith('RUBRIC'));
+  ok('extractJson parses a bare object', extractJson('{"a":1}').a === 1);
+  ok('extractJson unwraps a fenced object', extractJson('```json\n{"a":2}\n```').a === 2);
+  ok('extractJson returns null on garbage', extractJson('not json at all') === null);
+  ok('extractJson returns null on non-string', extractJson(undefined) === null);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);
