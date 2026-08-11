@@ -77,9 +77,13 @@ async function main() {
     // Quality gate: check BEFORE patching card to done
     // If gate fails, card stays in_progress and task completion is blocked
     const qualityRows = await apiGet(`/api/projects/${PROJECT_ID}/quality`);
+    // Declared outside the block: the quality payload below (line ~109) reads it
+    // after the gate. A `const` inside the `if` is block-scoped and throws
+    // ReferenceError on every completion, including the dashboard-down path.
+    let match;
     if (Array.isArray(qualityRows)) {
       const cardRows = qualityRows.filter(r => r.cardId === cardId);
-      const match = cardRows.find(r => r.reviewType === 'reviewer') || cardRows.find(r => r.reviewType === 'self') || cardRows[0];
+      match = cardRows.find(r => r.reviewType === 'reviewer') || cardRows.find(r => r.reviewType === 'self') || cardRows[0];
       if (!match) {
         await apiPost('/api/events', {
           projectId: PROJECT_ID,
@@ -119,13 +123,21 @@ async function main() {
       ...(qualityObj && { quality: qualityObj }),
     });
     if (!patchResult) {
-      // Check if the failure was due to ISC gate rejection
+      // Check if the failure was due to ISC gate rejection.
+      // FRW-BL-086: a criterion is verified ONLY when `passed === true`. Filtering on
+      // `passed === null` (as this did) treated an explicitly FAILED criterion as satisfied,
+      // and mirrored the same defect in the API gate (cards.ts). Both now fail closed.
       const card = await apiGet(`/api/cards/${cardId}`);
       if (card && card.isc) {
         const isc = typeof card.isc === 'string' ? JSON.parse(card.isc) : card.isc;
-        const unverified = (isc || []).filter(c => c.passed === null);
-        if (unverified.length > 0) {
-          process.stderr.write(`ISC incomplete for ${cardId}: ${unverified.length}/${isc.length} criteria unverified\n`);
+        const unmet = (isc || []).filter(c => c && c.passed !== true);
+        if (unmet.length > 0) {
+          const failed = unmet.filter(c => c.passed === false);
+          const reason = failed.length
+            ? `${failed.length} explicitly FAILED, ${unmet.length - failed.length} pending`
+            : `${unmet.length} pending`;
+          process.stderr.write(`ISC incomplete for ${cardId}: ${unmet.length}/${isc.length} criteria unmet (${reason})\n`);
+          for (const c of failed) process.stderr.write(`  FAILED: ${c.criterion}\n`);
           process.exit(2);
         }
       }
