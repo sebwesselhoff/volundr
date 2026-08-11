@@ -75,11 +75,35 @@ When shutting down ANY team (Round Table, Chaos Engine, implementation teams), f
 
 ## CRITICAL: Delegation Rules (v6 - Teammate-Only Model)
 
-### Claude Code Limitation
-Teammates and subagents do NOT have the Agent tool. Only Volundr (the main session) can spawn agents. Nested spawning is impossible. Two-level (Volundr + teammates) is the maximum hierarchy.
+### Spawn depth is CONFIGURED, not impossible (FRW-BL-084)
+Two-level (Volundr + teammates) is the maximum hierarchy **because Volundr pins it that way**, not
+because the platform forbids it. `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "1"` in `.claude/settings.json`
+is what holds the contract; the platform itself permits nested subagent chains.
+
+An earlier revision of this document asserted "nested spawning is impossible". That was **false** —
+and the repo already contradicted it, since `framework/agents/registry.data.mjs` grants the
+`researcher` role the `Agent` tool with no gating and the `canSpawn` field has no runtime consumers.
+Without the pin, Volundr carries an unintended, undocumented nesting capability.
+
+**Why depth 1:** the dashboard's parent-attribution and cost model both assume a single level, and
+nesting multiplies concurrent agents and spend. Raising it is a deliberate feature decision that
+must land with attribution and cost-gating changes — never inherited from a platform default.
+
+Practically, most teammates and Agent-tool subagents still do not receive the `Agent` tool, so they
+cannot spawn regardless; the pin is the backstop for the roles that do.
 
 ### NEVER use `claude -p`
 It is broken in nested sessions. Hangs indefinitely. Do not attempt it.
+
+### Provider fallback is turn-scoped (FRW-BL-084)
+`fallbackModel` in `.claude/settings.json` declares an ordered chain the platform tries when the
+primary model is overloaded. Two limits worth knowing before relying on it:
+
+- **It is turn-scoped, not sticky.** The next message retries the primary. It is not the
+  run-length degradation the § Context Hygiene 529 guidance describes — that remains a separate
+  concern (see `scripts/budget-controller.mjs` and `framework/model-tiering.md`).
+- **It covers overload only.** Authentication, billing, rate-limit (429), request-size and
+  transport errors never trigger a switch.
 
 ### Two delegation mechanisms - use the right one:
 

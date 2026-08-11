@@ -2,7 +2,7 @@
 
 Auto-detected environment info shared across all projects. Refreshed if older than 7 days.
 
-**Last refresh:** 2026-06-11 (boot for ata-mcp)
+**Last refresh:** 2026-08-11 (boot for volundr-meta)
 
 ---
 
@@ -13,7 +13,7 @@ Auto-detected environment info shared across all projects. Refreshed if older th
 - **Node.js:** v24.4.1
 - **npm:** 11.4.2
 - **TypeScript:** per-project devDependency (no global tsc; run via the project's `npx tsc`/`npm` scripts)
-- **Claude Code CLI:** 2.1.173 (min supported **2.1.120** — see `framework/cc-version-baseline.md`)
+- **Claude Code CLI:** 2.1.227 (min supported **2.1.219** — see `framework/cc-version-baseline.md`)
 
 ## Azure tooling
 
@@ -43,7 +43,8 @@ Auto-detected environment info shared across all projects. Refreshed if older th
 
 | Path | Use |
 |---|---|
-| `C:\Users\SebastianWesselhoff\source\co-azure-audit` | Active project (target) |
+| `C:\Users\SebastianWesselhoff\source\repos\internal\Test\ATA - Automated Testing Applicator` | Active project (target — ata-mcp) |
+| `C:\Users\SebastianWesselhoff\source\co-azure-audit` | Prior project (co-azure-audit) |
 | `C:\Users\SebastianWesselhoff\source\Holmen` | Read-only audit evidence corpus |
 | `C:\Users\SebastianWesselhoff\source\Holmen-Repo` | Read-only customer source |
 | `C:\Users\SebastianWesselhoff\source\repos\internal\clear` | Read-only reuse source (CLEAR) |

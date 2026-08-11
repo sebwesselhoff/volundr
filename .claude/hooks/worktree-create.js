@@ -144,11 +144,45 @@ function classifyGitError(text) {
   return 'fatal';
 }
 
+/**
+ * Resolve the git ref new worktrees branch from (FRW-BL-083).
+ *
+ * SOURCE OF TRUTH is `worktree.baseRef` in .claude/settings.json — the same key the native
+ * EnterWorktree path obeys. Both paths are live (EnterWorktree creates worktrees natively when
+ * inside a git repo; this hook only fires outside one or via explicit delegation), so hardcoding
+ * a ref here would let the two drift.
+ *
+ * The platform default is `fresh` (branch from origin/<default-branch>). That is WRONG for
+ * Volundr: the round loop merges each round's teammate branches into LOCAL main before planning
+ * the next round, so a `fresh` worktree silently discards every previously-merged round.
+ * guardrails.md ISC-2 therefore requires `head`.
+ *
+ * Falls back to HEAD when unset/unreadable — the safe direction (local state, never stale remote).
+ */
+function resolveBaseRef(projectRoot, settingsPathOverride) {
+  try {
+    const settingsPath = settingsPathOverride || path.join(projectRoot, '.claude', 'settings.json');
+    if (!fs.existsSync(settingsPath)) return 'HEAD';
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    const configured = settings && settings.worktree && settings.worktree.baseRef;
+    if (typeof configured !== 'string' || !configured.trim()) return 'HEAD';
+    const v = configured.trim();
+    // 'head' is the platform's spelling for "branch from local HEAD".
+    if (v.toLowerCase() === 'head') return 'HEAD';
+    // 'fresh' means origin/<default-branch>; let git resolve it rather than guessing a name.
+    if (v.toLowerCase() === 'fresh') return 'origin/HEAD';
+    return v; // an explicit ref (branch/tag/sha)
+  } catch {
+    return 'HEAD';
+  }
+}
+
 // Default git invocation (synchronous). The self-test injects an async impl
 // (promisified execFile) so it can drive real concurrent adds against a temp
 // repo and exercise genuine lock contention.
 function defaultGitWorktreeAdd(branch, worktreeDir, projectRoot) {
-  execSync(`git worktree add -b "${branch}" "${worktreeDir}" HEAD`, {
+  const baseRef = resolveBaseRef(projectRoot);
+  execSync(`git worktree add -b "${branch}" "${worktreeDir}" ${baseRef}`, {
     cwd: projectRoot,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -319,4 +353,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { resolveCardIdFromQueue, classifyGitError, createWorktreeWithRetry };
+module.exports = { resolveCardIdFromQueue, classifyGitError, createWorktreeWithRetry, resolveBaseRef };

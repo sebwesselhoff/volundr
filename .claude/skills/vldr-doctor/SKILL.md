@@ -68,19 +68,32 @@ ver=$(node --version 2>/dev/null)
 if [ -n "$ver" ]; then echo "PASS: $ver"; else echo "FAIL: node not found"; fi
 ```
 
-**6b. Claude Code version (baseline 2.1.120 — see framework/cc-version-baseline.md)**
+**6b. Claude Code version (baseline 2.1.219 — see framework/cc-version-baseline.md)**
+
+The floor is derived from the model ids pinned in `framework/guardrails.md` ISC-3, not from the
+hook surface: `claude-opus-5` ships in 2.1.219 and `claude-sonnet-5` in 2.1.197, so a CLI below
+2.1.219 cannot resolve a pin the framework declares. Below the floor this is an **actionable
+failure**, not a soft warning (FRW-BL-082).
+
 ```bash
 ver=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 if [ -z "$ver" ]; then
   echo "WARN: claude --version not detected (CLI not on PATH?)"
 else
-  # Compare against minimum 2.1.120 using sort -V
-  min="2.1.120"
+  # Floor = highest requirement of any id pinned in guardrails.md ISC-3.
+  min="2.1.219"
   lowest=$(printf '%s\n%s\n' "$min" "$ver" | sort -V | head -1)
   if [ "$lowest" = "$min" ]; then
     echo "PASS: $ver (>= $min baseline)"
   else
-    echo "WARN: $ver is below the $min baseline — some Volundr hooks/features are not guaranteed (see framework/cc-version-baseline.md)"
+    echo "FAIL: $ver is below the $min baseline."
+    echo "      The framework pins claude-opus-5 (needs 2.1.219) and claude-sonnet-5 (needs 2.1.197);"
+    echo "      this CLI cannot resolve them. Fix by EITHER:"
+    echo "        (a) upgrading the CLI:  claude update      <- preferred"
+    echo "        (b) unpinning to a model this CLI ships, by setting"
+    echo "            ANTHROPIC_DEFAULT_OPUS_MODEL=claude-opus-4-8 in .claude/settings.json"
+    echo "            AND updating framework/guardrails.md ISC-3 to match (garden-lint enforces"
+    echo "            that they agree, so changing only one will fail CI)."
   fi
 fi
 ```
@@ -147,7 +160,7 @@ Checking Volundr setup...
   ✓ DB: schema vN, size NKB
   ✓ Git: 2.50.0 (worktree support ✓)
   ✓ Node.js: v24.4.1
-  ✓ Claude Code: 2.1.161 (>= 2.1.120 baseline)
+  ✓ Claude Code: 2.1.227 (>= 2.1.219 baseline)
   ⚠ Docker: not running (optional)
   ✓ Hooks: 14 installed
   ✓ Enforcement: 4/4 active

@@ -8,7 +8,7 @@ const path = require('path');
 const os = require('os');
 
 // Import the pure helpers we extracted from worktree-create.js
-const { resolveCardIdFromQueue, classifyGitError, createWorktreeWithRetry } = require('./worktree-create');
+const { resolveCardIdFromQueue, classifyGitError, createWorktreeWithRetry, resolveBaseRef } = require('./worktree-create');
 
 let passed = 0;
 let failed = 0;
@@ -275,6 +275,98 @@ async function testConcurrentReal() {
 (async () => {
   await testRetryBackoff();
   await testConcurrentReal();
+  // --- resolveBaseRef (FRW-BL-083) ----------------------------------------
+  // The base ref must come from settings.json `worktree.baseRef`, not a hardcoded
+  // literal, so the hook path and the native EnterWorktree path cannot drift.
+  console.log('');
+  console.log('resolveBaseRef (FRW-BL-083)');
+
+  const writeSettings = (obj) => {
+    const dir = makeTempDir();
+    const p = path.join(dir, 'settings.json');
+    fs.writeFileSync(p, typeof obj === 'string' ? obj : JSON.stringify(obj));
+    return p;
+  };
+
+  test('baseRef "head" resolves to HEAD (local state)', () => {
+    assert.strictEqual(resolveBaseRef('', writeSettings({ worktree: { baseRef: 'head' } })), 'HEAD');
+  });
+
+  test('baseRef "HEAD" is case-insensitive', () => {
+    assert.strictEqual(resolveBaseRef('', writeSettings({ worktree: { baseRef: 'HEAD' } })), 'HEAD');
+  });
+
+  test('baseRef "fresh" resolves to origin/HEAD (the platform default semantics)', () => {
+    assert.strictEqual(resolveBaseRef('', writeSettings({ worktree: { baseRef: 'fresh' } })), 'origin/HEAD');
+  });
+
+  test('an explicit ref passes through unchanged', () => {
+    assert.strictEqual(resolveBaseRef('', writeSettings({ worktree: { baseRef: 'release/2.0' } })), 'release/2.0');
+  });
+
+  test('missing worktree key falls back to HEAD (safe direction: local, never stale remote)', () => {
+    assert.strictEqual(resolveBaseRef('', writeSettings({ env: {} })), 'HEAD');
+  });
+
+  test('empty baseRef falls back to HEAD', () => {
+    assert.strictEqual(resolveBaseRef('', writeSettings({ worktree: { baseRef: '   ' } })), 'HEAD');
+  });
+
+  test('unparseable settings.json falls back to HEAD rather than throwing', () => {
+    assert.strictEqual(resolveBaseRef('', writeSettings('{not json')), 'HEAD');
+  });
+
+  test('absent settings.json falls back to HEAD', () => {
+    assert.strictEqual(resolveBaseRef('', path.join(makeTempDir(), 'nope.json')), 'HEAD');
+  });
+
+  test('the live repo is pinned to head (guardrails ISC-2)', () => {
+    const repoRoot = path.resolve(__dirname, '..', '..');
+    assert.strictEqual(resolveBaseRef(repoRoot), 'HEAD');
+  });
+
+  // End-to-end: with local main AHEAD of origin, a worktree must branch from the
+  // local commit. Under the platform's `fresh` default it would branch from the
+  // remote and silently discard it — that is the bug this card exists for.
+  test('worktree branches from LOCAL main when main is ahead of origin', () => {
+    const { execFileSync } = require('child_process');
+    const root = makeTempDir();
+    const origin = path.join(root, 'origin.git');
+    const clone = path.join(root, 'clone');
+    const git = (args, cwd) => execFileSync('git', args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] }).toString().trim();
+
+    execFileSync('git', ['init', '--bare', '-b', 'main', origin], { stdio: 'ignore' });
+    execFileSync('git', ['clone', origin, clone], { stdio: 'ignore' });
+    git(['config', 'user.email', 't@t'], clone);
+    git(['config', 'user.name', 't'], clone);
+    fs.writeFileSync(path.join(clone, 'a.txt'), 'base');
+    git(['add', 'a.txt'], clone);
+    git(['commit', '-m', 'base'], clone);
+    git(['push', 'origin', 'main'], clone);
+
+    // Simulate a merged round: a commit on LOCAL main that origin has not seen.
+    fs.writeFileSync(path.join(clone, 'b.txt'), 'merged round');
+    git(['add', 'b.txt'], clone);
+    git(['commit', '-m', 'round 1 merged'], clone);
+    const localHead = git(['rev-parse', 'HEAD'], clone);
+    const remoteHead = git(['rev-parse', 'origin/main'], clone);
+    assert.notStrictEqual(localHead, remoteHead, 'setup: local main must be ahead of origin');
+
+    // Create a worktree at the resolved base ref, exactly as the hook does.
+    fs.mkdirSync(path.join(clone, '.claude'), { recursive: true });
+    fs.writeFileSync(
+      path.join(clone, '.claude', 'settings.json'),
+      JSON.stringify({ worktree: { baseRef: 'head' } })
+    );
+    const baseRef = resolveBaseRef(clone);
+    const wt = path.join(root, 'wt');
+    git(['worktree', 'add', '-b', 'agent/card-x', wt, baseRef], clone);
+
+    const wtHead = git(['rev-parse', 'HEAD'], wt);
+    assert.strictEqual(wtHead, localHead, 'worktree must branch from local main, not origin');
+    assert.ok(fs.existsSync(path.join(wt, 'b.txt')), 'the merged-round file must be present in the worktree');
+  });
+
   console.log('');
   console.log(`Results: ${passed} passed, ${failed} failed`);
   if (failed > 0) {

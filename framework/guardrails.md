@@ -18,13 +18,25 @@ This setting silently disables worktree isolation for background agents. When is
 
 ---
 
-## ISC-2: `worktree.baseRef: head` is REQUIRED under native-CC worktree delegation
+## ISC-2: `worktree.baseRef: head` is REQUIRED
 
-**If worktree creation is ever delegated to native Claude Code** (i.e., Claude Code's built-in worktree management rather than the custom `worktree-create.js` hook), you MUST ensure `worktree.baseRef` is set to `head`.
+**`.claude/settings.json` MUST set `worktree.baseRef` to `head`.** The platform default is
+`fresh`, which branches new worktrees from `origin/<default-branch>`.
 
-Without this, Claude Code may branch new worktrees from a stale default ref (e.g., the repo's `main` at an old commit), meaning developers start from an out-of-date base and their branches diverge from the intended HEAD state before a single line is written.
+Volundr's round loop merges each round's teammate branches into **local** `main` before planning
+the next round, so local `main` is routinely ahead of `origin`. Under the `fresh` default, a
+worktree created for round N+1 branches from the remote — silently discarding every card merged in
+rounds 1..N. Developers start from a stale base and their branches diverge before a line is written.
 
-This setting is **only relevant under native-CC worktree delegation**. The current Volundr stack uses `worktree-create.js` and explicit `git worktree add` calls, so the base ref is always controlled explicitly. Keep this documented here as a forward-compatibility constraint: if you ever switch to native-CC delegation, add `"worktree.baseRef": "head"` to the relevant config block.
+**This is not merely a forward-compatibility constraint.** An earlier revision of this document
+claimed the setting was "only relevant under native-CC worktree delegation" because Volundr always
+creates worktrees through `worktree-create.js`. That is **false**: the `EnterWorktree` tool creates
+worktrees *natively* when inside a git repository (it delegates to `WorktreeCreate` hooks only
+*outside* one), and `.claude/hooks/enforce-worktree-isolation.js` actively instructs teammates to
+use `EnterWorktree`. Both paths are live, so both must agree on the base ref.
+
+`worktree-create.js` reads the same setting rather than hardcoding a ref, so the hook path and the
+native path cannot drift (FRW-BL-083).
 
 ---
 
@@ -34,8 +46,22 @@ Volundr pins model aliases via environment variables in `.claude/settings.json` 
 
 | Alias env var | Pinned model ID | Role |
 |---|---|---|
-| `ANTHROPIC_DEFAULT_OPUS_MODEL` | `claude-opus-4-8` | High-capability tasks (architecture, planning, adversarial review) |
+| `ANTHROPIC_DEFAULT_OPUS_MODEL` | `claude-opus-5` | High-capability tasks (architecture, planning, adversarial review) |
 | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `claude-sonnet-5` | Standard developer and orchestrator tasks |
+
+**Enforced by CI:** `scripts/garden-lint.mjs` parses `ANTHROPIC_DEFAULT_*_MODEL` out of
+`.claude/settings.json` and fails if the same literal is absent from the table above. The pin and
+its documentation cannot drift apart silently (FRW-BL-082).
+
+**Minimum CLI version:** a pinned model id is only resolvable by a Claude Code build that ships it.
+`claude-opus-5` requires **>= 2.1.219** and `claude-sonnet-5` requires **>= 2.1.197**; the floor in
+`framework/cc-version-baseline.md` must always be at least the highest requirement of any id pinned
+here.
+
+**Opus 5 behavioural deltas** (vs Opus 4.8, relevant to any agent prompt written against 4.8):
+adaptive thinking is **on by default** — omitting the `thinking` parameter now thinks, where 4.8 ran
+without thinking — and `thinking: disabled` is accepted only at effort `high` or below (pairing it
+with `xhigh`/`max` returns HTTP 400).
 
 **When to update:** Update both values here AND in `.claude/settings.json` when the project intentionally moves to a new model family. Never change them mid-sprint — mid-sprint model swaps cause non-reproducible behaviour across cards already in flight.
 
@@ -50,6 +76,7 @@ Volundr pins model aliases via environment variables in `.claude/settings.json` 
 | Setting | Required state |
 |---|---|
 | `worktree.bgIsolation` | MUST NOT be `none` |
-| `worktree.baseRef` | `head` — required if using native-CC worktree delegation |
-| `ANTHROPIC_DEFAULT_OPUS_MODEL` | `claude-opus-4-8` (update on intentional family bump) |
+| `worktree.baseRef` | `head` — required; the platform default `fresh` discards merged rounds |
+| `ANTHROPIC_DEFAULT_OPUS_MODEL` | `claude-opus-5` (update on intentional family bump) |
 | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `claude-sonnet-5` (update on intentional family bump) |
+| Claude Code CLI | >= the highest floor any pinned id requires (see `framework/cc-version-baseline.md`) |

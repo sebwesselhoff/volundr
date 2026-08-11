@@ -35,6 +35,59 @@ export function sizeViolations(files, cap = MD_BYTE_CAP) {
   return files.filter((f) => f.bytes > cap);
 }
 
+/**
+ * Pure: model-pin drift between .claude/settings.json and guardrails.md ISC-3 (FRW-BL-082).
+ *
+ * The pin lives in settings.json but is DOCUMENTED as a contract in guardrails.md ISC-3, and
+ * framework/model-tiering.md states the two must always move together. They drifted once
+ * (settings said claude-opus-5 while ISC-3 still said claude-opus-4-8), so couple them in CI:
+ * every ANTHROPIC_DEFAULT_*_MODEL literal in settings.json must appear verbatim in guardrails.md.
+ *
+ * Fails CLOSED: unparseable settings, or a guardrails doc with no ISC-3 section, is an error —
+ * never a silent pass.
+ *
+ * @returns {string[]} error strings (empty = consistent)
+ */
+export function pinDrift(settingsSrc, guardrailsSrc) {
+  const errors = [];
+
+  let settings;
+  try {
+    settings = JSON.parse(settingsSrc);
+  } catch (err) {
+    return [`settings.json did not parse (${err.message}) — cannot verify model pins`];
+  }
+
+  const env = (settings && settings.env) || {};
+  const pins = Object.keys(env)
+    .filter((k) => /^ANTHROPIC_DEFAULT_[A-Z0-9]+_MODEL$/.test(k))
+    .map((k) => ({ key: k, value: String(env[k]) }));
+
+  if (pins.length === 0) {
+    return ['settings.json declares no ANTHROPIC_DEFAULT_*_MODEL pins — expected at least one'];
+  }
+  if (!/ISC-3/.test(guardrailsSrc)) {
+    return ['guardrails.md has no ISC-3 section — cannot verify model pins'];
+  }
+
+  for (const { key, value } of pins) {
+    if (!value) {
+      errors.push(`${key} is empty in settings.json`);
+      continue;
+    }
+    if (!guardrailsSrc.includes(value)) {
+      errors.push(
+        `model-pin drift: settings.json ${key}="${value}" but guardrails.md ISC-3 does not mention "${value}" ` +
+          `— update framework/guardrails.md (ISC-3 table AND the Summary checklist) to match`
+      );
+    }
+    if (!guardrailsSrc.includes(key)) {
+      errors.push(`model-pin drift: guardrails.md ISC-3 does not document ${key}`);
+    }
+  }
+  return errors;
+}
+
 function listFiles(dir, filter) {
   const out = [];
   const walk = (d) => {
@@ -101,6 +154,19 @@ function main() {
 
   // 4. validated skills/packs index (FRW-BL-061) — schema + provenance + drift
   for (const e of validatePacksIndexForRepo(repo)) errors.push(`packs-index: ${e}`);
+
+  // 4b. model-pin drift: settings.json vs guardrails.md ISC-3 (FRW-BL-082)
+  const settingsPath = join(repo, '.claude', 'settings.json');
+  const guardrailsPath = join(repo, 'framework', 'guardrails.md');
+  if (!existsSync(settingsPath)) {
+    errors.push('model-pin: .claude/settings.json not found');
+  } else if (!existsSync(guardrailsPath)) {
+    errors.push('model-pin: framework/guardrails.md not found');
+  } else {
+    for (const e of pinDrift(readFileSync(settingsPath, 'utf8'), readFileSync(guardrailsPath, 'utf8'))) {
+      errors.push(e);
+    }
+  }
 
   // 5. orphan prompt templates (warn only)
   const referenced = new Set(refs.promptTemplates.map((p) => p.replace(/\//g, '\\')).concat(refs.promptTemplates));

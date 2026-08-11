@@ -9,9 +9,13 @@ CLI against this floor.
 
 | | Version | Notes |
 |---|---|---|
-| **Minimum supported** | **2.1.120** | Floor for Volundr's current hook/teammate surface (+ Windows PowerShell-without-Git-Bash, 2.1.120). Below this, hooks/worktree/agent-teams behavior is not guaranteed. |
-| **Recommended** | **latest (≥ 2.1.160)** | Required to use the full leverage backlog (see map). Opus 4.8 + ultracode need ≥ 2.1.154. |
-| **Detected (this machine)** | **2.1.161** | Recorded 2026-06-02. Newer than the analyzed changelog top (2.1.160) — all researched features available. |
+| **Minimum supported** | **2.1.219** | Raised from 2.1.120 by FRW-BL-082: the floor must be at least the highest requirement of any model id pinned in `framework/guardrails.md` ISC-3, and `claude-opus-5` ships in 2.1.219. Below this the framework pins an id the CLI cannot resolve. The older hook/teammate/PowerShell surface floor (2.1.120) is subsumed. |
+| **Recommended** | **latest (≥ 2.1.219)** | Required to use the full leverage backlog (see map). |
+| **Detected (this machine)** | **2.1.227** | Recorded 2026-08-11 via `claude --version`. Above the raised floor — both pinned ids resolvable. |
+
+> **The floor is a function of the pins, not a constant.** Whenever `guardrails.md` ISC-3 gains or
+> bumps a model id, re-derive this minimum as `max(requirement of every pinned id)`. `vldr-doctor`
+> section 6b enforces it against the running CLI.
 
 ## Feature → version map (what Volundr relies on / wants)
 
@@ -22,6 +26,8 @@ CLI against this floor.
 - Windows: PowerShell used when Git Bash absent — 2.1.120
 - settings.json `env` block (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS, CLAUDE_CODE_EFFORT_LEVEL) — established
 - `--dangerously-skip-permissions` bypasses `.claude/` & `.git/` write prompts — 2.1.126 *(relaxation; the launcher relies on it for unattended runs)*
+- **Pinned model ids (drive the minimum above):** `claude-sonnet-5` — **2.1.197** · `claude-opus-5` — **2.1.219** *(FRW-BL-082)*
+- `worktree.baseRef` — **2.1.128** *(FRW-BL-083; pinned to `head`, see Recommended settings below)*
 
 **Leverage backlog requirements (each card should re-state its own floor):**
 - `mcp_tool` hooks — 2.1.118 · `alwaysLoad` MCP — 2.1.121 · `--strict-mcp-config` for subagents — 2.1.150
@@ -121,6 +127,8 @@ advisory.) `enforce-worktree-isolation.js` (the git-commit-to-main PreToolUse:Ba
 | Setting | Recommended value | Why |
 |---|---|---|
 | `skillOverrides` | `user-invocable-only` | Loads only `user-invocable: true` skills into the model's context by default instead of every discoverable skill — saves context budget on long autonomous runs; model-invocable skills still fire when their description matches. (CC >= 2.1.152 / L676.) |
+| `worktree.baseRef` | `head` | **Required**, not merely recommended — see `framework/guardrails.md` ISC-2. The platform default is `fresh` (branches from `origin/<default-branch>`). Volundr merges each round into **local** `main`, so a `fresh` worktree silently discards every previously-merged round. Applies to the native `EnterWorktree` path as well as the `worktree-create.js` hook, which reads this same setting rather than hardcoding a ref. (CC >= 2.1.128 / FRW-BL-083.) |
+| `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` | `1` | Restores the single-level delegation contract the operating manual describes. The platform permits nested subagent chains by default; Volundr's dashboard parent-attribution and cost model assume one level. Raising this is a deliberate feature decision, not a default to inherit. (FRW-BL-084.) |
 
 **Read-only skill hardening (FRW-BL-034):** the query/command `vldr-*` skills (doctor, route,
 journal, economy, status, directive) declare `disallowed-tools: Write, Edit` in frontmatter so
