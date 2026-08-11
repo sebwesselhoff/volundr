@@ -189,9 +189,35 @@ and high-stakes cards get a confidence-aware verdict instead of a single coin-fl
 
 ### Tier 0 — static, cheap, deterministic (runs FIRST, before any LLM judge)
 Build gate (`tsc` / `node --check` / unit tests), the Anti-Stub Scan (§4b), and an ISC STRUCTURAL
-check (every criterion present + non-empty, and — for runtime-verifiable ones — carrying a fresh
-VERIFY block per §Verification-Before-Completion). **If Tier 0 fails, do NOT spawn the LLM judge** —
-fix first. This saves judge cost on cards that aren't even structurally ready.
+check. **If Tier 0 fails, do NOT spawn the LLM judge** — fix first. This saves judge cost on cards
+that aren't even structurally ready.
+
+**The ISC structural check is `scripts/verify-evidence.mjs`** (FRW-BL-086). Import
+`validateIsc(isc, { sessionId })`; it returns `{ ok, checked, skipped, errors }`. For every
+criterion marked `passed: true` whose truth depends on RUNTIME behaviour, it requires a well-formed
+VERIFY block per §Verification-Before-Completion: a command, an integer `exit=` that must be `0`,
+non-empty output, and a `ran:` freshness marker. Evidence whose `ran:` names a *different* session
+id is rejected as stale — copied-forward proof is the failure mode this catches.
+
+Two deliberate design choices:
+
+- **Runtime-vs-static classification errs toward STATIC.** A criterion is treated as
+  runtime-verifiable only when it clearly describes an execution outcome, or when it sets
+  `requiresRuntime: true` explicitly (`false` opts out and is never second-guessed). A false
+  positive would block a legitimate documentary criterion; a false negative merely leaves it to the
+  LLM judge, which is the pre-existing behaviour.
+- **Everything else fails closed.** A non-array ISC, a non-object entry, or unparseable evidence is
+  an error, never a silent pass.
+
+> **Historical note:** this section described the Tier 0 check for some time before any
+> implementation existed — the gate was in fact enforced only by the cheapest-tier LLM reviewer.
+> Documented guarantees with no implementation are worse than no documentation, because they get
+> relied upon. If you add a tier here, land the script in the same commit.
+
+**Related fix (same card):** the two done-gates — `dashboard/packages/api/src/routes/cards.ts` and
+`.claude/hooks/task-completed.js` — previously filtered unverified criteria on `passed === null`,
+which let a criterion the reviewer explicitly FAILED (`passed: false`) satisfy the gate. Both now
+require `passed === true` and report failed and pending criteria separately.
 
 ### Tier 1 — LLM judge (blind reviewer), confidence-aware for high-stakes cards
 - **Normal cards:** one blind reviewer; its weightedScore is the official record (as today).

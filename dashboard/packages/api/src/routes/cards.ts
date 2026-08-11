@@ -306,16 +306,30 @@ router.patch('/cards/:id', (req, res) => {
     }
   }
 
-  // Enforce ISC gate when marking a card as done
+  // Enforce ISC gate when marking a card as done.
+  //
+  // FRW-BL-086: a criterion counts as verified ONLY when `passed === true`. This previously
+  // filtered on `passed === null`, which let a criterion the reviewer explicitly FAILED
+  // (`passed: false`) — and any criterion left `undefined` — satisfy the gate. Failing closed on
+  // anything that is not strictly true is the whole point of the gate.
   if (status === 'done' && existing.status !== 'done') {
     const isc = existing.isc ? (() => { try { return JSON.parse(existing.isc!); } catch { return []; } })() : [];
     if (isc.length > 0) {
-      const unverified = isc.filter((c: any) => c.passed === null);
-      if (unverified.length > 0) {
+      const unmet = isc.filter((c: any) => c?.passed !== true);
+      if (unmet.length > 0) {
+        // Separate the two reasons so the caller knows whether to finish work or fix a defect.
+        const failed = unmet.filter((c: any) => c?.passed === false);
+        const pending = unmet.filter((c: any) => c?.passed !== false);
+        const parts = [
+          failed.length ? `${failed.length} explicitly failed` : '',
+          pending.length ? `${pending.length} still pending` : '',
+        ].filter(Boolean);
         return res.status(400).json({
           error: 'ISC criteria not fully verified',
-          detail: `${unverified.length} of ${isc.length} criteria still pending`,
-          unverified: unverified.map((c: any) => c.criterion),
+          detail: `${unmet.length} of ${isc.length} criteria unmet (${parts.join(', ')})`,
+          unverified: unmet.map((c: any) => c?.criterion),
+          failed: failed.map((c: any) => c?.criterion),
+          pending: pending.map((c: any) => c?.criterion),
         });
       }
     }
