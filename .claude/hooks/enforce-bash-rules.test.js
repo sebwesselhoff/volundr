@@ -1,6 +1,6 @@
 // Self-test for enforce-bash-rules.js (FRW-BL-051 destructive-guard + existing blocks).
 // Run: node enforce-bash-rules.test.js — exits 0 on success, 1 on failure.
-const { matchBlocked, matchDestructive, BLOCKED_PATTERNS } = require('./enforce-bash-rules.js');
+const { matchBlocked, matchDestructive, stripQuotes, BLOCKED_PATTERNS, DESTRUCTIVE_PATTERNS } = require('./enforce-bash-rules.js');
 
 let pass = 0, fail = 0;
 function ok(label, cond) { if (cond) { pass++; console.log(`  ✓ ${label}`); } else { fail++; console.log(`  ✗ ${label}`); } }
@@ -111,6 +111,54 @@ ok('bypass still closed: bash -c "rm -rf /" after heredoc handling', !!matchBloc
     preFixMatchBlocked('npm test # never use claude -p here'));
   ok('PRE-FIX matcher also blocked command position (so the fix preserved real blocking)',
     preFixMatchBlocked('claude -p "do thing"'));
+}
+
+// --- FRW-BL-092 (residual gap): the pattern set was POSIX-shaped ---------------------------
+// Registering the hook for the PowerShell tool fixed the git tier there for free (git spells the
+// same in every shell) but left the FILESYSTEM tier dead: PowerShell's `rm` alias rejects the
+// bundled `-rf`, so `rm -rf` is unreachable prose there, while `Remove-Item -Recurse -Force` —
+// the form a PowerShell caller actually writes — matched nothing. Confirmed by probe: a nested
+// canary tree under TEMP was deleted unguarded through the PowerShell tool.
+console.log('\n  FRW-BL-092 — PowerShell/cmd-native destructive verbs');
+
+ok('destructive: Remove-Item -Recurse -Force', !!matchDestructive('Remove-Item -Recurse -Force C:\\tmp\\x'));
+ok('destructive: Remove-Item -Force -Recurse (flag order swapped)', !!matchDestructive('Remove-Item -Force -Recurse C:\\tmp\\x'));
+ok('destructive: Remove-Item -Recurse alone (deletes trees non-interactively)', !!matchDestructive('Remove-Item -Recurse C:\\tmp\\x'));
+ok('destructive: abbreviated -Rec', !!matchDestructive('Remove-Item -Rec C:\\tmp\\x'));
+ok('destructive: the literal probe command that ran UNGUARDED',
+  !!matchDestructive('Remove-Item -Recurse -Force (Join-Path $env:TEMP "vldr-gap-probe-092")'));
+ok('destructive: cmd rd /s', !!matchDestructive('rd /s /q C:\\tmp\\x'));
+ok('destructive: cmd del /s', !!matchDestructive('del /s /q C:\\tmp\\*'));
+ok('destructive: pipeline Get-ChildItem -Recurse | Remove-Item',
+  !!matchDestructive('Get-ChildItem C:\\tmp -Recurse | Remove-Item -Force'));
+ok('destructive: Clear-Content (in-place truncation)', !!matchDestructive('Clear-Content notes.md'));
+ok('blocks Format-Volume (no escape hatch)', !!matchBlocked('Format-Volume -DriveLetter D'));
+ok('blocks Clear-Disk (no escape hatch)', !!matchBlocked('Clear-Disk -Number 1 -RemoveData'));
+
+// False-positive guards — symmetry with the POSIX tier, where `rm -f` on one file is allowed.
+ok('safe: Remove-Item on a single file (no recurse)', !matchDestructive('Remove-Item C:\\tmp\\probe.txt'));
+ok('safe: Remove-Item -Force on a single file', !matchDestructive('Remove-Item -Force C:\\tmp\\probe.txt'));
+ok('safe: Get-ChildItem -Recurse with no deleting verb', !matchDestructive('Get-ChildItem . -Recurse'));
+ok('safe: Get-ChildItem -Recurse | Measure-Object', !matchDestructive('Get-ChildItem . -Recurse | Measure-Object'));
+ok('safe: dir /s (read-only listing)', !matchDestructive('dir /s C:\\tmp'));
+ok('safe: git rm -r --cached (staging, not a filesystem wipe)', !matchDestructive('git rm -r --cached path'));
+ok('safe: quoted prose about Remove-Item -Recurse', !matchDestructive('git commit -m "avoid Remove-Item -Recurse -Force here"'));
+ok('safe: Get-Content (read) is not Clear-Content', !matchDestructive('Get-Content notes.md'));
+
+// Counter-proof: the PRE-FIX pattern set did NOT match any PowerShell-native form. Without this,
+// the assertions above would restate the fix instead of catching its regression.
+{
+  const preFixDestructive = DESTRUCTIVE_PATTERNS.filter(d => !/Remove-Item|Get-Child|Clear-Content/.test(String(d.pattern)));
+  const preFixBlocked = BLOCKED_PATTERNS.filter(b => !/Format-Volume|Clear-Disk/.test(String(b.pattern)));
+  const hit = (list, c) => list.some(({ pattern }) => pattern.test(stripQuotes(c)));
+  ok('PRE-FIX set does NOT catch Remove-Item -Recurse -Force (regression is caught)',
+    !hit(preFixDestructive, 'Remove-Item -Recurse -Force C:\\tmp\\x'));
+  ok('PRE-FIX set does NOT catch rd /s (regression is caught)',
+    !hit(preFixDestructive, 'rd /s /q C:\\tmp\\x'));
+  ok('PRE-FIX set does NOT catch Format-Volume (regression is caught)',
+    !hit(preFixBlocked, 'Format-Volume -DriveLetter D'));
+  ok('PRE-FIX set DID already catch git filter-branch (shell-agnostic tier was never broken)',
+    hit(preFixDestructive, 'git filter-branch --tree-filter x HEAD'));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

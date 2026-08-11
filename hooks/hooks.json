@@ -17,7 +17,7 @@
         ]
       },
       {
-        "matcher": "Bash|PowerShell",
+        "matcher": "Bash|PowerShell|Monitor",
         "hooks": [
           { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/.claude/hooks/enforce-bash-rules.js"], "timeout": 3 },
           { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/.claude/hooks/enforce-worktree-isolation.js"], "timeout": 3 }
@@ -38,7 +38,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash|PowerShell",
+        "matcher": "Bash|PowerShell|Monitor",
         "hooks": [
           { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/.claude/hooks/post-bash-git.js"], "timeout": 30 }
         ]

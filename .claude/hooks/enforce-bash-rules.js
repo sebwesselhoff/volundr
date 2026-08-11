@@ -22,6 +22,9 @@ const BLOCKED_PATTERNS = [
   { pattern: /claude\s+(-p|--print)\b/, message: "BLOCKED: 'claude -p' hangs in nested sessions. Use the Agent tool instead." },
   { pattern: /git\s+push\s+--force(?!-)/, message: "BLOCKED: Force push prohibited. Use --force-with-lease if needed." },
   { pattern: /rm\s+-rf\s+\//, message: "BLOCKED: Destructive rm -rf / not allowed." },
+  // FRW-BL-092 (residual gap) — the Windows analogue of `rm -rf /`. Never legitimate here, so it
+  // sits in the no-escape tier alongside it rather than behind VLDR_ALLOW_DESTRUCTIVE.
+  { pattern: /\b(?:Format-Volume|Clear-Disk)\b/i, message: "BLOCKED: Format-Volume / Clear-Disk destroys an entire volume." },
 ];
 
 // Destructive — gated behind operator approval (VLDR_ALLOW_DESTRUCTIVE=1), logged as a receipt.
@@ -33,6 +36,20 @@ const DESTRUCTIVE_PATTERNS = [
   { pattern: /git\s+push\b.*\s\+\S+/, label: 'git force-push (+refspec)' },
   { pattern: /\brm\s+-[a-z]*r[a-z]*f|\brm\s+-[a-z]*f[a-z]*r/i, label: 'rm -rf (recursive force delete)' },
   { pattern: /\bDROP\s+(DATABASE|SCHEMA|TABLE)\b/i, label: 'SQL DROP DATABASE/SCHEMA/TABLE' },
+
+  // FRW-BL-092 (residual gap) — everything above this line is POSIX-shaped. Registering the hook
+  // for the PowerShell tool fixed the `git` tier there for free, because git spells the same in
+  // every shell (proven live: filter-branch and `add -A` both blocked via PowerShell). It did NOT
+  // fix the FILESYSTEM tier: PowerShell's `rm` alias rejects the bundled `-rf`, so `rm -rf` is
+  // unreachable prose on the primary shell of this machine, while the form a PowerShell caller
+  // actually writes — `Remove-Item -Recurse -Force` — matched nothing at all. Verified by probe,
+  // not by inspection: a nested canary tree under TEMP was deleted UNGUARDED through the
+  // PowerShell tool minutes after the git tier was proven blocked on that same tool.
+  { pattern: /\b(?:Remove-Item|rmdir|rd|del|erase|ri)\b[^|;&\n]*\s(?:-Recurse\b|-Rec\b|-r\b|\/[sS]\b)/i, label: 'recursive delete (PowerShell/cmd: Remove-Item -Recurse, rd /s, del /s)' },
+  // The pipeline idiom: the -Recurse sits on the producer, so it is never in the same segment as
+  // the deleting verb and the pattern above cannot see it.
+  { pattern: /Get-Child(?:Item)?\b[^\n]*-Recurse\b[^\n]*\|\s*(?:Remove-Item|rm\b|ri\b|del\b)/i, label: 'recursive delete via pipeline (Get-ChildItem -Recurse | Remove-Item)' },
+  { pattern: /\bClear-Content\b/i, label: 'Clear-Content (truncates file contents in place)' },
 ];
 
 // Strip quoted strings so patterns inside commit messages / echo content don't false-positive.

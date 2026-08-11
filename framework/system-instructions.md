@@ -591,11 +591,27 @@ Two consequences follow, and they are the load-bearing part:
 - **Every push MUST leave a `type: intervention` receipt** naming the ruleset and the skipped
   checks. This is automated in `.claude/hooks/post-bash-git.js`; an unremarked bypass is what
   produced four sessions of re-noticing the same thing.
-  **Caveat until FRW-BL-092 is verified:** that hook — and the `enforce-bash-rules` safety guard —
-  were registered with matcher `Bash` only, so NEITHER fired for the **PowerShell** tool, which is
-  the primary shell on Windows. The first real push of session 244933cb produced no receipt for
-  exactly this reason. Both matchers are now `Bash|PowerShell`, but hook matchers are boot-read, so
-  until a restarted session proves it, do not assume a PowerShell-issued command is guarded.
+  **FRW-BL-092 — VERIFIED (session `a6cce6c6`, 2026-08-11).** That hook and the
+  `enforce-bash-rules` safety guard had been registered with matcher `Bash` only, so NEITHER fired
+  for the **PowerShell** tool — the primary shell on Windows — which is why the first real push of
+  session 244933cb produced no receipt. Matchers are now `Bash|PowerShell|Monitor` in BOTH
+  `.claude/settings.json` and `hooks/hooks.json`, and a restarted session proved it live: the
+  BLOCKED tier (`git add -A`) and the DESTRUCTIVE tier (`git filter-branch`) both block through the
+  PowerShell tool, with no regression on Bash.
+
+  Two things that verification also settled, and that you should not re-derive:
+
+  - **Widening a matcher does not widen the patterns behind it.** The `git` tier worked on
+    PowerShell instantly because git spells the same in every shell; the FILESYSTEM tier was still
+    dead, because every pattern was POSIX-shaped and PowerShell's `rm` rejects a bundled `-rf`.
+    `Remove-Item -Recurse -Force` deleted a real canary tree unguarded. Now fixed and covered.
+  - **Hook BODIES are re-read per invocation; only REGISTRATION is boot-read.** So a pattern or
+    logic fix is verifiable on the spot, while a matcher change is not — defer that ISC to a
+    restart rather than manufacturing a green result for it.
+
+  Coverage table, remaining sibling-tool gaps (`NotebookEdit`, `Workflow`), the safe probe recipe,
+  and why `VLDR_ALLOW_DESTRUCTIVE` cannot be exercised from inside a tool call:
+  `framework/hook-coverage.md`.
 
 Facts, measured check runtimes, the decision and its rationale: `framework/branch-protection.md`.
 
