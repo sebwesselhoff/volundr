@@ -24,7 +24,7 @@
         ]
       },
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write|Edit|NotebookEdit",
         "hooks": [
           { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/.claude/hooks/enforce-worktree-path-write.js"], "timeout": 3 }
         ]

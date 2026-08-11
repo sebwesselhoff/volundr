@@ -55,6 +55,21 @@ function normalize(p) {
   return (p || '').replace(/\\/g, '/');
 }
 
+// FRW-BL-093: Write and Edit carry the target in `file_path`, but NotebookEdit — a sibling writer
+// belonging under this same guard — carries `notebook_path`. Adding NotebookEdit to the matcher
+// WITHOUT reading its field would register a hook that inspects `undefined` and waves every
+// notebook write through: coverage theatre, which is worse than a known gap because it reads as
+// covered. Resolve whichever field the tool actually sent, and report that field name back so the
+// remediation message names something the caller can act on.
+function resolveWriteTarget(toolInput) {
+  const t = toolInput || {};
+  for (const field of ['file_path', 'notebook_path']) {
+    const v = t[field];
+    if (typeof v === 'string' && v.trim()) return { field, target: v };
+  }
+  return { field: null, target: null };
+}
+
 function findRepoRoot(filePath) {
   // Walk up looking for a .git file or directory.
   let dir = path.dirname(filePath);
@@ -94,9 +109,8 @@ function main() {
   if (!isSubagent) return;
 
   const input = readStdin();
-  const toolInput = input.tool_input || {};
-  const filePath = toolInput.file_path;
-  if (!filePath || typeof filePath !== 'string') return;
+  const { field: targetField, target: filePath } = resolveWriteTarget(input.tool_input);
+  if (!filePath) return;
 
   // Only check absolute paths — relative paths resolve against CWD which is
   // typically the worktree itself, so they're safe by default.
@@ -125,7 +139,7 @@ function main() {
     `  file:     ${normFile}`,
     `  repoRoot: ${normRoot}`,
     `  worktrees: ${worktrees.length} active`,
-    'Your file_path must start with your worktree root, NOT the parent repo root.',
+    `Your ${targetField} must start with your worktree root, NOT the parent repo root.`,
     'Active worktrees on this repo:',
     ...worktrees.map((w) => '  - ' + w),
   ];
@@ -156,4 +170,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { findRepoRoot, listActiveWorktrees, normalize };
+module.exports = { findRepoRoot, listActiveWorktrees, normalize, resolveWriteTarget };

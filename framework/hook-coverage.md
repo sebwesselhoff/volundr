@@ -43,15 +43,41 @@ Verified 2026-08-11, session `a6cce6c6`, CLI 2.1.227.
 |---|---|---|---|---|
 | `Bash\|PowerShell\|Monitor` (PreToolUse) | `enforce-bash-rules`, `enforce-worktree-isolation` | Bash, PowerShell, Monitor | — | Bash + PowerShell **proven live**; `Monitor` added but registration unproven (FRW-BL-093) |
 | `Bash\|PowerShell\|Monitor` (PostToolUse) | `post-bash-git` (commit card-ID validator, push receipt) | Bash, PowerShell, Monitor | — | as above |
-| `Write\|Edit` | `enforce-worktree-path-write` | Write, Edit | **`NotebookEdit`** | **GAP** — needs code, not just a matcher (below). FRW-BL-093 |
-| `Agent` | `pre-agent-tool` (card/persona descriptor queue), `enforce-card-deps` | Agent | **`Workflow`** | **GAP** — workflow subagents get no card/persona attribution and bypass dep enforcement. FRW-BL-093 |
+| `Write\|Edit\|NotebookEdit` | `enforce-worktree-path-write` | Write, Edit, NotebookEdit | — | **CLOSED (FRW-BL-093)** — guard reads `file_path` OR `notebook_path`; registration unproven until a restart |
+| `Agent` | `pre-agent-tool` (card/persona descriptor queue), `enforce-card-deps` | Agent | **`Workflow`** | **DEFERRED, documented below** — FRW-BL-094 |
 | `Skill` | `enforce-tool-priority` | Skill | — | covered |
 | `""` (all) | SessionStart/SubagentStart/SubagentStop/TaskCompleted/TeammateIdle/Stop/SessionEnd/PreCompact/PostCompact/WorktreeCreate/WorktreeRemove/ConfigChange/InstructionsLoaded/PostToolUseFailure/StopFailure | everything | — | empty matcher cannot have this bug |
 
 `Monitor` needed **no code change**: its input field is `command`, the same field
-`enforce-bash-rules` already reads. `NotebookEdit` does need one — it passes `notebook_path`, while
-`enforce-worktree-path-write` reads `tool_input.file_path`, so adding it to the matcher alone would
-register a hook that inspects `undefined` and passes everything.
+`enforce-bash-rules` already reads. `NotebookEdit` did need one — it passes `notebook_path`, while
+`enforce-worktree-path-write` read only `tool_input.file_path`, so adding it to the matcher alone
+would have registered a hook that inspects `undefined` and passes everything. **Fixed in
+FRW-BL-093**: `resolveWriteTarget()` resolves whichever field the tool sent and names it back in the
+remediation message, because telling a NotebookEdit caller to correct their "file_path" is a dead
+end. The code landed **before** the matcher, in that order, deliberately.
+
+### The `Workflow` attribution gap — deferred, with the reason
+
+`PreToolUse: Agent` runs `pre-agent-tool.js`, which parses `# CARD-XX-NNN:` and `personaId:` out of
+an Agent prompt and writes them to a FIFO descriptor queue; `agent-start.js` pops that queue
+(`:224`) and stamps the dashboard agents row (`:417-418`). The `Workflow` tool spawns subagents
+**without invoking the Agent tool**, so nothing is ever written to the queue for them. `SubagentStart`
+still fires (its matcher is `""`), so the row is created — just unattributed. Consequence:
+workflow-spawned agents carry no `cardId`/`personaId`, which quietly weakens FRW-002 persona skill
+extraction (it weights confidence on those rows), and `enforce-card-deps.js` never runs for them.
+
+**Worse, and the real reason this needs its own card:** the pop is a *blind* FIFO, not keyed to the
+starting agent. A workflow agent that starts while a genuine Agent-tool descriptor is still pending
+will pop **someone else's** `cardId` and `personaId`. That is *false* attribution rather than missing
+attribution, and false attribution is the more damaging failure — a card gets quality and skill
+signal from work that was never done for it.
+
+**Not fixed here, on purpose.** Adding `Workflow` to the `Agent` matcher would also feed a workflow
+*script* to `enforce-card-deps.js`, which expects a single-card Agent prompt — a different shape,
+with a real risk of spurious blocks. The sound fix is to make the descriptor handoff **keyed** rather
+than positional, which is a change to attribution plumbing that deserves its own tests. Present
+exposure in this repo is nil, since the standing instruction here is not to use the Workflow tool.
+Tracked as **FRW-BL-094**.
 
 **Whenever a new tool that runs commands, writes files, or spawns agents appears in the platform,
 add it here and to the matcher.** The audit is only true as of its date.
@@ -87,6 +113,25 @@ Deliberately still uncovered, and why:
 
 This guard is defense-in-depth against the routine "oops", not a sandbox. A determined caller gets
 past any regex.
+
+## The platform has this bug too — commit with `-F`, not `-m`
+
+Claude Code's **own** PowerShell safety check has the FRW-BL-090 shape. Committing the FRW-BL-092
+fix was refused with:
+
+```
+Remove-Item on system path '/s' is blocked. This path is protected from removal.
+```
+
+Nothing in this framework produced that. The platform scanned the `git commit -m` argument, found
+prose *documenting* cmd-style delete flags, and read it as a live delete targeting `/s`. Writing
+about a forbidden command is not running one — the exact distinction FRW-BL-090 fixed one layer
+down, in our own guard.
+
+Not fixable from here. **Workaround: write the message to a file and use `git commit -F <file>`**,
+so the text never appears on the shell command line. Reach for `-F` immediately when a commit
+message needs to quote destructive syntax, rather than re-diagnosing this. (PowerShell has no
+heredoc, so `git commit -F -` with a `<<EOF` body is a parse error here — use a real file.)
 
 ## Known limit when verifying the approval path
 
