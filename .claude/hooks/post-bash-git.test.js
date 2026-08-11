@@ -191,6 +191,41 @@ test('receipt names the ruleset, the branch and every required check', () => {
   assert.ok(r.includes('framework/branch-protection.md'), 'receipt points at the decision record');
 });
 
+// FRW-BL-092 regression: the receipt fired on COMMIT commands whose heredoc message merely
+// DESCRIBED a push. Three false receipts (events 4136/4137/4141) landed in the audit trail that
+// § Risk Gating makes load-bearing, before this was caught. Same write-vs-run defect class as
+// FRW-BL-090 — fixed in enforce-bash-rules.js and not reused here until now.
+test('does NOT receipt a commit whose heredoc message describes a push', () => {
+  const commitWithProse = [
+    "git commit -F - <<'MSG'",
+    'fix: something',
+    '',
+    'A real `git push origin main` produced no receipt, because the hook matched only Bash.',
+    'Also mentions git push --force as a forbidden form.',
+    'MSG',
+  ].join('\n');
+  assert.strictEqual(shouldReceiptPush(commitWithProse, 'main'), false);
+});
+
+test('does NOT receipt a commit whose quoted -m message describes a push', () => {
+  assert.strictEqual(shouldReceiptPush('git commit -m "explain why git push origin main bypasses"', 'main'), false);
+});
+
+test('does NOT receipt a comment mentioning a push', () => {
+  assert.strictEqual(shouldReceiptPush('npm test # remember to git push origin main after', 'main'), false);
+});
+
+test('STILL receipts a real push that follows a heredoc block', () => {
+  const realPush = ["cat <<'EOF' > notes.md", 'prose about git push', 'EOF', 'git push origin main'].join('\n');
+  assert.strictEqual(shouldReceiptPush(realPush, 'main'), true);
+});
+
+test('FAILS CLOSED: unterminated heredoc mentioning a push still receipts', () => {
+  // Extent unknowable -> fall back to raw matching. An extra receipt is noise; a missing one is a
+  // hole in the audit trail, so the ambiguous case errs toward recording.
+  assert.strictEqual(shouldReceiptPush("cat <<'EOF' > f.md\ngit push origin main", 'main'), true);
+});
+
 test('receipt is factual, not an unconditional accusation', () => {
   // It must stay accurate if the operator later adjudicates the pull_request rule and pushes
   // become legitimate, so the override claim is conditional rather than asserted.

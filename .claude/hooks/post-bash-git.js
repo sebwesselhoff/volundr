@@ -18,8 +18,18 @@
 
 const { readStdin, apiPost, apiGet, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
+const { scanTargets } = require('./enforce-bash-rules');
 const { execSync } = require('child_process');
 const log = createLogger('post-bash-git');
+
+// FRW-BL-090/091/092: detect what a command RUNS, not what it mentions. Raw substring tests on the
+// command string fire on prose — this hook's own push receipt was emitted three times by COMMIT
+// commands whose heredoc message merely described a push, polluting the audit trail that
+// § Risk Gating makes load-bearing. scanTargets() strips heredoc bodies, quoted strings and
+// comments (and falls back to the raw text when a heredoc is unterminated, so it fails closed).
+function runsCommand(command, re) {
+  return scanTargets(command || '').some(t => re.test(t));
+}
 
 // --- asyncRewake capability detection (defensive) ---------------------------
 // Probe the hook input for an advertised background-rewake capability. We do NOT
@@ -124,9 +134,11 @@ const REQUIRED_CHECKS = ['Typecheck & lint', 'Build dashboard', 'Docs & spelling
 // A push only warrants a receipt when it targets a ruleset-protected branch. Explicit refspecs
 // (`git push origin main`) and bare pushes from a checked-out protected branch both count.
 function shouldReceiptPush(command, currentBranch) {
-  if (!/git\s+push\b/.test(command || '')) return false;
+  if (!runsCommand(command, /git\s+push\b/)) return false;
+  const targets = scanTargets(command || '');
   for (const b of PROTECTED_BRANCHES) {
-    if (new RegExp(`\\b${b}\\b`).test(command)) return true;
+    const re = new RegExp(`\\b${b}\\b`);
+    if (targets.some(t => re.test(t))) return true;
   }
   return PROTECTED_BRANCHES.has((currentBranch || '').trim());
 }
@@ -169,7 +181,7 @@ async function main() {
   await emitTelemetry(input);
 
   // 1. Detect git tag → log milestone
-  if (/git\s+tag\b/.test(command)) {
+  if (runsCommand(command, /git\s+tag\b/)) {
     await apiPost('/api/events', {
       projectId: PROJECT_ID,
       type: 'milestone_reached',
@@ -180,7 +192,7 @@ async function main() {
 
   // 2. Detect teammate committing outside a worktree (SOFT warning)
   // Uses cwd path check — no child_process needed.
-  if (/git\s+commit\b/.test(command) && process.env.CLAUDE_AGENT_TEAMS_MEMBER) {
+  if (runsCommand(command, /git\s+commit\b/) && process.env.CLAUDE_AGENT_TEAMS_MEMBER) {
     const cwd = process.cwd();
     const isInWorktree = cwd.includes('/.claude/worktrees/') || cwd.includes('\\.claude\\worktrees\\');
     if (!isInWorktree) {
@@ -194,13 +206,13 @@ async function main() {
   //    FRW-BL-043: pass the detected rewake capability so the validator either
   //    re-wakes the lead in the background (when supported) or degrades to the
   //    existing synchronous stderr warning (when not).
-  if (/git\s+commit\b/.test(command)) {
+  if (runsCommand(command, /git\s+commit\b/)) {
     const canRewake = detectRewakeCapability(input);
     await validateCardIds(canRewake);
   }
 
   // 4. FRW-BL-091: receipt every push to a ruleset-protected branch.
-  if (/git\s+push\b/.test(command)) {
+  if (runsCommand(command, /git\s+push\b/)) {
     await emitPushReceipt(command);
   }
 }
