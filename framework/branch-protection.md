@@ -55,21 +55,28 @@ So even with zero bypasses, those guarantees would gate nothing. A guarantee tha
 push is documentation, not enforcement. Their combined runtime is ~10s wall-clock (they run in
 parallel and finish long before the 86s dashboard build), so requiring them costs nothing.
 
-## Standing posture
+## Decision (settled 2026-08-11)
 
-1. **Required checks should be widened to all six jobs.** Strictly tightens the gate, adds no
-   measurable wall-clock, and repairs the FRW-BL-081/082 enforcement gap. This is the change that
-   actually matters and it needs no workflow concessions.
-2. **The `pull_request` rule is the part to adjudicate**, and it is an operator decision because it
-   governs a shareable repo: either drop the review requirement for the maintainer (making the
-   status checks the real gate, satisfiable with no bypass), or keep it and accept that every
-   autonomous push is a receipted override.
-3. **Until (2) is settled, every bypassed push emits a receipt.** Per the § Risk Gating convention
-   in `system-instructions.md`, a bypass is an approved override and must leave an audit trail —
-   `type: intervention`, naming the ruleset and the checks skipped. An unremarked bypass is what
-   produced four sessions of re-noticing.
+**The `pull_request` rule stays, and autonomous pushes are accepted as receipted overrides.**
+Operator decision; rationale: keep the autonomous loop as sleek as possible. Waiting on a review
+that no second person can give — or on a ~95s CI run — at every card close buys nothing on a
+single-maintainer repo, and the override is now self-documenting rather than silent.
 
-Applying (1) is a single call, listing all six contexts:
+State the trade plainly so nobody re-derives it later: **`main` is not gate-protected in practice.**
+The ruleset stands as a guard on anything arriving by pull request, not as a gate on the
+maintainer's own pushes.
+
+### Correction to an earlier claim in this document
+
+An earlier revision argued that widening `required_status_checks` from three contexts to all six was
+"the change that actually matters". With overrides accepted that overstated it: **required checks are
+skipped wholesale on a bypassed push**, so widening changes nothing for the autonomous flow. Its
+remaining value is real but narrower — it hardens the **pull-request** path, so an external
+contributor's PR would also have to satisfy Framework self-tests, Garden lint and Judge calibration
+drift, which is where the FRW-BL-081/082 guarantees become enforceable for anyone but the maintainer.
+
+Widening is therefore **optional repo-hardening, not a loose end** in the autonomous workflow. It
+costs the maintainer nothing (their pushes bypass regardless) and is a single call:
 
 ```bash
 gh api -X PUT repos/sebwesselhoff/volundr/rulesets/14345267 --input ruleset.json
@@ -78,6 +85,19 @@ gh api -X PUT repos/sebwesselhoff/volundr/rulesets/14345267 --input ruleset.json
 #   Framework self-tests | Garden lint (packs/registry/prompts) | Judge calibration drift
 ```
 
-Ruleset mutation is deliberately left to the operator: it changes governance for anyone who clones
-or contributes, which is exactly the outward-facing class that § Risk Gating says to confirm rather
+Ruleset mutation stays an operator action: it changes governance for anyone who clones or
+contributes, which is exactly the outward-facing class that § Risk Gating says to confirm rather
 than infer.
+
+## What is load-bearing now
+
+Because the ruleset does not gate the maintainer's pushes, two things carry the weight the gate
+otherwise would, and must not be quietly dropped:
+
+1. **The pre-commit gate suite IS the gate.** All self-tests, garden-lint, plugin validation,
+   judge-calibration, dashboard typecheck, production build, and cspell on changed markdown — run
+   against the working tree before committing, never inferred from an earlier run.
+2. **Every push emits a receipt** (`type: intervention`, naming the ruleset and the skipped checks),
+   emitted automatically by `.claude/hooks/post-bash-git.js`. A mechanism rather than prose asking
+   the lead to remember, because an unremarked bypass is precisely what produced four sessions of
+   re-noticing the same thing.

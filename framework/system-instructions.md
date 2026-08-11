@@ -576,13 +576,23 @@ the event log (`type: intervention`) so there is a record of what was authorized
 destructive-guard does this automatically (`Destructive command APPROVED …`); deploy/delete/secrets
 approvals follow the same receipt convention.
 
-**Branch-protection bypass is an override, so it is receipted (FRW-BL-091).** `main` is guarded by
-a repository *ruleset* (not classic protection — the classic endpoint 404s, which is why it has
-looked absent when checked the obvious way). Its `pull_request` rule demands a non-author approving review, which a
-single-maintainer repo cannot satisfy, so autonomous pushes have bypassed it every time. Until the
-rule is adjudicated, each bypassed push MUST log a `type: intervention` receipt naming the ruleset
-and the checks skipped — an unremarked bypass is what produced four sessions of re-noticing the
-same thing. Facts, measured check runtimes, and the standing posture: `framework/branch-protection.md`.
+**Branch-protection bypass is an accepted, receipted override (FRW-BL-091 — SETTLED).** `main` is
+guarded by a repository *ruleset* (not classic protection — the classic endpoint 404s, which is why
+it has looked absent when checked the obvious way). Its `pull_request` rule demands a non-author
+approving review, which a single-maintainer repo cannot satisfy. **Operator decision (2026-08-11):
+the rule stays and autonomous pushes override it, to keep the loop sleek.** Do not re-litigate this
+each session, and do not treat a bypass as a defect.
+
+Two consequences follow, and they are the load-bearing part:
+
+- **`main` is not gate-protected in practice, so the pre-commit gate suite IS the gate.** Run the
+  full suite against the working tree before committing — never infer it from an earlier run.
+  Required status checks are skipped wholesale on a bypassed push, so CI is not a safety net here.
+- **Every push MUST leave a `type: intervention` receipt** naming the ruleset and the skipped
+  checks. This is automated in `.claude/hooks/post-bash-git.js`; an unremarked bypass is what
+  produced four sessions of re-noticing the same thing.
+
+Facts, measured check runtimes, the decision and its rationale: `framework/branch-protection.md`.
 
 ---
 
