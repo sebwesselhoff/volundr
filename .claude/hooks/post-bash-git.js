@@ -82,13 +82,21 @@ const VALID_EFFORT_LEVELS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 // commands (e.g. "Bash 2451ms effort=xhigh"). Still read defensively (null-guard +
 // Number.isFinite) and only include when finite, so the hook stays correct if a
 // future CC build omits the field.
+// FRW-BL-092: this stamped 'Bash' on ANY invocation carrying tool_input.command — which is every
+// Bash, PowerShell and Monitor call alike. Widening the matcher started the telemetry flowing for
+// PowerShell but labelled all of it 'Bash', so the dashboard showed a machine that never used its
+// primary shell. Trust the tool name the platform actually sent; fall back only when it is absent.
+function resolveToolName(input) {
+  const sent = input?.tool_name;
+  if (typeof sent === 'string' && sent.trim()) return sent.trim();
+  return input?.tool_input?.command ? 'Bash' : 'unknown';
+}
+
 async function emitTelemetry(input) {
   try {
     if (!PROJECT_ID) return;
 
-    const toolName = input.tool_input?.command
-      ? 'Bash'
-      : (input.tool_name || 'Bash');
+    const toolName = resolveToolName(input);
 
     // duration_ms: doc-silent — may be undefined; only use when finite
     const d = Number(input.duration_ms);
@@ -303,6 +311,6 @@ if (require.main === module) {
 }
 
 module.exports = {
-  detectRewakeCapability, emitRewake, CARD_ID_REGEX,
+  detectRewakeCapability, emitRewake, CARD_ID_REGEX, resolveToolName,
   shouldReceiptPush, buildPushReceipt, PROTECTED_BRANCHES, REQUIRED_CHECKS,
 };

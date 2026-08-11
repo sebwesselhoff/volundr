@@ -151,7 +151,7 @@ test('(g) Does not match git commit hashes embedded in prose', () => {
 // exits normally, because main() sits behind a `require.main === module` guard. Testing a copied
 // implementation is the duplicate-encoding drift hazard FRW-BL-077/078/085 each had to undo, so
 // the real functions are used here on purpose.
-const { shouldReceiptPush, buildPushReceipt, REQUIRED_CHECKS } = require('./post-bash-git.js');
+const { shouldReceiptPush, buildPushReceipt, REQUIRED_CHECKS, resolveToolName } = require('./post-bash-git.js');
 
 test('receipts a bare push while on main', () => {
   assert.strictEqual(shouldReceiptPush('git push', 'main'), true);
@@ -231,6 +231,46 @@ test('receipt is factual, not an unconditional accusation', () => {
   // become legitimate, so the override claim is conditional rather than asserted.
   const r = buildPushReceipt('main');
   assert.ok(/If those were not satisfied/.test(r), 'override wording is conditional');
+});
+
+// ---------------------------------------------------------------------------
+// FRW-BL-092 — telemetry must name the tool that actually ran
+// ---------------------------------------------------------------------------
+// The old expression was `tool_input.command ? 'Bash' : (tool_name || 'Bash')`, so the 'Bash'
+// branch swallowed every shell tool: PowerShell and Monitor both carry tool_input.command. The
+// matcher fix started PowerShell telemetry flowing and stamped every row 'Bash', which reads as a
+// machine that never used its primary shell. The pre-fix expression is asserted below so this is a
+// regression test rather than a restatement.
+test('telemetry labels a PowerShell invocation as PowerShell', () => {
+  assert.strictEqual(resolveToolName({ tool_name: 'PowerShell', tool_input: { command: 'git status' } }), 'PowerShell');
+});
+
+test('telemetry labels a Monitor invocation as Monitor', () => {
+  assert.strictEqual(resolveToolName({ tool_name: 'Monitor', tool_input: { command: 'tail -f x.log' } }), 'Monitor');
+});
+
+test('telemetry still labels Bash as Bash', () => {
+  assert.strictEqual(resolveToolName({ tool_name: 'Bash', tool_input: { command: 'git status' } }), 'Bash');
+});
+
+test('absent tool_name with a command falls back to Bash (unchanged behaviour)', () => {
+  assert.strictEqual(resolveToolName({ tool_input: { command: 'git status' } }), 'Bash');
+});
+
+test('absent tool_name and no command is unknown, not a fabricated Bash', () => {
+  assert.strictEqual(resolveToolName({}), 'unknown');
+  assert.strictEqual(resolveToolName(undefined), 'unknown');
+});
+
+test('a blank tool_name does not win over the command fallback', () => {
+  assert.strictEqual(resolveToolName({ tool_name: '   ', tool_input: { command: 'git status' } }), 'Bash');
+});
+
+test('PRE-FIX expression DID mislabel PowerShell as Bash (regression is caught)', () => {
+  const preFix = (input) => (input.tool_input?.command ? 'Bash' : (input.tool_name || 'Bash'));
+  const psInput = { tool_name: 'PowerShell', tool_input: { command: 'git status' } };
+  assert.strictEqual(preFix(psInput), 'Bash', 'pre-fix must mislabel, or this test proves nothing');
+  assert.notStrictEqual(resolveToolName(psInput), preFix(psInput));
 });
 
 // ---------------------------------------------------------------------------
