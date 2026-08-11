@@ -591,6 +591,11 @@ Two consequences follow, and they are the load-bearing part:
 - **Every push MUST leave a `type: intervention` receipt** naming the ruleset and the skipped
   checks. This is automated in `.claude/hooks/post-bash-git.js`; an unremarked bypass is what
   produced four sessions of re-noticing the same thing.
+  **Caveat until FRW-BL-092 is verified:** that hook — and the `enforce-bash-rules` safety guard —
+  were registered with matcher `Bash` only, so NEITHER fired for the **PowerShell** tool, which is
+  the primary shell on Windows. The first real push of session 244933cb produced no receipt for
+  exactly this reason. Both matchers are now `Bash|PowerShell`, but hook matchers are boot-read, so
+  until a restarted session proves it, do not assume a PowerShell-issued command is guarded.
 
 Facts, measured check runtimes, the decision and its rationale: `framework/branch-protection.md`.
 

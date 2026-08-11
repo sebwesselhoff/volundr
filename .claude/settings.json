@@ -62,7 +62,7 @@
         ]
       },
       {
-        "matcher": "Bash",
+        "matcher": "Bash|PowerShell",
         "hooks": [
           {
             "type": "command",
@@ -111,7 +111,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|PowerShell",
         "hooks": [
           {
             "type": "command",
@@ -119,7 +119,6 @@
             "args": [
               "${CLAUDE_PROJECT_DIR}/.claude/hooks/post-bash-git.js"
             ],
-            "if": "Bash(git *)",
             "timeout": 30
           }
         ]
