@@ -1,5 +1,6 @@
 ---
 name: vldr-directive
+license: MIT
 description: Manage Volundr governance directives - list, add, suppress, or supersede active directives for a project
 user-invocable: true
 disable-model-invocation: false

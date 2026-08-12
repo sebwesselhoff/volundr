@@ -48,6 +48,37 @@ export function sizeViolations(files, cap = MD_BYTE_CAP) {
  *
  * @returns {string[]} error strings (empty = consistent)
  */
+/**
+ * FRW-BL-101 — every distributed SKILL.md must declare its licence.
+ *
+ * Volundr's own 11 skills all passed the Agent Skills spec's REQUIRED fields while silently
+ * omitting `license` — the one field that matters most for an artifact that ships publicly as a
+ * plugin. Returns ERROR strings (not warnings): a skill added without a licence is a distribution
+ * defect, and warnings get scrolled past.
+ *
+ * Pure over source text so it is directly testable, matching pinDrift's shape.
+ */
+export function skillLicenceErrors(rel, src) {
+  const out = [];
+  const lines = String(src ?? '').split(/\r?\n/);
+  if (lines[0]?.trim() !== '---') {
+    out.push(`skill-frontmatter: ${rel} has no frontmatter fence on line 1`);
+    return out;
+  }
+  const close = lines.findIndex((l, i) => i > 0 && l.trim() === '---');
+  if (close < 0) {
+    out.push(`skill-frontmatter: ${rel} has an unterminated frontmatter block`);
+    return out;
+  }
+  const fm = lines.slice(1, close).join('\n');
+  // [ \t] not \s — in JS `\s` matches newlines, so `\s*\S` would happily skip an EMPTY
+  // `license:` line and match the first character of the NEXT key. Caught by its own test.
+  if (!/^license[ \t]*:[ \t]*\S/m.test(fm)) {
+    out.push(`skill-license: ${rel} does not declare a license (Volundr is redistributed; declare it)`);
+  }
+  return out;
+}
+
 export function pinDrift(settingsSrc, guardrailsSrc) {
   const errors = [];
 
@@ -166,6 +197,23 @@ function main() {
     for (const e of pinDrift(readFileSync(settingsPath, 'utf8'), readFileSync(guardrailsPath, 'utf8'))) {
       errors.push(e);
     }
+  }
+
+  // 4c. SKILL.md licence declaration (FRW-BL-101)
+  // Volundr ships publicly as a plugin, so every skill it distributes must declare its licence.
+  // All 11 passed the spec's REQUIRED fields while silently omitting `license`, which is exactly
+  // the field that matters for a redistributed artifact. An error, not a warning: a skill added
+  // without one is a distribution defect, and warnings get scrolled past.
+  for (const f of listFiles(join(repo, '.claude', 'skills'), (p) => p.endsWith('SKILL.md'))) {
+    const rel = f.replace(repo + '\\', '').replace(repo + '/', '').replace(/\\/g, '/');
+    let src;
+    try {
+      src = readFileSync(f, 'utf8');
+    } catch (err) {
+      errors.push(`skill-frontmatter: ${rel} unreadable (${err.message})`);
+      continue;
+    }
+    for (const e of skillLicenceErrors(rel, src)) errors.push(e);
   }
 
   // 5. orphan prompt templates (warn only)

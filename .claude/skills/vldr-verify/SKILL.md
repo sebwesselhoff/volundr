@@ -1,5 +1,6 @@
 ---
 name: vldr-verify
+license: MIT
 description: Evidence-before-completion gate — run a FRESH verification command, capture its output + exit code, and emit a citable evidence block. Use before claiming a card/task done, or before any "it works / passes / is fixed / is complete" claim.
 user-invocable: true
 disable-model-invocation: false

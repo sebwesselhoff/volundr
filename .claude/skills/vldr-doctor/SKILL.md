@@ -1,5 +1,6 @@
 ---
 name: vldr-doctor
+license: MIT
 description: Validate Volundr setup - checks Docker, dashboard, VLDR_HOME, registry, DB, git, node, Claude Code version, hooks
 user-invocable: true
 disable-model-invocation: false

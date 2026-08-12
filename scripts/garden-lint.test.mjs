@@ -1,6 +1,6 @@
 // Self-test for garden-lint.mjs (FRW-BL-067). Run: node scripts/garden-lint.test.mjs
-import { readFileSync } from 'fs';
-import { extractRegistryRefs, sizeViolations, pinDrift, MD_BYTE_CAP } from './garden-lint.mjs';
+import { readFileSync, readdirSync, existsSync } from 'fs';
+import { extractRegistryRefs, sizeViolations, pinDrift, skillLicenceErrors, MD_BYTE_CAP } from './garden-lint.mjs';
 
 let pass = 0, fail = 0;
 function ok(label, cond) { if (cond) { pass++; console.log(`  ✓ ${label}`); } else { fail++; console.log(`  ✗ ${label}`); } }
@@ -86,6 +86,37 @@ const liveErrors = pinDrift(
   readFileSync(new URL('framework/guardrails.md', repoRoot), 'utf8')
 );
 ok(`live repo pins are in sync with guardrails.md${liveErrors.length ? ` (${liveErrors[0]})` : ''}`, liveErrors.length === 0);
+
+// --- FRW-BL-101: every distributed SKILL.md must declare a licence -------------------------
+// All 11 of Volundr's skills passed the spec's REQUIRED fields while omitting `license`, which is
+// the field that matters for an artifact redistributed as a public plugin.
+const FM = (body) => `---\nname: x\n${body}\n---\n\n# X\n`;
+
+ok('flags a skill with no license field',
+  skillLicenceErrors('a/SKILL.md', FM('description: d')).some((e) => /skill-license/.test(e)));
+ok('accepts a skill declaring license: MIT',
+  skillLicenceErrors('a/SKILL.md', FM('license: MIT\ndescription: d')).length === 0);
+ok('an EMPTY license value is still a failure',
+  skillLicenceErrors('a/SKILL.md', FM('license:\ndescription: d')).some((e) => /skill-license/.test(e)));
+ok('a license mention in the BODY does not satisfy the frontmatter requirement',
+  skillLicenceErrors('a/SKILL.md', '---\nname: x\ndescription: d\n---\n\nlicense: MIT\n')
+    .some((e) => /skill-license/.test(e)));
+ok('missing frontmatter fence is reported distinctly, not as a licence error',
+  skillLicenceErrors('a/SKILL.md', '# no frontmatter\n').some((e) => /skill-frontmatter/.test(e)));
+ok('unterminated frontmatter is reported distinctly',
+  skillLicenceErrors('a/SKILL.md', '---\nname: x\nlicense: MIT\n').some((e) => /unterminated/.test(e)));
+ok('tolerates empty/undefined source without throwing',
+  skillLicenceErrors('a/SKILL.md', '').length > 0 && skillLicenceErrors('a/SKILL.md', undefined).length > 0);
+
+// And every skill in the live repo must actually declare one right now.
+const skillsDir = new URL('.claude/skills/', repoRoot);
+const liveSkillErrors = readdirSync(skillsDir, { withFileTypes: true })
+  .filter((e) => e.isDirectory())
+  .map((e) => `${e.name}/SKILL.md`)
+  .filter((rel) => existsSync(new URL(rel, skillsDir)))
+  .flatMap((rel) => skillLicenceErrors(rel, readFileSync(new URL(rel, skillsDir), 'utf8')));
+ok(`every live skill declares a license${liveSkillErrors.length ? ` (${liveSkillErrors[0]})` : ''}`,
+  liveSkillErrors.length === 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

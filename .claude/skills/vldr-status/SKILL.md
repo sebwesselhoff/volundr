@@ -1,5 +1,6 @@
 ---
 name: vldr-status
+license: MIT
 description: Show current Volundr project status - active project, card progress, running agents, costs
 user-invocable: true
 disable-model-invocation: true

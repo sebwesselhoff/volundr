@@ -1,5 +1,6 @@
 ---
 name: vldr-economy
+license: MIT
 description: Toggle or check economy mode on the active Volundr project - downgrade agent models to reduce cost
 user-invocable: true
 disable-model-invocation: false

@@ -1,5 +1,6 @@
 ---
 name: vldr-compact
+license: MIT
 description: Compact context with Volundr-specific state preservation - retains project ID, cards, agents, phase
 user-invocable: true
 disable-model-invocation: true

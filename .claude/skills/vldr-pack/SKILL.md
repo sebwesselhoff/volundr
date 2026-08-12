@@ -1,5 +1,6 @@
 ---
 name: vldr-pack
+license: MIT
 description: Pack management for Volundr - install, list, and inspect agent packs (persona seeds, skills, agent types)
 user-invocable: true
 disable-model-invocation: false

@@ -1,5 +1,6 @@
 ---
 name: vldr-shutdown
+license: MIT
 description: Execute the Volundr graceful shutdown protocol. This runs BEFORE the session ends, while you still have full context.
 user-invocable: true
 disable-model-invocation: false

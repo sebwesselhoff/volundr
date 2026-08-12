@@ -1,5 +1,6 @@
 ---
 name: vldr-boot
+license: MIT
 description: Boot the Volundr orchestration framework - locate and load the operating manual (framework/system-instructions.md) and run its boot sequence. Use on "wake up", "boot/start/resume Volundr", or when starting work on a Volundr project (especially when installed as a plugin, where there is no project CLAUDE.md to load the brain).
 user-invocable: true
 disable-model-invocation: false

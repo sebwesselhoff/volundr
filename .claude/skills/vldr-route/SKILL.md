@@ -1,5 +1,6 @@
 ---
 name: vldr-route
+license: MIT
 description: Test Volundr routing rules - match a work description against active routing rules and show tier selection
 user-invocable: true
 disable-model-invocation: false
