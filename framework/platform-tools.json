@@ -1,0 +1,87 @@
+{
+  "$comment": [
+    "FRW-BL-107 — the platform tool registry the hook-config auditor reads.",
+    "",
+    "WHY THIS IS DATA AND NOT CODE: the auditor needs to know which tool names exist, which share a",
+    "capability class, and which input fields each one sends. That set changes with platform versions.",
+    "A hardcoded list inside the linter rots into false positives, which is how a linter gets disabled",
+    "(the card's own technicalNotes say exactly this). Keeping it as versioned data means a platform",
+    "update is a one-file diff with a visible provenance stamp, not a code change.",
+    "",
+    "SCOPE, deliberately narrow: the tools Volundr actually matches on, plus their known capability",
+    "siblings. Universal coverage is NOT attempted — an incomplete map that pretends to be complete",
+    "would produce confident wrong answers. Anything not listed here is UNKNOWN, and the auditor warns",
+    "rather than blocks on unknown names (ISC-6), so a new platform tool cannot wedge the gate suite.",
+    "",
+    "PROVENANCE: field lists were read off the live tool schemas available to the lead in session",
+    "12811400 (2026-08-12) on CLI 2.1.228, cross-checked against the fields Volundr's own hooks",
+    "actually read. They are the fields relevant to hook guards, not exhaustive tool signatures."
+  ],
+  "verifiedAgainstCli": "2.1.228",
+  "verifiedOn": "2026-08-12",
+  "verifiedInSession": "12811400",
+
+  "capabilityClasses": {
+    "shell": "Executes a command through a shell. A guard for one of these must guard all of them — FRW-BL-092 was exactly this defect (Bash guarded, PowerShell and Monitor unguarded and invisible).",
+    "file-write": "Mutates a file on disk. FRW-BL-093 was this defect (Write and Edit guarded, NotebookEdit unguarded).",
+    "spawn": "Starts a subagent. Attribution and dependency guards keyed to one of these miss the others — FRW-BL-094 tracks the Workflow half.",
+    "skill": "Loads instructions into the session. Not a mutation class, but Volundr guards tool-priority here.",
+    "read": "Reads without mutating. No guard obligation; listed so the auditor recognises the names."
+  },
+
+  "tools": {
+    "Bash":         { "capability": "shell",      "inputFields": ["command", "description", "timeout", "run_in_background"] },
+    "PowerShell":   { "capability": "shell",      "inputFields": ["command", "description", "timeout", "run_in_background"] },
+    "Monitor":      { "capability": "shell",      "inputFields": ["command", "description", "timeout_ms", "persistent", "ws"] },
+
+    "Write":        { "capability": "file-write", "inputFields": ["file_path", "content"] },
+    "Edit":         { "capability": "file-write", "inputFields": ["file_path", "old_string", "new_string", "replace_all"] },
+    "NotebookEdit": { "capability": "file-write", "inputFields": ["notebook_path", "cell_id", "new_source", "cell_type", "edit_mode"] },
+
+    "Agent":        { "capability": "spawn",      "inputFields": ["prompt", "description", "subagent_type", "model", "name", "run_in_background", "isolation", "team_name", "mode"] },
+    "Workflow":     { "capability": "spawn",      "inputFields": ["script", "scriptPath", "name", "args", "resumeFromRunId", "title", "description"] },
+
+    "Skill":        { "capability": "skill",      "inputFields": ["skill", "args"] },
+
+    "Read":         { "capability": "read",       "inputFields": ["file_path", "offset", "limit", "pages"] },
+    "Glob":         { "capability": "read",       "inputFields": ["pattern", "path"] },
+    "Grep":         { "capability": "read",       "inputFields": ["pattern", "path", "glob", "type", "output_mode", "-i", "-n", "-A", "-B", "-C"] }
+  },
+
+  "commonHookInputFields": [
+    "session_id",
+    "transcript_path",
+    "cwd",
+    "permission_mode",
+    "hook_event_name",
+    "tool_name",
+    "tool_input",
+    "tool_response",
+    "duration_ms",
+    "effort",
+    "reason",
+    "team_name",
+    "teammate_name",
+    "assistant_message",
+    "last_assistant_message",
+    "trigger",
+    "compaction_reason",
+    "matcher",
+    "source"
+  ],
+
+  "multiEventScriptsMustReadHookEventName": true,
+
+  "waivers": [
+    {
+      "check": "capability-sibling",
+      "event": "PreToolUse",
+      "matcher": "Agent",
+      "missingTool": "Workflow",
+      "card": "FRW-BL-094",
+      "reason": "Documented deferral, not an oversight. Adding Workflow to the Agent matcher would feed a workflow SCRIPT to enforce-card-deps.js, which expects a single-card Agent prompt, and would not touch the positional-pop defect that is the real bug. Recorded in framework/hook-coverage.md under 'The Workflow attribution gap - deferred, with the reason'. Present exposure in this repo is nil: the standing instruction here is not to use the Workflow tool."
+    }
+  ],
+
+  "$waiverPolicy": "A waiver MUST name a card. That is the same bar framework/hook-coverage.md sets for its coverage table ('no row reads GAP without either a card reference or a recorded deferral') — a gap someone decided to accept is fine; an undocumented one is not. The auditor reports every applied waiver in its output so an accepted gap stays visible instead of becoming invisible."
+}

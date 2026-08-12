@@ -99,6 +99,14 @@ jobs:
       - name: Plugin manifest validation (FRW-BL-041)
         run: node framework/plugin/validate-plugin.mjs
 
+      # FRW-BL-107: hooks are correct code that can be wired to nothing, and every handler test
+      # passes while that is true. This audits the WIRING: matcher tool names, unguarded capability
+      # siblings, hooks reading fields their matched tools never send, manifest parity, and one
+      # script registered under two hook events with no hook_event_name discriminator.
+      # Warns (exit 0) on an unrecognised tool name so a platform update cannot wedge the suite.
+      - name: Hook configuration audit (FRW-BL-107)
+        run: node scripts/hook-config-audit.mjs
+
   calibration:
     name: Judge calibration drift
     runs-on: ubuntu-latest

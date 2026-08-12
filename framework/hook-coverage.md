@@ -7,6 +7,21 @@ separate tool name.
 
 This document exists so that fact is looked up rather than rediscovered.
 
+> **There is now a linter for this whole class — run it instead of re-reasoning (FRW-BL-107).**
+> `node scripts/hook-config-audit.mjs` audits the WIRING rather than the handlers: matcher tool names
+> against a versioned registry, capability classes with an unguarded sibling, hooks reading input
+> fields their matched tools never send, matcher parity across both manifests, and one script
+> registered under two hook *events* with no `hook_event_name` discriminator. It runs in CI and is
+> self-tested against the real pre-fix configs of FRW-BL-092, FRW-BL-093 and FRW-BL-113 — it is
+> proven to catch the three defects that actually shipped here, not just invented fixtures.
+>
+> The tool set it checks against lives in `framework/platform-tools.json`, stamped with the CLI
+> version it was verified on. **When the platform gains a tool, add it there** — the auditor warns
+> (never blocks) on a name it does not recognise, precisely so a platform update cannot wedge the
+> gate suite, but a warning nobody reads is how the FRW-BL-092 gap survived in the first place.
+> An accepted gap needs a waiver **naming a card**; card-less waivers are ignored, and every applied
+> waiver is echoed in the output so an accepted gap stays visible.
+
 ---
 
 ## The defect class
