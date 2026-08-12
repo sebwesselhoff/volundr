@@ -163,7 +163,39 @@ Two things follow, and both are now enforced rather than remembered:
 `disable-model-invocation: true` keeps a skill user-invocable while removing it from the model's
 reachable set — verified live in session `12811400`: the only two skills carrying it (`vldr-status`,
 `vldr-compact`) were the only two of eleven absent from the model's available-skills list, an 11/11
-correlation. Note this is a **different lever** from the `skillOverrides: user-invocable-only`
+correlation.
+
+**Skill invocation gating is LIVE (invocation-time); hook registration is BOOT-READ. Do not conflate
+them.** FRW-BL-112 initially assumed skills behaved like hooks — that a `disable-model-invocation`
+change could only be observed after a restart, by analogy with the matcher rule above. That analogy
+is **false**, and proving it cost nothing:
+
+- A subagent spawned after the flag was committed was hard-blocked immediately.
+- The **lead** was blocked too, in the same session that made the change, even though its
+  available-skills listing had been computed at boot when the flag still read `false`. So the gate
+  re-reads the file at invocation rather than trusting the boot listing.
+
+The rejection is emitted before the skill body loads, which has a useful corollary: a blocked
+invocation never activates that skill's `disallowed-tools`, so it costs the caller nothing. Verbatim:
+
+```
+Skill vldr-route cannot be used with Skill tool due to disable-model-invocation.
+Ask the user to run /vldr-route themselves — it cannot be invoked via the Skill tool.
+Do not replicate this skill's workflow by other means — it is reserved for explicit user invocation.
+```
+
+Note the third line: the platform forecloses the obvious workaround. A subagent given a brief that
+depended on invoking the skill complied with that clause unprompted and reported the mismatch instead
+of hand-rolling the workflow.
+
+**Consequence for verification strategy:** a skill-gating change is provable **on the spot**; a hook
+matcher change is not and must be deferred to a restart. Same-looking config edits, opposite
+verification rules.
+
+**Consequence FRW-BL-112 did not intend:** because no model — lead or subagent — can now invoke any
+of the six denylisted skills, the `Write`-vs-`Edit` parity question (that card's ISC-2) became
+unanswerable by any model. It is now reachable only by an operator typing the command by hand. A fix
+that closes a diagnostic door is still the right fix here, but the door closing is worth recording. Note this is a **different lever** from the `skillOverrides: user-invocable-only`
 setting in the table above: that one trims what is *loaded into context*, this one controls whether
 the model can *invoke* the skill at all. Do not conflate them.
 
