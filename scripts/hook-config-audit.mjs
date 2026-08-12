@@ -170,7 +170,16 @@ export function checkCapabilitySiblings(registrations, registry) {
  * which is reported as a warning rather than silently treated as "reads nothing".
  */
 export function extractReadFields(source, knownFieldNames = []) {
-  const src = String(source ?? '');
+  // Strip COMMENTS before anything else. Found by this auditor's own blind review, on this repo:
+  // enforce-bash-rules.js does `const command = input.tool_input?.command`, making `command` an
+  // alias — and the member-read regex then matched English prose in a comment, "...cannot truncate
+  // a real command. A commented-out command...", extracting "A" as a field name. That is the
+  // FRW-BL-090 shape (prose about code read as code) for the third time in this codebase, so fix
+  // the CLASS: comments are not code and must not be scanned.
+  // String literals are deliberately KEPT — the array-literal rule below needs them.
+  const src = String(source ?? '')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')   // block comments
+    .replace(/(^|[^:\\])\/\/[^\n]*/g, '$1 '); // line comments, without eating "http://" or a regex
   const fields = new Set();
 
   // 2 + 4: find aliases assigned from tool_input, and destructured names.
@@ -210,7 +219,13 @@ export function extractReadFields(source, knownFieldNames = []) {
   const NOT_FIELDS = new Set(['length', 'toString', 'hasOwnProperty', 'constructor', 'map', 'filter',
     'forEach', 'trim', 'split', 'join', 'includes', 'match', 'replace', 'test', 'slice', 'startsWith',
     'endsWith', 'push', 'some', 'every', 'find', 'keys', 'values', 'entries']);
-  for (const f of [...fields]) if (NOT_FIELDS.has(f)) fields.delete(f);
+  for (const f of [...fields]) {
+    // Belt to the comment-stripping brace: every real tool_input field name in the registry begins
+    // with a lowercase letter (file_path, notebook_path, run_in_background, scriptPath, ...). An
+    // identifier starting uppercase is a class, a constant, or a stray word from prose — not a field.
+    if (!/^[a-z]/.test(f)) fields.delete(f);
+    if (NOT_FIELDS.has(f)) fields.delete(f);
+  }
 
   return { fields: [...fields].sort(), resolvable: fields.size > 0 };
 }
@@ -239,7 +254,26 @@ export function checkFieldAccess(registrations, registry, readSource) {
       if (!resolvable) continue; // hook may not inspect tool_input at all (e.g. logging-only)
 
       const dataFields = fields.filter((f) => allFieldNames.includes(f));
-      if (dataFields.length === 0) continue; // reads only non-registry keys; nothing to assert
+
+      // Raised by the FRW-BL-107 blind reviewer: a field name matching NO tool in the registry AND
+      // no common hook input field was previously skipped in silence. That is the one thing this
+      // auditor's own design rules forbid — a plausible source typo (`file_pth`) would read as
+      // clean. WARN rather than error, because extractReadFields is heuristic and a false positive
+      // here should never block a build.
+      const common = new Set(registry.commonHookInputFields || []);
+      const orphans = fields.filter((f) => !allFieldNames.includes(f) && !common.has(f));
+      if (orphans.length > 0) {
+        findings.push({
+          severity: 'warn',
+          check: 'unknown-field',
+          detail: `${reg.event} "${reg.matcher}" -> ${script} reads tool_input field(s) `
+            + `[${orphans.join(', ')}] that no tool in framework/platform-tools.json sends and that `
+            + `are not common hook input fields. Either a typo in the hook (in which case it reads `
+            + `undefined and the guard is inert), or the registry is out of date for this tool.`,
+        });
+      }
+
+      if (dataFields.length === 0) continue; // reads only non-registry keys; nothing further to assert
 
       for (const tool of named) {
         const sends = tools[tool].inputFields || [];

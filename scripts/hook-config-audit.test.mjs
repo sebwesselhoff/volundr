@@ -221,8 +221,59 @@ const noSource = () => '';
     !extractReadFields('input.tool_input.command.trim().split("\\n")', known).fields.includes('trim'));
   ok('a hook that never touches tool_input reports resolvable:false rather than "reads nothing"',
     extractReadFields('const x = input.session_id;', known).resolvable === false);
+
+  // REGRESSION, found by this auditor's own blind review against the real enforce-bash-rules.js.
+  // `const command = input.tool_input?.command` makes `command` an alias, and the member-read regex
+  // then matched ENGLISH PROSE in a comment — "a real command. A commented-out command" — pulling
+  // "A" in as a field. Third appearance of the FRW-BL-090 shape (prose read as code) in this repo.
+  // Verbatim prose from the file that caused it:
+  const proseTrap = `
+    const command = input.tool_input?.command || '';
+    // and cannot truncate a real command. A commented-out command is never executed.
+    log.warn('blocked', msg, { command: command.slice(0, 200) });
+  `;
+  {
+    const r = extractReadFields(proseTrap, known);
+    ok('REGRESSION: prose in a comment after an alias name does NOT become a field ("A")',
+      !r.fields.includes('A'));
+    ok('REGRESSION: the real field is still extracted from the same source (command)',
+      r.fields.includes('command'));
+    ok('REGRESSION: a method call on the alias is still not a field (slice)',
+      !r.fields.includes('slice'));
+  }
+  ok('an identifier starting uppercase is never treated as a field',
+    !extractReadFields('const t = input.tool_input; t.SomeClass; t.CONSTANT;', known).fields.some((f) => /^[A-Z]/.test(f)));
+  ok('a block comment mentioning a real field name does not create a read',
+    !extractReadFields('/* we used to read tool_input.file_path here */ const x = input.session_id;', known)
+      .fields.includes('file_path'));
+  ok('a URL in a comment does not break the comment stripper',
+    extractReadFields("// see https://example.com/x\nconst c = input.tool_input.command;", known).fields.includes('command'));
   ok('tolerates empty/undefined source without throwing',
     extractReadFields('', known).resolvable === false && extractReadFields(undefined, known).resolvable === false);
+}
+
+// --- a field matching NO tool must WARN, not be skipped in silence --------
+// Raised by the FRW-BL-107 blind reviewer as an `info` finding: this was the one path in a tool
+// whose design rules say "never silently pass" that did exactly that.
+{
+  const regs = parseRegistrations(settingsWith(Object.fromEntries([
+    group('PreToolUse', 'Write|Edit|NotebookEdit', ['typo-hook.js']),
+  ])));
+  // A plausible typo: file_pth instead of file_path. No tool sends it.
+  const typoSource = 'const t = input.tool_input || {}; const p = t.file_pth;';
+  const f = checkFieldAccess(regs, REGISTRY, () => typoSource);
+  ok('a tool_input field matching NO tool is WARNED on (plausible source typo), not skipped',
+    f.some((x) => x.severity === 'warn' && x.check === 'unknown-field' && /file_pth/.test(x.detail)));
+  ok('the unknown-field warning states both causes (hook typo vs stale registry)',
+    f.some((x) => x.check === 'unknown-field' && /typo/.test(x.detail) && /out of date/.test(x.detail)));
+  ok('unknown-field is a WARNING, never an error — the extractor is heuristic',
+    f.filter((x) => x.check === 'unknown-field').every((x) => x.severity === 'warn'));
+  ok('a COMMON hook input field read off tool_input is not warned on',
+    !checkFieldAccess(regs, REGISTRY, () => 'const t = input.tool_input || {}; const s = t.session_id;')
+      .some((x) => x.check === 'unknown-field'));
+  ok('legitimate fields produce no unknown-field warning',
+    !checkFieldAccess(regs, REGISTRY, () => "for (const field of ['file_path','notebook_path']) {}")
+      .some((x) => x.check === 'unknown-field'));
 }
 
 // --- unresolvable input must WARN, never silently pass --------------------
