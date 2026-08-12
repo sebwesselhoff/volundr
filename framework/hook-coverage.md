@@ -104,6 +104,18 @@ in every hook (see below); every live agent's cost/liveness tracking was corrupt
 FRW-BL-091 push-receipt guarantee — "each push leaves a receipt" — went silently unmet for the
 next push, because its dashboard write is itself gated on `PROJECT_ID`.
 
+**This is the SECOND, INDEPENDENT cause of a symptom FRW-BL-095 already reports — do not close
+either card on the other's evidence.** FRW-BL-095 says "long-running subagents are marked completed
+while still working ... the dashboard reports zero running agents during a live fan-out" and
+attributes it to a **`SubagentStop` propagation gap**, noting that its idle-vs-terminal half has no
+finality signal in the payload. FRW-BL-113 produces the *identical* symptom from a completely
+different mechanism: a **wholesale mid-session teardown** that completes every running agent row at
+once, subagents and lead alike. Both are real. Fixing 095's propagation would not have prevented
+this incident, and this fix does not address 095's payload gap. So: when either card is picked up,
+check whether the observed row was completed *individually* (095's shape — one subagent, its own
+`SubagentStop`) or *in a batch alongside unrelated agents including the lead* (113's shape). The
+batch signature is the discriminator.
+
 **The discriminator was available all along and unused.** `hook_event_name` is in the COMMON
 input fields sent on *every* hook invocation and equals the literal firing event's name. Fixed by
 gating the teardown on `isConfirmedSessionEnd(input.hook_event_name) === 'SessionEnd'` — failing
