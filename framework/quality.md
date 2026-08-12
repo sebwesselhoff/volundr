@@ -165,6 +165,47 @@ proves them* in the evidence. When in doubt, run the command and attach the bloc
 `card-reviewer.md` blind-review rubric (rejects unverified runtime claims) · Guardian and
 QA persona prompts (per-card + milestone enforcement).
 
+### Procedural claims — a second category, NOT a replacement (FRW-BL-103)
+
+The runtime contract above is the stronger of the two and does not change. But a whole class of
+claim has **no exit code**, so under the runtime contract alone it is either waved through as
+"documentary" or asserted with no check at all:
+
+- Was a cross-model review offered, and the skip announced?
+- Was the operator's decision recorded *before* acting on it?
+- Was the anti-stub scan (§4b) run **before** the blind reviewer, as that section requires?
+- Was a deferral stated with its reason, rather than silently dropped?
+
+**A procedural claim's evidence is an ATTESTATION, not a VERIFY block.** Do not manufacture fake
+`VERIFY` blocks with invented exit codes for these — that corrodes the runtime contract's meaning,
+which is its entire value. The form:
+
+```
+ATTEST [<what was done>]
+when: <ISO timestamp or session marker>
+what: <the specific action, naming the artifact or agent involved>
+ordering: <if the claim is about sequence, the other event and its time>
+```
+
+The check is that the attestation **exists and is internally consistent with the card's timeline** —
+not that it exits 0.
+
+**Ordering claims are the subset worth mechanising**, because they are checkable against real
+timestamps rather than trust. `scripts/procedural-order.mjs` does this deterministically:
+
+```bash
+node scripts/procedural-order.mjs --card FRW-BL-113     # check one card's recorded ordering
+```
+
+It reads the dashboard event stream and fails when a required ordering is violated — the worked
+example being an anti-stub scan whose recorded time is *after* the blind reviewer was spawned, which
+happened in a real session with nothing to catch it. An ordering rule with two real timestamps is
+worth more than a paragraph asking people to remember the order.
+
+**Why this exists at all:** §4b says the anti-stub scan runs "before blind review". That is a
+procedural requirement with no exit code, it was violated in a live session, and nothing noticed.
+A rule that cannot be checked is a preference.
+
 ---
 
 ## Garden lint — framework drift + size caps (FRW-BL-067)

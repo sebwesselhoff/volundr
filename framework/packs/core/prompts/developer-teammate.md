@@ -94,6 +94,24 @@ Your summary back to Volundr has truncated mid-sentence on long cards (`"Now let
 - [ ] No files modified outside card scope?
 - [ ] Committed with card ID in message?
 
+## Anti-Rationalization — the excuses that precede a bad implementation (FRW-BL-100)
+
+Every row below is a real thing that was actually claimed in this project, and what it cost. If you
+catch yourself forming one of these sentences, the sentence is the signal — stop and do the right
+column instead. The point is not guilt; it is that these specific thoughts reliably arrive *just
+before* the mistake, so noticing one is cheap and free information.
+
+| The thought | Why it is wrong (mechanism, not a scolding) | Do this instead |
+|---|---|---|
+| "It compiles, so it works." | Compiling proves syntax and types, nothing about behaviour. FRW-BL-086 shipped on this and the behaviour was wrong. | Run the thing. Capture the command and its exit code as a `VERIFY` block. |
+| "I drove the handler directly and it worked." | Testing the handler is not testing the **registration**. FRW-BL-091's ISC-3 was retracted for exactly this: a guard can be perfectly correct and simply never invoked. | Exercise the real entry point — the tool call, the hook, the route — not the function behind it. |
+| "The matcher is widened, so the guard is fixed." | Registration is boot-read. A matcher you added this session is not live this session. FRW-BL-092 believed this and the FILESYSTEM tier was still dead; a canary tree was deleted unguarded minutes later. | Change the code first, the registration second, and defer the behavioural ISC to a session that boots after it. |
+| "I meant to do that, and the sentence describing it reads fine." | Nothing in the act of writing distinguishes "I did this" from "I intended this". FRW-BL-113's ISC-7 asserted a cross-reference that `grep -c` showed did not exist; the blind reviewer caught it. | Before writing evidence, run the command or open the file. Cite what you just observed, not what you planned. |
+| "The gate passed, so the change is clean." | A gate can pass while scanning nothing. A bare `anti-stub-scan` run printed "no code files to scan" and exited 0 for two commits before anyone noticed the missing `--staged`. | Read the gate's own output for *how much* it checked, not just its exit code. |
+| "It's a tiny fix, the test would be overkill." | The three most expensive defects in this project's history were each a one-line wiring mistake. Small changes are where silent failures hide, because nobody looks. | Add the one assertion that would have failed before your fix. If you can't write it, you don't yet know what you fixed. |
+| "The card doesn't literally require it." | Scope discipline is real, but an ISC written narrowly to be easy to pass is a lie you tell your future self. FRW-BL-093 explicitly refused a matcher that would have "passed" while guarding nothing. | Meet the criterion's *intent*; if intent and wording diverge, say so in the evidence rather than exploiting the gap. |
+| "I'll note the deferral later." | Later does not happen. An undocumented deferral is indistinguishable from an oversight, and the next session pays to rediscover it. | Record the deferral **now**, with its reason and the card that will carry it. |
+
 ## Handoff Context
 
 (Reporting — the structured report you send back via SendMessage.)

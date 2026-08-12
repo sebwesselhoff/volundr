@@ -1,6 +1,6 @@
 // anti-stub-scan.test.mjs — self-test (FRW-BL-044). Run: node scripts/anti-stub-scan.test.mjs
 import assert from 'assert';
-import { scanForStubs, isTestFile } from './anti-stub-scan.mjs';
+import { scanForStubs, isTestFile, isOwnSource, splitCardArg } from './anti-stub-scan.mjs';
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -60,6 +60,59 @@ test('isTestFile recognises common test/fixture paths', () => {
 test('mixed batch: block from prod file, test file ignored', () => {
   const f = scanForStubs(['src/stub.ts', 'src/foo.test.ts', 'src/clean.ts'], read);
   assert.strictEqual(f.filter((x) => x.severity === 'block').length, 1);
+});
+
+// --- FRW-BL-103: the scanner must not scan itself ---------------------------
+// Found live: staging any change to anti-stub-scan.mjs produced 5 BLOCKs against its OWN pattern
+// table (which necessarily contains `NotImplementedError`, `panic("not impl`, ...) and exited 2,
+// making the tool unmodifiable. Same FRW-BL-090 shape: a definition of a forbidden thing read as
+// the forbidden thing.
+test('FRW-BL-103: own source is excluded (relative, absolute, and its test)', () => {
+  assert.ok(isOwnSource('scripts/anti-stub-scan.mjs'));
+  assert.ok(isOwnSource('C:\\repo\\scripts\\anti-stub-scan.mjs'));
+  assert.ok(isOwnSource('/home/x/scripts/anti-stub-scan.mjs'));
+  assert.ok(isOwnSource('scripts/anti-stub-scan.test.mjs'));
+});
+
+test('FRW-BL-103: the exclusion is NARROW — other files are never skipped', () => {
+  assert.ok(!isOwnSource('scripts/procedural-order.mjs'));
+  assert.ok(!isOwnSource('scripts/garden-lint.mjs'));
+  // A file merely NAMED similarly elsewhere must still be scanned.
+  assert.ok(!isOwnSource('src/anti-stub-scanner-helper.mjs'));
+  assert.ok(!isOwnSource(''));
+  assert.ok(!isOwnSource(undefined));
+});
+
+// --- FRW-BL-103: the --card off-by-one that silently ate --staged ------------
+test('FRW-BL-103 REGRESSION: with no --card, argv is passed through untouched', () => {
+  // The bug: cardIdx === -1 made `i !== cardIdx + 1` mean `i !== 0`, dropping argv[0], so a bare
+  // `--staged` resolved to zero files and exited 0 — a green that scanned nothing.
+  const { cardId, rest } = splitCardArg(['--staged']);
+  assert.strictEqual(cardId, null);
+  assert.deepStrictEqual(rest, ['--staged'], 'the --staged flag must survive');
+});
+
+test('FRW-BL-103: --card is stripped with its value, leaving other flags intact', () => {
+  const { cardId, rest } = splitCardArg(['--staged', '--card', 'FRW-BL-103']);
+  assert.strictEqual(cardId, 'FRW-BL-103');
+  assert.deepStrictEqual(rest, ['--staged']);
+});
+
+test('FRW-BL-103: --card first still leaves the trailing flags intact', () => {
+  const { cardId, rest } = splitCardArg(['--card', 'FRW-BL-103', '--diff', 'main...x']);
+  assert.strictEqual(cardId, 'FRW-BL-103');
+  assert.deepStrictEqual(rest, ['--diff', 'main...x']);
+});
+
+test('FRW-BL-103: a trailing --card with no value does not throw or eat a flag', () => {
+  const { cardId, rest } = splitCardArg(['--staged', '--card']);
+  assert.strictEqual(cardId, null);
+  assert.deepStrictEqual(rest, ['--staged']);
+});
+
+test('FRW-BL-103: junk argv is tolerated', () => {
+  assert.deepStrictEqual(splitCardArg(null), { cardId: null, rest: [] });
+  assert.deepStrictEqual(splitCardArg([]), { cardId: null, rest: [] });
 });
 
 console.log(`\nResults: ${passed} passed, ${failed} failed`);
