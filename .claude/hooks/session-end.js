@@ -10,8 +10,44 @@ const path = require('path');
 
 const log = createLogger('session-end');
 
+/**
+ * FRW-BL-113 — this script is registered under BOTH SessionEnd and StopFailure
+ * (.claude/settings.json), and settings.json passes no argument distinguishing which one fired.
+ * Confirmed against the Claude Code hooks reference (code.claude.com/docs/en/hooks.md,
+ * checked 2026-08-12): `hook_event_name` is in the COMMON input fields sent on every hook
+ * invocation and equals the literal event name ("SessionEnd", "StopFailure", ...).
+ * StopFailure fires "when the turn ends due to an API error" — a turn-level event, NOT session
+ * termination; the session is expected to continue. Live proof from this incident: a
+ * StopFailure-triggered run of the teardown below (this exact file, before this fix) marked the
+ * lead agent and a reviewer subagent `completed` while both kept working for minutes afterward —
+ * one row even carries a heartbeat timestamped AFTER its own `completedAt`.
+ *
+ * So this file must run its (destructive, one-way) teardown ONLY on a confirmed genuine
+ * SessionEnd. Fail SAFE on anything else — missing field, unrecognised value, or explicitly
+ * StopFailure — by skipping the teardown rather than running it. The failure mode this guards
+ * against is corrupting live state, not missing a cleanup; a skipped cleanup on true session end
+ * is cheap (next boot's orphan-agent recovery already handles it), while a wrongful teardown
+ * mid-session is not recoverable after the fact.
+ *
+ * Pure and exported so the decision is unit-testable without stdin/fs/network.
+ */
+function isConfirmedSessionEnd(hookEventName) {
+  return hookEventName === 'SessionEnd';
+}
+
 async function main() {
   const input = readStdin();
+
+  if (!isConfirmedSessionEnd(input.hook_event_name)) {
+    log.warn(
+      'skip_non_sessionend',
+      `Hook fired as hook_event_name=${input.hook_event_name ?? '(missing)'}, not SessionEnd ` +
+      `— session is not confirmed over (FRW-BL-113). Skipping teardown: no agents completed, ` +
+      `activeProject left untouched. This is almost certainly a StopFailure (turn-level API ` +
+      `error), which does not end the session.`,
+    );
+    return;
+  }
 
   // Only handle real exits, not clear (which keeps the session alive)
   const reason = input.reason || 'unknown';
@@ -79,6 +115,8 @@ async function main() {
     log.warn('registry_update_failed', `Could not clear activeProject: ${e.message}`);
   }
 }
+
+module.exports = { isConfirmedSessionEnd };
 
 if (require.main === module) {
   main().catch((e) => {

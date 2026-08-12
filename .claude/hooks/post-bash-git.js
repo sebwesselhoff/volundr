@@ -173,10 +173,21 @@ async function emitPushReceipt(command) {
 
   const detail = buildPushReceipt(PROTECTED_BRANCHES.has(branch) ? branch : 'main');
   log.warn('branch_protection_push', detail);
+  // FRW-BL-113: this local log.warn + the stderr line below both fire unconditionally, so the
+  // receipt is never truly silent — but a missing PROJECT_ID means the ONE place FRW-BL-091 ISC-3
+  // ("each push leaves a receipt") actually means — the dashboard Events page — silently does not
+  // get it. That gap is what forced a hand-written receipt after the fact. Say so, loudly, at the
+  // point of failure rather than leaving it to be rediscovered.
   if (PROJECT_ID) {
     try {
       await apiPost('/api/events', { projectId: PROJECT_ID, type: 'intervention', detail });
-    } catch { /* receipt is best-effort, never affects the push that already happened */ }
+    } catch {
+      log.error('receipt_not_recorded', `Push receipt POST failed — NOT on dashboard Events. ${detail}`);
+      process.stderr.write(`[branch-protection] WARNING: receipt POST failed, not recorded on dashboard. ${detail}\n`);
+    }
+  } else {
+    log.error('receipt_no_project_id', `Push receipt could NOT be attributed to a project (PROJECT_ID empty) — NOT recorded on dashboard Events. ${detail}`);
+    process.stderr.write(`[branch-protection] WARNING: PROJECT_ID unresolved, receipt NOT recorded on dashboard Events page. ${detail}\n`);
   }
   process.stderr.write(`[branch-protection] ${detail}\n`);
 }

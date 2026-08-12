@@ -82,6 +82,48 @@ Tracked as **FRW-BL-094**.
 **Whenever a new tool that runs commands, writes files, or spawns agents appears in the platform,
 add it here and to the matcher.** The audit is only true as of its date.
 
+### A second, sibling defect class: one script under two EVENTS, no discriminator (FRW-BL-113)
+
+Everything above is about a matcher missing a *tool*. This one is different: the `""` (all) row
+says an empty matcher "cannot have this bug" — true for the tool-name blind spot, but a script
+registered under `""` for **two different hook events** can still misbehave if it does not check
+*which event* fired. `.claude/settings.json` registers `session-end.js` under both `SessionEnd`
+and `StopFailure`, with identical args and no config-level signal telling the script which one
+invoked it.
+
+`StopFailure` fires "when the turn ends due to an API error" (Claude Code hooks reference,
+checked 2026-08-12) — a turn-level event, not session termination; the session is expected to
+continue. `session-end.js` treated every non-`clear` invocation as a genuine end-of-session and
+ran its one-way teardown (complete all running agents, clear `activeProject`) regardless. Live
+incident (session `a6cce6c6`, 2026-08-12): a StopFailure run — likely triggered by a `cspell` call
+exceeding its tool timeout — executed that teardown while the session kept working for minutes
+afterward. The lead agent's own row carries a heartbeat timestamped *after* its recorded
+`completedAt`; a reviewer subagent marked `completed` delivered its verdict three minutes later.
+Consequences: `registry.activeProject` went null mid-session, which silently zeroed `PROJECT_ID`
+in every hook (see below); every live agent's cost/liveness tracking was corrupted; and the
+FRW-BL-091 push-receipt guarantee — "each push leaves a receipt" — went silently unmet for the
+next push, because its dashboard write is itself gated on `PROJECT_ID`.
+
+**The discriminator was available all along and unused.** `hook_event_name` is in the COMMON
+input fields sent on *every* hook invocation and equals the literal firing event's name. Fixed by
+gating the teardown on `isConfirmedSessionEnd(input.hook_event_name) === 'SessionEnd'` — failing
+SAFE (skip teardown) on anything else, including a missing/malformed field, since a skipped
+cleanup on a true session end is cheap (next boot's orphan-agent recovery covers it) while a
+wrongful teardown mid-session is not recoverable after the fact. Self-tested:
+`.claude/hooks/session-end.test.js`.
+
+**A related, narrower finding while diagnosing this:** the push receipt was not *fully* silent —
+`post-bash-git.js`'s `log.warn` and its unconditional `stderr.write` both fired, and the local
+`VLDR_HOME/logs/{date}.jsonl` line proves it. What silently failed was specifically the
+`/api/events` POST that puts the receipt on the dashboard Events page, gated behind
+`if (PROJECT_ID)` with no else-branch. That gate now logs loudly when it can't attribute a push,
+so the gap itself is visible next time rather than only its absence being noticed later.
+
+**Generalizing, for the next script that gets registered under more than one event:** a shared
+matcher across multiple hook EVENTS (not just multiple tool names) is the same risk shape as a
+shared matcher across multiple TOOLS — check `hook_event_name` before acting, the same way a
+tool-name matcher should be checked before assuming a specific `tool_input` shape.
+
 ## The pattern set is shell-shaped, and that matters separately
 
 Widening a matcher does not widen the patterns behind it. When the shell guard reached PowerShell:
