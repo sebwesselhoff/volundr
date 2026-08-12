@@ -79,6 +79,56 @@ export function skillLicenceErrors(rel, src) {
   return out;
 }
 
+/**
+ * FRW-BL-112 — a skill that denies tools must not be model-invocable.
+ *
+ * `disallowed-tools` is enforced by the platform against the whole SESSION, not just the skill
+ * invocation. The platform says so verbatim: "Write is disabled for this session, in subagents as
+ * well as here." So a MODEL-invocable skill carrying a Write/Edit denylist is a self-inflicted
+ * session kill — the lead strips its own ability to implement, mid-card, by following the
+ * framework's own Journal Protocol. That is exactly how this was found: one `vldr-route` call to
+ * gather ISC evidence ended file work for the rest of the session and every subagent after it.
+ *
+ * The invariant, not the incident: any SKILL.md declaring `disallowed-tools` MUST also declare
+ * `disable-model-invocation: true`. That keeps the skill operator-invocable (`/vldr-journal` still
+ * works) while removing it from the model's reachable set — and it PRESERVES the denylist rather
+ * than deleting it to fix the blast radius. Deleting it was the tempting fix and the wrong one:
+ * enforcement is now proven, and FRW-BL-101 ISC-2's decision to keep a denylist depends on it.
+ *
+ * Scope note: this closes the model's path only. An OPERATOR who types a denylisted skill mid-card
+ * still loses Write/Edit for the session — irreducible from here, since the platform applies the
+ * denial session-wide. Each affected SKILL.md therefore states that blast radius in its own body,
+ * because the original defect was as much about silence as about scope.
+ *
+ * Fails CLOSED on malformed/absent frontmatter, matching skillLicenceErrors. Pure over source text.
+ */
+export function skillInvocationErrors(rel, src) {
+  const out = [];
+  const lines = String(src ?? '').split(/\r?\n/);
+  if (lines[0]?.trim() !== '---') {
+    out.push(`skill-frontmatter: ${rel} has no frontmatter fence on line 1`);
+    return out;
+  }
+  const close = lines.findIndex((l, i) => i > 0 && l.trim() === '---');
+  if (close < 0) {
+    out.push(`skill-frontmatter: ${rel} has an unterminated frontmatter block`);
+    return out;
+  }
+  const fm = lines.slice(1, close).join('\n');
+  // [ \t] not \s — same trap skillLicenceErrors documents: in JS `\s` matches newlines, so
+  // `\s*\S` would skip an EMPTY `disallowed-tools:` line and match the next key's first char,
+  // inventing a denylist that is not there. Covered by its own test.
+  if (!/^disallowed-tools[ \t]*:[ \t]*\S/m.test(fm)) return out; // no denylist → nothing to enforce
+  if (!/^disable-model-invocation[ \t]*:[ \t]*true[ \t]*$/m.test(fm)) {
+    out.push(
+      `skill-invocation: ${rel} declares disallowed-tools but is model-invocable — add ` +
+      `"disable-model-invocation: true". A denied tool is denied for the whole session, subagents ` +
+      `included, so the model must not be able to reach this skill (FRW-BL-112)`,
+    );
+  }
+  return out;
+}
+
 export function pinDrift(settingsSrc, guardrailsSrc) {
   const errors = [];
 
@@ -214,6 +264,9 @@ function main() {
       continue;
     }
     for (const e of skillLicenceErrors(rel, src)) errors.push(e);
+    // 4d. denylisted skills must not be model-invocable (FRW-BL-112). Same loop, same read: a
+    // skill's frontmatter is one artifact, and both checks are distribution defects, not warnings.
+    for (const e of skillInvocationErrors(rel, src)) errors.push(e);
   }
 
   // 5. orphan prompt templates (warn only)

@@ -3,11 +3,22 @@ name: vldr-directive
 license: MIT
 description: Manage Volundr governance directives - list, add, suppress, or supersede active directives for a project
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 disallowed-tools: Write, Edit
 ---
 
 # Volundr Directive Manager
+
+> **Operator-invocable only, deliberately — do not remove `disable-model-invocation` (FRW-BL-112).**
+> This skill declares `disallowed-tools: Write, Edit`, and the platform applies a tool denial to the
+> **entire session, subagents included** — not merely to this skill's own execution. Its own words:
+> *"Write is disabled for this session, in subagents as well as here."* A model-invocable skill
+> carrying that denylist lets Volundr strip its own ability to implement, mid-card, with no warning.
+>
+> Typing `/vldr-directive` yourself still works and is the intended path. Be aware that **invoking it
+> while a card is in flight disables `Write`/`Edit` until the next session**, for the lead and every
+> agent it spawns. Volundr reads and writes directives through the `/api/directives` endpoints
+> instead, which need no file mutation.
 
 Governance directives are standing rules that apply to all agent work in a project (or globally).
 Use this skill to list, add, suppress, or supersede directives.

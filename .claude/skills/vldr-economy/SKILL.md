@@ -3,11 +3,22 @@ name: vldr-economy
 license: MIT
 description: Toggle or check economy mode on the active Volundr project - downgrade agent models to reduce cost
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 disallowed-tools: Write, Edit
 ---
 
 # Volundr Economy Mode
+
+> **Operator-invocable only, deliberately — do not remove `disable-model-invocation` (FRW-BL-112).**
+> This skill declares `disallowed-tools: Write, Edit`, and the platform applies a tool denial to the
+> **entire session, subagents included** — not merely to this skill's own execution. Its own words:
+> *"Write is disabled for this session, in subagents as well as here."* A model-invocable skill
+> carrying that denylist lets Volundr strip its own ability to implement, mid-card, with no warning.
+>
+> Typing `/vldr-economy` yourself still works and is the intended path — economy mode is an operator
+> cost decision, not a self-service one. Be aware that **invoking it while a card is in flight
+> disables `Write`/`Edit` until the next session**, for the lead and every agent it spawns. Volundr
+> reads and sets economy mode through the `/api/economy` endpoints instead.
 
 Economy mode reduces cost by downgrading spawned agents **one tier** (`opus` → `sonnet` → `haiku`, floored at `haiku`). When enabled:
 - The `volundr` lead is **never downgraded** — it orchestrates the whole run, so full capability is worth the cost.

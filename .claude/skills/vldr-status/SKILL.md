@@ -9,6 +9,17 @@ disallowed-tools: Write, Edit
 
 # Volundr Project Status
 
+> **Operator-invocable only, deliberately — do not remove `disable-model-invocation` (FRW-BL-112).**
+> This skill declares `disallowed-tools: Write, Edit`, and the platform applies a tool denial to the
+> **entire session, subagents included** — not merely to this skill's own execution. Its own words:
+> *"Write is disabled for this session, in subagents as well as here."* This skill already carried
+> `disable-model-invocation: true` before FRW-BL-112 and so was never a live hazard; the flag is now
+> a lint-enforced invariant for every denylisted skill rather than a per-file accident.
+>
+> Typing `/vldr-status` yourself still works and is the intended path. Be aware that **invoking it
+> while a card is in flight disables `Write`/`Edit` until the next session**, for the lead and every
+> agent it spawns. Volundr derives the same status from the dashboard API instead.
+
 Show the current Volundr project status.
 
 ## Project

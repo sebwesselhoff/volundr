@@ -3,11 +3,23 @@ name: vldr-route
 license: MIT
 description: Test Volundr routing rules - match a work description against active routing rules and show tier selection
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 disallowed-tools: Write, Edit
 ---
 
 # Volundr Route Tester
+
+> **Operator-invocable only, deliberately — do not remove `disable-model-invocation` (FRW-BL-112).**
+> This skill declares `disallowed-tools: Write, Edit`, and the platform applies a tool denial to the
+> **entire session, subagents included** — not merely to this skill's own execution. Its own words:
+> *"Write is disabled for this session, in subagents as well as here."* This is the skill that
+> exposed the defect: one invocation to gather ISC evidence mid-card ended file work for the rest of
+> that session.
+>
+> Typing `/vldr-route` yourself still works and is the intended path. Be aware that **invoking it
+> while a card is in flight disables `Write`/`Edit` until the next session**, for the lead and every
+> agent it spawns. Volundr tests routing with a direct `POST /api/routing-rules/test` instead, which
+> needs no file mutation.
 
 Test how Volundr would route a card description against the active routing rules and which response tier would be selected.
 

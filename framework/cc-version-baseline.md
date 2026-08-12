@@ -136,3 +136,37 @@ they can never mutate the codebase. **Bash is intentionally retained** — these
 dashboard API and run `!`-embedded shell, so disallowing Bash would break them; "read-only" here
 means *filesystem* read-only, not no-Bash. `vldr-pack` install ends with a `/reload-skills`
 (or `reloadSkills:true`) step so freshly-installed pack skills work without a session restart.
+
+**`disallowed-tools` is SESSION-scoped, not invocation-scoped (FRW-BL-112) — measured, not inferred.**
+The hardening above reads as though the denial applies while the skill runs. It does not. Invoking a
+skill that declares `disallowed-tools` removes those tools for the **remainder of the session and
+every subagent spawned afterwards**. The platform states it outright when the second attempt is made:
+
+```
+Error: No such tool available: Write. Write is disabled for this session,
+in subagents as well as here.
+```
+
+Observed sequence (2026-08-12, session `a6cce6c6`): `vldr-route` invoked → completed normally →
+`vldr-verify` (no denylist) invoked and completed → many PowerShell/API calls succeeded → `Write`
+DENIED → further shell/API calls succeeded → `Write` DENIED again with the message above. So the
+scope is **not** turn-scoped, and an intervening skill with no denylist does **not** clear it. Only a
+new session does.
+
+Two things follow, and both are now enforced rather than remembered:
+
+| Rule | Enforcement |
+|---|---|
+| A skill declaring `disallowed-tools` MUST also declare `disable-model-invocation: true` | `scripts/garden-lint.mjs` → `skillInvocationErrors()`, an ERROR in the gate suite |
+| Volundr uses the dashboard API, never these skills, for journal/status/route/directive/economy | `framework/system-instructions.md` § Journal Protocol |
+
+`disable-model-invocation: true` keeps a skill user-invocable while removing it from the model's
+reachable set — verified live in session `12811400`: the only two skills carrying it (`vldr-status`,
+`vldr-compact`) were the only two of eleven absent from the model's available-skills list, an 11/11
+correlation. Note this is a **different lever** from the `skillOverrides: user-invocable-only`
+setting in the table above: that one trims what is *loaded into context*, this one controls whether
+the model can *invoke* the skill at all. Do not conflate them.
+
+**Residual, accepted:** an operator who types one of these skills mid-card still loses `Write`/`Edit`
+for that session. That is irreducible from inside the framework, since the platform scopes the denial
+to the session — so each affected `SKILL.md` states its own blast radius in its body instead.

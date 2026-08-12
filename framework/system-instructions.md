@@ -420,6 +420,27 @@ Log significant cognitive events throughout the session via the Dashboard API:
 vldr.journal.log({ entry: 'description', entryType: 'type', cardId?: 'CARD-XX-NNN' });
 ```
 
+**Log via the API, never via the `vldr-journal` skill (FRW-BL-112).** The six read-only vldr skills
+(`vldr-directive`, `vldr-doctor`, `vldr-economy`, `vldr-journal`, `vldr-route`, `vldr-status`)
+declare `disallowed-tools: Write, Edit`, and the platform applies a tool denial to the **whole
+session, subagents included** — verbatim: *"Write is disabled for this session, in subagents as well
+as here."* So invoking one mid-card previously ended file work for the rest of the session and for
+every agent spawned afterwards. Following this very protocol was the fastest way to do it.
+
+All six are now `disable-model-invocation: true` — operator-invocable, not model-invocable — and
+`scripts/garden-lint.mjs` (`skillInvocationErrors`) fails the gate suite if any skill ever declares
+`disallowed-tools` while remaining model-invocable. The denylist itself is deliberately KEPT: it is
+proven enforced, and FRW-BL-101 ISC-2's decision to keep a denylist rather than migrate to an
+allowlist depends on that enforcement.
+
+Two consequences to remember rather than rediscover:
+- **You cannot invoke those six.** They will not appear in your available-skills list. Use the API
+  (`POST /api/journal`, `/api/directives`, `/api/routing-rules/test`, `/api/economy`) or plain shell.
+- **The operator still can, and it still costs the session.** If the developer types one of them
+  while a card is in flight, `Write`/`Edit` die for the rest of that session — irreducible from
+  inside the framework, since the platform scopes the denial to the session. Each affected SKILL.md
+  states that blast radius in its own body, because the original defect was silence as much as scope.
+
 **Entry types and when to log:**
 | Type | When | Example |
 |------|------|---------|

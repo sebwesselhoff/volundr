@@ -3,11 +3,24 @@ name: vldr-journal
 license: MIT
 description: Log a journal entry for the active project. Journal entries capture decisions, insights, blockers, pivots, and milestones for session continuity.
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 disallowed-tools: Write, Edit
 ---
 
 # Volundr Journal
+
+> **Operator-invocable only, deliberately — do not remove `disable-model-invocation` (FRW-BL-112).**
+> This skill declares `disallowed-tools: Write, Edit`, and the platform applies a tool denial to the
+> **entire session, subagents included** — not merely to this skill's own execution. Its own words:
+> *"Write is disabled for this session, in subagents as well as here."* While this skill was still
+> model-invocable, Volundr following the framework's own Journal Protocol mid-card ended file work
+> for the rest of that session.
+>
+> Typing `/vldr-journal` yourself still works and is the intended path. Be aware that **invoking it
+> while a card is in flight disables `Write`/`Edit` until the next session**, for the lead and every
+> agent it spawns. Volundr does not use this skill: it logs journal entries with a direct
+> `POST /api/journal`, which needs no file mutation. That is the documented lead path in
+> `framework/system-instructions.md` § Journal Protocol.
 
 Log a journal entry to the active project via the Dashboard API.
 

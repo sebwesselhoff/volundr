@@ -3,11 +3,22 @@ name: vldr-doctor
 license: MIT
 description: Validate Volundr setup - checks Docker, dashboard, VLDR_HOME, registry, DB, git, node, Claude Code version, hooks
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 disallowed-tools: Write, Edit
 ---
 
 # Volundr Setup Doctor
+
+> **Operator-invocable only, deliberately — do not remove `disable-model-invocation` (FRW-BL-112).**
+> This skill declares `disallowed-tools: Write, Edit`, and the platform applies a tool denial to the
+> **entire session, subagents included** — not merely to this skill's own execution. Its own words:
+> *"Write is disabled for this session, in subagents as well as here."* A model-invocable skill
+> carrying that denylist lets Volundr strip its own ability to implement, mid-card, with no warning.
+>
+> Typing `/vldr-doctor` yourself still works and is the intended path — a setup check is a natural
+> thing to run between cards. Be aware that **invoking it while a card is in flight disables
+> `Write`/`Edit` until the next session**, for the lead and every agent it spawns. Volundr runs the
+> equivalent checks as ordinary shell commands instead, which need no file mutation.
 
 Run the following checks in order using Bash tool calls and report results with pass/fail/warning indicators.
 
