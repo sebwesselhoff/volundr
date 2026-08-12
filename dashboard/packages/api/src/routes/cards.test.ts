@@ -159,7 +159,44 @@ describe('ISC-1: happy path — synthesis on card close', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].source).toBe('card-close');
     expect(rows[0].entryType).toBe('learning');
-    expect(rows[0].confidence).toBe(1.0);
+    // FRW-BL-096: was `toBe(1.0)`, a constant. QUALITY_BODY is all 8s, so the weighted score is
+    // (8*3 + 8*3 + 8*2 + 8*2)/10 = 8.0 — "clean, well-structured" in the reviewer rubric — which
+    // the calibration maps to 0.80. This is the END-TO-END proof that the real card-close path
+    // derives confidence from the score rather than stamping a constant.
+    expect(rows[0].confidence).toBe(0.80);
+  });
+
+  // FRW-BL-096: the same path with a barely-passing score must land BELOW extract-skills'
+  // CONFIDENCE_THRESHOLD (0.5) is not the claim — a bare pass should still qualify. The claim is
+  // that it is materially lower than a strong card, end-to-end through the API.
+  it('derives a lower confidence for a barely-passing card than for a strong one', async () => {
+    const { cardId, personaId } = await seedBase();
+
+    const res = await request(app)
+      .patch(`/api/cards/${cardId}`)
+      .send({
+        status: 'done',
+        quality: { ...QUALITY_BODY, completeness: 5, codeQuality: 5, formatCompliance: 5, correctness: 5 },
+      });
+    expect(res.status).toBe(200);
+
+    const db = getDb();
+    const rows = db
+      .select()
+      .from(schema.personaHistory)
+      .where(
+        and(
+          eq(schema.personaHistory.personaId, personaId),
+          eq(schema.personaHistory.cardId, cardId),
+        ),
+      )
+      .all();
+
+    expect(rows).toHaveLength(1);
+    // weighted = 5.0 → bare pass → 0.55: clears the 0.5 extraction filter, but sits in 'medium'
+    // rather than the 'high' bucket an all-8s card reaches.
+    expect(rows[0].confidence).toBe(0.55);
+    expect(rows[0].confidence).toBeLessThan(0.80);
   });
 });
 

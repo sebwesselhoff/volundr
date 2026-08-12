@@ -57,7 +57,48 @@ export interface SynthesisPayload {
 // ---- Constants --------------------------------------------------------------
 
 const MAX_DESCRIPTION_CHARS = 400;
-const SYNTHESIS_CONFIDENCE = 1.0;
+
+/**
+ * FRW-BL-096 — this was `SYNTHESIS_CONFIDENCE = 1.0`, written unconditionally.
+ *
+ * Consequence: every card-close row entered extractSkillsFromHistory at the ceiling, always
+ * cleared its CONFIDENCE_THRESHOLD (0.5) filter, and always landed in the 'high' bucket
+ * (mapConfidenceLevel: >= 0.75). A card scraping past the 5.0 quality gate at 5.1 produced the
+ * same "high-confidence" skill as one closing at 9.5, and an UNSCORED card produced one too. The
+ * threshold and the low/medium/high mapping were dead code on the common path — and this IS the
+ * common path, since flat / Volundr-direct work relies on card-close synthesis (see
+ * system-instructions § Persona linkage in flat/Volundr-direct mode).
+ *
+ * The quality score was already a parameter of the synthesis function: it was rendered into the
+ * human-readable body and then discarded. Nothing needed plumbing in; only mapping.
+ *
+ * Bands are anchored to the blind-reviewer rubric in framework/packs/quality/prompts/card-reviewer.md
+ * ("6-7 meets the spec — the baseline for a completed card", "8 clean, well-structured, follows
+ * conventions tightly", "9 genuinely impressive — a reference implementation") rather than a
+ * formula, so each boundary is explainable. A naive weightedScore/10 was rejected: it puts a bare
+ * 5.0 pass exactly ON the >= 0.5 filter boundary, and promotes 7.5 to 'high', which the rubric does
+ * not consider clean yet.
+ */
+const CONFIDENCE_UNSCORED = 0.2; // below CONFIDENCE_THRESHOLD by design → seeds no skill
+const CONFIDENCE_BELOW_GATE = 0.3; // failed the 5.0 quality gate → seeds no skill
+const CONFIDENCE_BANDS: ReadonlyArray<{ minScore: number; confidence: number }> = [
+  { minScore: 9.0, confidence: 0.95 }, // reference quality
+  { minScore: 8.0, confidence: 0.80 }, // clean, tight → 'high'
+  { minScore: 7.0, confidence: 0.65 }, // solidly meets spec → 'medium'
+  { minScore: 5.0, confidence: 0.55 }, // bare pass → 'medium', just clear of the filter
+];
+
+/**
+ * Map a weighted quality score (1-10) to a persona_history confidence (0-1).
+ * Exported for testing: the bands are a deliberate calibration, so they are asserted directly.
+ */
+export function confidenceFromQuality(weightedScore: number | null | undefined): number {
+  if (weightedScore == null || !Number.isFinite(weightedScore)) return CONFIDENCE_UNSCORED;
+  for (const band of CONFIDENCE_BANDS) {
+    if (weightedScore >= band.minScore) return band.confidence;
+  }
+  return CONFIDENCE_BELOW_GATE;
+}
 
 // ---- Helper -----------------------------------------------------------------
 
@@ -140,7 +181,7 @@ export function synthesiseHistoryEntry(
     projectName,
     cardId: card.id,
     stackTags,
-    confidence: SYNTHESIS_CONFIDENCE,
+    confidence: confidenceFromQuality(qualityScore?.weightedScore),
     source: 'card-close',
   };
 }
