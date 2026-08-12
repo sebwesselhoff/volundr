@@ -367,8 +367,26 @@ After scoring each card via `vldr.quality.score()`, if score < 5.0:
 5. If developer rejects: prefix with `[SUPPRESSED]` immediately
 6. Include active (non-suppressed) steering rules in every agent prompt's constraints section
 
+**Use the mechanism, not hand-editing (FRW-BL-102).** `scripts/steering-rules.mjs` performs these
+edits as pure text transforms: `addRule(src, {cardId, text, score, dimension, now})` and
+`suppressRule(src, {match, reason, now, auto})`. Both write the rule change **and** a `### Change
+Log` entry inside `constraints.md` in one step, newest entry first.
+
+Why it is code: this file is injected into **every** agent prompt, so a rule silently appearing or
+disappearing changes behaviour project-wide. Previously all three paths (score-triggered add, manual
+suppress, `>= 8.0` auto-suppress) mutated the file in place with no record of what changed, when,
+which card caused it, or why — destroying exactly the correlation this loop exists to produce.
+Asking the lead to remember a log format is the weak pattern FRW-BL-084 called out and FRW-BL-091
+rejected for the push receipt.
+
+The functions refuse to write silently: no `cardId` (unattributable rule), no reason on a
+suppression, no `## Steering Rules` section to write into, or a missing injected `now` all throw
+rather than producing an untraceable edit. Suppressing an already-suppressed rule is a no-op.
+Both the documented `- [CARD-ID] …` form and the `- **SR-001:** …` form found in real projects are
+accepted on read; writes emit the documented form.
+
 **Correction mechanism:**
-- Prefix a rule with `[SUPPRESSED]` to remove it from injection
+- Prefix a rule with `[SUPPRESSED]` to remove it from injection (via `suppressRule`, which records why)
 - Volundr can auto-suppress when a retry scores >= 8.0 (suggests spec was the problem, not the agent)
 - Session-start hook skips `[SUPPRESSED]` entries when building HOT tier context
 
