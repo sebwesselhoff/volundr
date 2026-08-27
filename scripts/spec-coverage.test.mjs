@@ -8,7 +8,7 @@
 
 import {
   extractRequirements, citedIds, mapCoverage, extractGlossary, detectDrift,
-  extractActiveRules, detectConstraintConflicts, isNegatedOccurrence, analyze, formatReport,
+  extractActiveRules, detectConstraintConflicts, isNegatedOccurrence, analyze, formatReport, cardText,
 } from './spec-coverage.mjs';
 
 let pass = 0, fail = 0;
@@ -82,6 +82,53 @@ const CARDS = [
   ok('the finding names the variant AND the canonical term',
     findings.some((f) => /"audit"/.test(f.detail) && /"assessment"/.test(f.detail)));
   ok('it names the source document', findings.every((f) => f.source === 'sow-001'));
+}
+
+// --- FRW-BL-117: drift must be scanned over the SAME card fields as coverage ---
+// Pre-fix, analyze()'s drift scan joined only title + description while mapCoverage read
+// technicalNotes / criteria / isc too — so a forbidden variant in those fields was scanned for
+// citations and NOT for drift, and the run reported clean over text it had never read. Each block
+// below fails against the pre-fix code.
+{
+  const inNotes = [{
+    id: 'CLR-900', status: 'backlog', title: 'Pilot', description: 'Covers SC-001.',
+    technicalNotes: 'The audit step runs first.', isc: [],
+  }];
+  const r = analyze({ blueprint: BLUEPRINT, cards: inNotes });
+  ok('RED: a drifted term in technicalNotes is detected',
+    r.findings.some((f) => /"audit"/.test(f.detail) && /card CLR-900/.test(f.source)));
+}
+{
+  const inCriteria = [{
+    id: 'CLR-901', status: 'backlog', title: 'Pilot', description: 'Covers SC-001.',
+    criteria: 'Each landingzone is scored.', isc: [],
+  }];
+  const r = analyze({ blueprint: BLUEPRINT, cards: inCriteria });
+  ok('RED: a drifted term in criteria is detected',
+    r.findings.some((f) => /"landingzone"/.test(f.detail) && /card CLR-901/.test(f.source)));
+}
+{
+  const inIsc = [{
+    id: 'CLR-902', status: 'backlog', title: 'Pilot', description: 'Covers SC-001.',
+    isc: [{ criterion: 'The audit completes without error.' }],
+  }];
+  const r = analyze({ blueprint: BLUEPRINT, cards: inIsc });
+  ok('RED: a drifted term in an ISC criterion is detected (documented inclusion, not an accident)',
+    r.findings.some((f) => /"audit"/.test(f.detail) && /card CLR-902/.test(f.source)));
+}
+{
+  // The invariant, asserted directly: one definition of a card's text, shared by both readers.
+  const card = {
+    id: 'CLR-903', title: 'T', description: 'D', technicalNotes: 'N',
+    criteria: 'C', isc: [{ criterion: 'I' }],
+  };
+  const text = cardText(card);
+  ok('cardText includes every field the coverage mapper relies on',
+    ['CLR-903', 'T', 'D', 'N', 'C', 'I'].every((frag) => text.includes(frag)));
+  ok('cardText tolerates a null card', cardText(null) === '');
+  ok('cardText tolerates missing fields', cardText({ id: 'X' }) === 'X');
+  ok('cardText drops null isc entries rather than emitting "null"',
+    !cardText({ id: 'X', isc: [null, { criterion: 'ok' }] }).includes('null'));
 }
 
 // --- ISC-5 GREEN: a clean blueprint reports neither ---------------------------

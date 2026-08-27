@@ -84,14 +84,42 @@ export function citedIds(text) {
  * from wording similarity is the probabilistic path this tool refuses, and it would produce exactly
  * the confident-but-wrong result that makes a gate untrustworthy.
  */
+/**
+ * PURE: the single definition of "this card's text".
+ *
+ * FRW-BL-117. There used to be two. `mapCoverage` joined id + title + description +
+ * technicalNotes + criteria + isc, while the drift scan in `analyze()` joined only title +
+ * description — so a forbidden glossary variant living in `technicalNotes` was scanned for
+ * requirement citations and NOT scanned for drift, and the run reported clean over fields it had
+ * never read. That is the exact silent-hole failure this module exists to eliminate, occurring
+ * inside the module itself: its headline behaviour is to say "nothing to check" rather than "all
+ * covered", and here it said clean rather than "not looked at".
+ *
+ * The fix is one helper rather than two corrected call sites, because the defect was never the
+ * field list — it was two places independently deciding what a card's text is. With one function
+ * they cannot drift apart again, which is the actual invariant worth holding.
+ *
+ * ISC CRITERIA ARE INCLUDED, deliberately. The alternative was excluding them on the theory that
+ * assertion-shaped text may quote a term it is asserting about and produce noise. That was
+ * rejected: it is speculative, it would recreate the very divergence this helper removes, and a
+ * drifted noun inside an acceptance criterion is real drift — the criterion is part of the spec a
+ * developer reads. If ISC scanning turns out noisy in practice that is measurable and can be
+ * revisited with evidence; a documented decision beats an accidental one either way.
+ */
+export function cardText(card) {
+  if (!card || typeof card !== 'object') return '';
+  return [
+    card.id, card.title, card.description, card.technicalNotes, card.criteria,
+    Array.isArray(card.isc) ? card.isc.map((c) => c && c.criterion).filter(Boolean).join(' ') : '',
+  ].filter(Boolean).join('\n');
+}
+
 export function mapCoverage(requirements, cards) {
   const list = Array.isArray(cards) ? cards : [];
   const byRequirement = new Map();
   for (const card of list) {
     if (!card || typeof card !== 'object') continue;
-    const blob = [card.id, card.title, card.description, card.technicalNotes, card.criteria,
-      Array.isArray(card.isc) ? card.isc.map((c) => c && c.criterion).join(' ') : '',
-    ].filter(Boolean).join('\n');
+    const blob = cardText(card);
     for (const id of citedIds(blob)) {
       if (!byRequirement.has(id)) byRequirement.set(id, []);
       byRequirement.get(id).push({ id: card.id, status: card.status });
@@ -281,9 +309,11 @@ export function analyze({ blueprint = '', cards = [], sows = [], constraints = '
   const requirements = extractRequirements(blueprint);
   const coverage = mapCoverage(requirements, cards);
   const glossary = extractGlossary(blueprint);
-  const cardText = (Array.isArray(cards) ? cards : [])
-    .map((c) => ({ name: `card ${c?.id}`, text: [c?.title, c?.description].filter(Boolean).join('\n') }));
-  const drift = detectDrift(glossary, [...sows, ...cardText]);
+  // FRW-BL-117: same text the coverage mapper reads. Previously this joined only title +
+  // description, so drift hiding in technicalNotes / criteria / isc was silently invisible.
+  const cardSources = (Array.isArray(cards) ? cards : [])
+    .map((c) => ({ name: `card ${c?.id}`, text: cardText(c) }));
+  const drift = detectDrift(glossary, [...sows, ...cardSources]);
   const conflicts = detectConstraintConflicts(cards, extractActiveRules(constraints));
   const duplicates = requirements.filter((r) => r.duplicate).map((r) => ({
     severity: 'CRITICAL', source: 'blueprint',
