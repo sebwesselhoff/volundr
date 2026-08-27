@@ -124,66 +124,96 @@ function getNameKey(agentLabel) {
 }
 
 
-// Read pending description from FIFO queue written by pre-agent-tool.js
-// Matches by subagent_type prefix, pops the oldest non-stale entry
-// Entries older than 5 minutes are considered stale and deleted
+// Descriptors are queued per Agent-tool call by pre-agent-tool.js and consumed here.
+// Entries older than the TTL are swept as stale — a spawn that never started must not leave a
+// descriptor behind for an unrelated agent to pick up later.
 const QUEUE_TTL_MS = 5 * 60 * 1000;
 
-// Pop the oldest non-stale entry from the queue that matches the agent name
-// Only consumes entries whose name matches the agent being registered
-function popByNameFromQueue(agentName) {
-  if (!agentName) return null;
+/**
+ * FRW-BL-094 — choose a descriptor for the agent that is STARTING, or choose nothing.
+ *
+ * `pre-agent-tool.js` queues a descriptor per Agent-tool call; `agent-start.js` consumes one when a
+ * subagent starts. Nothing in that handoff correlated the descriptor with the agent it describes:
+ * the type-prefix path popped the OLDEST match, so a spawn starting while another spawn's descriptor
+ * was still pending could claim someone else's `cardId` and `personaId`.
+ *
+ * FALSE attribution is worse than none. A missing cardId is visibly empty; a wrong one is silently
+ * plausible, and it hands a card quality signal, token cost and persona skill confidence from work
+ * that was never done for it.
+ *
+ * The rule, in order:
+ *   1. NAME MATCH — the only true key. `toolInput.name` is written by pre-agent-tool and arrives
+ *      back as `input.agent_type` for named spawns, so both sides derive it independently.
+ *   2. UNIQUE type match — safe precisely because there is nothing to confuse it with.
+ *   3. Otherwise NOTHING. Two pending descriptors of the same type cannot be told apart, so taking
+ *      the older one is a guess. Fails CLOSED: the row registers unattributed and honest.
+ *
+ * Measured, not assumed: a probe spawning two NAMED subagents in one message with different card
+ * headers showed attribution did NOT cross — rule 1 already held for them. The exposure is the
+ * UNNAMED path and Workflow subagents, which is what rule 3 closes.
+ *
+ * Pure over a candidate list. Exported for the self-test.
+ *
+ * @param {Array<{file: string, data: object}>} candidates  queue entries, oldest first
+ * @param {{name?: string, agentType?: string}} agent
+ * @returns {{pick: object|null, file: string|null, reason: string}}
+ */
+/**
+ * List every live descriptor, sweeping stale ones as it goes.
+ *
+ * FRW-BL-089 GUARD: this touches ONLY files inside the desc-queue directory, and only those whose
+ * embedded timestamp is older than the TTL. It never removes the current session's artifacts —
+ * `current-session`, `volundr-lead` and the `session-<id>` maps live in the PARENT directory and are
+ * not enumerated here. That distinction is the whole of FRW-BL-089's lesson: a sweep that cannot
+ * tell "stale" from "belonging to the session now booting" deletes the session it is starting.
+ */
+function readQueue() {
   const queueDir = getQueueDir();
   const now = Date.now();
-  try {
-    const files = fs.readdirSync(queueDir).sort(); // oldest first
-    for (const file of files) {
-      const filePath = path.join(queueDir, file);
-      const parts = file.split('-');
-      const tsCandidate = parts.find(p => /^\d{13}$/.test(p));
-      if (tsCandidate && (now - parseInt(tsCandidate, 10)) > QUEUE_TTL_MS) {
-        try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
-        continue;
-      }
-      // Peek at the data to check the name
-      const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      if (data.name === agentName) {
-        fs.unlinkSync(filePath); // consume only if name matches
-        return data;
-      }
+  const out = [];
+  let files;
+  try { files = fs.readdirSync(queueDir).sort(); } catch (e) { return out; }
+  for (const file of files) {
+    const filePath = path.join(queueDir, file);
+    const tsCandidate = file.split('-').find((p) => /^\d{13}$/.test(p));
+    if (tsCandidate && (now - parseInt(tsCandidate, 10)) > QUEUE_TTL_MS) {
+      try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+      continue;
     }
-  } catch (e) { /* queue empty or doesn't exist */ }
-  return null;
+    try {
+      out.push({ file: filePath, data: JSON.parse(fs.readFileSync(filePath, 'utf8')) });
+    } catch (e) { /* unreadable entry — leave it rather than guess */ }
+  }
+  return out;
 }
 
-function popDescriptionFromQueue(agentType) {
-  const queueDir = getQueueDir();
-  const typeKey = (agentType || 'general-purpose').replace(/[^a-z0-9-]/gi, '_');
-  const now = Date.now();
-  try {
-    const files = fs.readdirSync(queueDir)
-      .filter(f => f.startsWith(typeKey + '-'))
-      .sort(); // oldest first (timestamp in filename)
-    for (const file of files) {
-      const filePath = path.join(queueDir, file);
-      // Extract timestamp from filename: {typeKey}-{timestamp}-{random}
-      const parts = file.split('-');
-      const tsIndex = typeKey.split('-').length; // skip typeKey segments
-      const fileTs = parseInt(parts[tsIndex], 10);
-      if (fileTs && (now - fileTs) > QUEUE_TTL_MS) {
-        // Stale entry - delete and skip
-        try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
-        continue;
-      }
-      const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      fs.unlinkSync(filePath); // Consume - one entry per spawn
-      return data;
+function chooseDescriptor(candidates, { name, agentType } = {}) {
+  const list = (Array.isArray(candidates) ? candidates : []).filter((c) => c && c.data);
+  if (list.length === 0) return { pick: null, file: null, reason: 'queue-empty' };
+
+  for (const key of [name, agentType]) {
+    if (!key) continue;
+    const named = list.filter((c) => c.data.name && c.data.name === key);
+    if (named.length === 1) return { pick: named[0].data, file: named[0].file, reason: 'name-match' };
+    if (named.length > 1) {
+      // Two live spawns sharing a name cannot be told apart either. Same rule, same reason.
+      return { pick: null, file: null, reason: 'ambiguous-name' };
     }
-  } catch (e) {
-    // Queue dir doesn't exist or is empty - normal for first spawn
   }
-  return null;
+
+  const typeKey = agentType ? String(agentType).toLowerCase() : null;
+  if (typeKey) {
+    const typed = list.filter((c) => String(c.data.subagentType ?? '').toLowerCase() === typeKey);
+    if (typed.length === 1) return { pick: typed[0].data, file: typed[0].file, reason: 'unique-type-match' };
+    if (typed.length > 1) return { pick: null, file: null, reason: 'ambiguous-type' };
+  }
+
+  return { pick: null, file: null, reason: 'no-match' };
 }
+
+// FRW-BL-094: popDescriptionFromQueue and popByNameFromQueue were REMOVED, not left unused.
+// They implemented the positional pop this card replaces; leaving them in place would be an
+// invitation to re-wire the defect. readQueue + chooseDescriptor are the only path now.
 
 
 // Inject project context into every subagent via additionalContext
@@ -284,17 +314,26 @@ async function main() {
   const rawAgentName = input.agent_type || input.agent_id || 'subagent';
   const nameFromAgentId = input.agent_id ? input.agent_id.split('@')[0] : null;
 
-  let preToolData = popDescriptionFromQueue(input.agent_type);
-  if (!preToolData && agentType !== input.agent_type) {
-    preToolData = popDescriptionFromQueue(agentType);
+  // FRW-BL-094: KEYED, not positional. readQueue lists every live descriptor; chooseDescriptor
+  // takes the one that belongs to THIS agent, or takes nothing. It replaces a chain of pops whose
+  // first two steps consumed the OLDEST entry matching a type — which is how a spawn could claim
+  // another spawn's cardId and personaId.
+  const queued = readQueue();
+  let choice = chooseDescriptor(queued, { name: rawAgentName, agentType: input.agent_type });
+  if (!choice.pick && nameFromAgentId && nameFromAgentId !== rawAgentName) {
+    choice = chooseDescriptor(queued, { name: nameFromAgentId, agentType: input.agent_type });
   }
-  if (!preToolData) {
-    // Fallback: pop by agent name — handles teammates where input.agent_type
-    // doesn't match the queued subagent_type but the name is consistent
-    preToolData = popByNameFromQueue(rawAgentName);
-    if (!preToolData && nameFromAgentId && nameFromAgentId !== rawAgentName) {
-      preToolData = popByNameFromQueue(nameFromAgentId);
-    }
+  const preToolData = choice.pick;
+  if (choice.file) {
+    try { fs.unlinkSync(choice.file); } catch (e) { /* already consumed */ }
+  } else if (queued.length > 0) {
+    // Loud on purpose. An unattributed row is the correct outcome here, but silently unattributed
+    // is indistinguishable from "this agent had no card", which is the confusion FRW-BL-094 exists
+    // to remove.
+    log.warn('descriptor_unmatched',
+      `No descriptor could be matched to this agent (${choice.reason}); registering WITHOUT cardId/personaId `
+      + `rather than borrowing one of the ${queued.length} pending entr(ies) (FRW-BL-094)`,
+      { agentId: input.agent_id });
   }
   const preToolDescription = preToolData ? preToolData.description : null;
   const preToolName = preToolData ? preToolData.name : null;
@@ -437,6 +476,8 @@ async function main() {
         projectId: PROJECT_ID,
         type: 'agent_spawned',
         detail: `${effectiveAgentType} reactivated: ${agentLabel}`,
+        ...(preToolCardId ? { cardId: preToolCardId } : {}),
+        agentId: existingDashboardId,
       });
       emitAdditionalContext();
       return;
@@ -539,10 +580,17 @@ async function main() {
     }
   }
 
+  // FRW-BL-094: the EVENT must carry the same attribution the ROW does. It did not, and that was
+  // not cosmetic. `procedural-order.mjs` filters events by cardId, so an unattributed agent_spawned
+  // made its anti-stub-before-blind-review rule report "not-applicable" instead of checking — an
+  // attribution gap in the event stream silently disabled a gate that reads the event stream.
+  // Observed on this session's own blind reviewers, whose ROWS carried the cardId all along.
   const eventResult = await apiPost('/api/events', {
     projectId: PROJECT_ID,
     type: 'agent_spawned',
     detail: `${effectiveAgentType} spawned: ${agentLabel}`,
+    ...(preToolCardId ? { cardId: preToolCardId } : {}),
+    ...(agent.id ? { agentId: agent.id } : {}),
   });
   if (!eventResult) {
     log.warn('event_post_failed', 'Failed to log agent_spawned event');
@@ -560,4 +608,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { resolveParentDashboardId, inferAgentType, resolveRegistration, GENERIC_SUBAGENT_TYPES };
+module.exports = { resolveParentDashboardId, inferAgentType, resolveRegistration, chooseDescriptor, readQueue, GENERIC_SUBAGENT_TYPES };

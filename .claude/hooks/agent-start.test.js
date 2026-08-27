@@ -11,7 +11,7 @@
 // Run: node agent-start.test.js   — exits 0 on success, 1 on failure.
 // Safe to require agent-start.js: its main() is guarded by require.main === module.
 
-const { resolveParentDashboardId, inferAgentType, resolveRegistration, GENERIC_SUBAGENT_TYPES } = require('./agent-start.js');
+const { resolveParentDashboardId, inferAgentType, resolveRegistration, chooseDescriptor, GENERIC_SUBAGENT_TYPES } = require('./agent-start.js');
 
 let pass = 0;
 let fail = 0;
@@ -248,6 +248,101 @@ assertEq('LIVE: this session\'s blind reviewer would still register',
   resolveRegistration({ agentType: 'reviewer-frw-bl-114', preToolData: { name: 'reviewer-frw-bl-114' }, parentAgentId: 'p' }).register, true);
 assertEq('LIVE: a Workflow subagent still registers (it is a real agent, just generically typed)',
   resolveRegistration({ agentType: 'workflow-subagent', preToolData: null, parentAgentId: 'p' }).register, true);
+
+// --- FRW-BL-094: the descriptor handoff is KEYED, never positional ---------------------------
+//
+// pre-agent-tool.js queues a descriptor per Agent-tool call carrying the card and persona; this
+// hook consumes one when a subagent starts. The old path popped the OLDEST entry matching a type,
+// correlated with nothing — so a spawn starting while another spawn's descriptor was pending could
+// claim someone else's cardId and personaId.
+//
+// FALSE attribution is worse than none: a missing cardId is visibly empty, a wrong one is silently
+// plausible and hands a card quality signal and skill confidence from work never done for it.
+console.log('\nFRW-BL-094: descriptor handoff must be keyed, and fail closed when it cannot be\n');
+
+const desc = (name, subagentType, cardId) => ({ file: `/q/${name}`, data: { name, subagentType, cardId } });
+
+// THE CROSSING SCENARIO — the defect itself, with the PRE-FIX algorithm reconstructed here so the
+// fixture is proven to trigger it. Asserting only the new behaviour would be circular: it would
+// pass just as happily against a fixture that never crossed in the first place.
+//
+// This mirrors the deleted popDescriptionFromQueue: filter the queue by the agent's type, take the
+// OLDEST match, consume it. `owner` is test metadata recording which spawn each descriptor actually
+// belongs to — chooseDescriptor never sees it.
+const positionalPop = (candidates, typeKey) =>
+  candidates.filter((c) => c.data.subagentType === typeKey)[0]?.data ?? null;
+
+(() => {
+  // Spawn A enqueued first and has not started yet. Spawn B starts. Both are unnamed
+  // general-purpose subagents, which is the ordinary shape of a burst Agent-tool spawn.
+  const queue = [
+    { file: '/q/a', data: { name: '', subagentType: 'general-purpose', cardId: 'FRW-BL-001', owner: 'spawn-A' } },
+    { file: '/q/b', data: { name: '', subagentType: 'general-purpose', cardId: 'FRW-BL-002', owner: 'spawn-B' } },
+  ];
+
+  // RED: the pre-fix algorithm hands spawn B the descriptor belonging to spawn A. This assertion
+  // FAILS if the fixture does not actually reproduce the defect, which is what makes it a counter-proof.
+  const stolen = positionalPop(queue, 'general-purpose');
+  assertEq('PRE-FIX: positional pop hands the starting agent ANOTHER spawn\'s descriptor', stolen.owner, 'spawn-A');
+  assertEq('PRE-FIX: and therefore another card\'s id — false attribution, not missing', stolen.cardId, 'FRW-BL-001');
+
+  // GREEN: the keyed chooser refuses. Nothing distinguishes the two, so it takes neither.
+  const r = chooseDescriptor(queue, { name: '', agentType: 'general-purpose' });
+  assertEq('FIXED: the same queue and the same starting agent → picks NOTHING (fails closed)', r.pick, null);
+  assertEq('FIXED: and says WHY, so the unattributed row is explainable', r.reason, 'ambiguous-type');
+  assertEq('FIXED: specifically does not return the entry the pre-fix pop returned',
+    r.pick === null || r.pick.owner !== 'spawn-A', true);
+})();
+
+// THE MEASURED CASE — two NAMED spawns in one message. A live probe (probe-alpha/probe-beta with
+// different card headers) showed attribution did NOT cross, so this path already held; it is
+// asserted here so a refactor cannot silently break what the probe confirmed works.
+(() => {
+  const queue = [desc('probe-alpha', 'general-purpose', 'FRW-BL-094'), desc('probe-beta', 'general-purpose', 'FRW-BL-095')];
+  const a = chooseDescriptor(queue, { name: 'probe-alpha', agentType: 'probe-alpha' });
+  const b = chooseDescriptor(queue, { name: 'probe-beta', agentType: 'probe-beta' });
+  assertEq('NAMED: alpha gets its own card', a.pick.cardId, 'FRW-BL-094');
+  assertEq('NAMED: beta gets its own card', b.pick.cardId, 'FRW-BL-095');
+  assertEq('NAMED: the match is by name, not position', a.reason, 'name-match');
+  assertEq('NAMED: order in the queue does not decide it',
+    chooseDescriptor([...queue].reverse(), { name: 'probe-alpha' }).pick.cardId, 'FRW-BL-094');
+})();
+
+// A UNIQUE type match is safe — there is nothing to confuse it with.
+(() => {
+  const queue = [{ file: '/q/a', data: { name: '', subagentType: 'general-purpose', cardId: 'FRW-BL-050' } }];
+  const r = chooseDescriptor(queue, { name: '', agentType: 'general-purpose' });
+  assertEq('SOLO: a single matching descriptor IS used', r.pick.cardId, 'FRW-BL-050');
+  assertEq('SOLO: reported as a unique-type match, not a name match', r.reason, 'unique-type-match');
+})();
+
+// Ways this could be quietly wrong.
+assertEq('an empty queue picks nothing', chooseDescriptor([], { name: 'x' }).pick, null);
+assertEq('an empty queue says so', chooseDescriptor([], { name: 'x' }).reason, 'queue-empty');
+assertEq('null input does not throw', chooseDescriptor(null, { name: 'x' }).pick, null);
+assertEq('a descriptor for a DIFFERENT name is not taken',
+  chooseDescriptor([desc('other-agent', 'general-purpose', 'FRW-BL-001')], { name: 'my-agent' }).pick, null);
+assertEq('a descriptor for a different TYPE is not taken',
+  chooseDescriptor([desc('', 'explore', 'FRW-BL-001')], { name: '', agentType: 'general-purpose' }).pick, null);
+assertEq('two descriptors sharing a NAME are also ambiguous, not first-wins',
+  chooseDescriptor([desc('dup', 'gp', 'FRW-BL-001'), desc('dup', 'gp', 'FRW-BL-002')], { name: 'dup' }).reason,
+  'ambiguous-name');
+assertEq('malformed entries are skipped rather than throwing',
+  chooseDescriptor([null, { file: '/q/x' }, desc('ok', 'gp', 'FRW-BL-003')], { name: 'ok' }).pick.cardId, 'FRW-BL-003');
+assertEq('a name match wins over a same-type competitor',
+  chooseDescriptor([desc('', 'gp', 'FRW-BL-001'), desc('mine', 'gp', 'FRW-BL-002')], { name: 'mine', agentType: 'gp' }).pick.cardId,
+  'FRW-BL-002');
+
+// ISC-5: Workflow-spawned subagents. pre-agent-tool.js never fires for them (PreToolUse matches
+// `Agent`, not `Workflow`), so no descriptor is ever queued for a workflow agent. The behaviour is
+// therefore EXPLICIT EXCLUSION, asserted rather than assumed: they must never inherit a descriptor
+// queued by an unrelated genuine Agent-tool call.
+(() => {
+  const queue = [desc('real-dev', 'general-purpose', 'FRW-BL-007')];
+  const r = chooseDescriptor(queue, { name: 'workflow-subagent', agentType: 'workflow-subagent' });
+  assertEq('WORKFLOW: a workflow subagent does NOT inherit a pending Agent-tool descriptor', r.pick, null);
+  assertEq('WORKFLOW: it is excluded by not matching, not by a special case', r.reason, 'no-match');
+})();
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

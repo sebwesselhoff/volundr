@@ -59,7 +59,7 @@ Verified 2026-08-11, session `a6cce6c6`, CLI 2.1.227.
 | `Bash\|PowerShell\|Monitor` (PreToolUse) | `enforce-bash-rules`, `enforce-worktree-isolation` | Bash, PowerShell, Monitor | — | Bash + PowerShell **proven live**; `Monitor` added but registration unproven (FRW-BL-093) |
 | `Bash\|PowerShell\|Monitor` (PostToolUse) | `post-bash-git` (commit card-ID validator, push receipt) | Bash, PowerShell, Monitor | — | as above |
 | `Write\|Edit\|NotebookEdit` | `enforce-worktree-path-write` | Write, Edit, NotebookEdit | — | **CLOSED (FRW-BL-093)** — guard reads `file_path` OR `notebook_path`; registration unproven until a restart |
-| `Agent` | `pre-agent-tool` (card/persona descriptor queue), `enforce-card-deps` | Agent | **`Workflow`** | **DEFERRED, documented below** — FRW-BL-094 |
+| `Agent` | `pre-agent-tool` (card/persona descriptor queue), `enforce-card-deps` | Agent | **`Workflow`** | **RESOLVED — waiver retained, reason narrowed.** FRW-BL-094 |
 | `Skill` | `enforce-tool-priority` | Skill | — | covered |
 | `""` (all) | SessionStart/SubagentStart/SubagentStop/TaskCompleted/TeammateIdle/Stop/SessionEnd/PreCompact/PostCompact/WorktreeCreate/WorktreeRemove/ConfigChange/InstructionsLoaded/PostToolUseFailure/StopFailure | everything | — | empty matcher cannot have this bug |
 
@@ -87,12 +87,32 @@ will pop **someone else's** `cardId` and `personaId`. That is *false* attributio
 attribution, and false attribution is the more damaging failure — a card gets quality and skill
 signal from work that was never done for it.
 
-**Not fixed here, on purpose.** Adding `Workflow` to the `Agent` matcher would also feed a workflow
-*script* to `enforce-card-deps.js`, which expects a single-card Agent prompt — a different shape,
-with a real risk of spurious blocks. The sound fix is to make the descriptor handoff **keyed** rather
-than positional, which is a change to attribution plumbing that deserves its own tests. Present
-exposure in this repo is nil, since the standing instruction here is not to use the Workflow tool.
-Tracked as **FRW-BL-094**.
+**RESOLVED in FRW-BL-094 — but not by widening the matcher.** Adding `Workflow` to the `Agent`
+matcher was always the wrong move: it would feed a workflow *script* to `enforce-card-deps.js`,
+which expects a single-card Agent prompt, and it would not have touched the positional pop that was
+the actual bug. **That reasoning still holds, so the matcher waiver stays** — what changed is the
+plumbing behind it.
+
+The handoff is now **keyed**. `readQueue()` lists live descriptors and `chooseDescriptor()` takes the
+one belonging to the starting agent, or **takes nothing**: a name match first, then a *unique* type
+match, and otherwise no descriptor at all. Two indistinguishable pending entries can no longer be
+resolved by age, so nothing can inherit another spawn's `cardId`. Every unmatched case logs
+`descriptor_unmatched` with its reason, because an unattributed row that is *silently* unattributed
+is indistinguishable from an agent that genuinely had no card.
+
+Workflow subagents are therefore **excluded by construction rather than by a special case**: nothing
+is queued for them (`PreToolUse` matches `Agent`, not `Workflow`), so no name and no unique type can
+match, and they register unattributed. Asserted in the self-test, not assumed.
+
+**Measured, not inferred.** A probe spawning two NAMED subagents in one message with different card
+headers found attribution did **not** cross — the name path already held. The real exposure was the
+UNNAMED path, which is what the fail-closed rule closes.
+
+**One more thing the same investigation turned up:** the agents ROW carried its `cardId` while the
+`agent_spawned` EVENT did not. `procedural-order.mjs` filters events by `cardId`, so its
+anti-stub-before-blind-review rule reported *not-applicable* instead of checking — an attribution
+gap in the event stream had silently disabled a gate that reads the event stream. Both event writes
+now carry `cardId` and `agentId`.
 
 ### Three attribution defects that share one symptom — keep them apart (FRW-BL-114)
 
