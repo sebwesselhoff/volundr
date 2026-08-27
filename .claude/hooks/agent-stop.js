@@ -15,6 +15,9 @@ const { apiGet, apiPatch, apiPost, readStdin, PROJECT_ID } = require('./vldr-api
 const { createLogger } = require('./vldr-logger');
 const { updateHeartbeat } = require('./vldr-heartbeat');
 const { extractCardId } = require('./_cardid');
+// FRW-BL-114: reuse agent-start's classifier and registration guard rather than a second copy.
+// agent-start's main() is guarded by require.main === module, so requiring it here is inert.
+const { inferAgentType, resolveRegistration } = require('./agent-start.js');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -246,8 +249,29 @@ async function main() {
       }
     } catch (e) { /* ignore */ }
 
-    const agentType = input.agent_type || 'developer';
-    const inferredType = agentType.includes('architect') ? 'architect' : agentType.includes('review') ? 'review' : agentType.includes('qa') ? 'qa-engineer' : 'developer';
+    // FRW-BL-114, SECOND SITE. This path had its own shadow classifier —
+    //   `const agentType = input.agent_type || 'developer'` followed by a three-branch
+    //   includes() chain defaulting to 'developer' again — duplicating inferAgentType badly
+    //   (3 roles against its 12) and completely unguarded. The first fix guarded agent-start.js
+    //   and missed this, so phantoms kept being created: one appeared during this session's own
+    //   shutdown, typed `developer`, with a bare agent_id as its detail and no tokens.
+    //
+    // Now it uses the SAME classifier as agent-start (one classifier, not two — a second copy
+    // drifts) and the SAME registration guard. Identity here is an agent_type, or a card/persona
+    // resolved from a team config, or a name that is not just the generated agent_id.
+    const resolvedName = agentDetailName !== input.agent_id ? agentDetailName : null;
+    const registration = resolveRegistration({
+      agentType: input.agent_type,
+      preToolData: (cardId || personaId || resolvedName) ? { cardId, personaId, name: resolvedName } : null,
+      parentAgentId: null,
+    });
+    if (!registration.register) {
+      log.warn('late_registration_suppressed',
+        `${registration.reason} (late-registration path)`, { agentId: input.agent_id });
+      await updateHeartbeat().catch(() => {});
+      return;
+    }
+    const inferredType = inferAgentType(input.agent_type || resolvedName);
 
     // Try with full metadata first, fall back without personaId/cardId if FK fails
     let agent = await apiPost('/api/agents', {
