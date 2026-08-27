@@ -108,26 +108,54 @@ const CARDS = [
     r.findings.some((f) => /"landingzone"/.test(f.detail) && /card CLR-901/.test(f.source)));
 }
 {
-  const inIsc = [{
-    id: 'CLR-902', status: 'backlog', title: 'Pilot', description: 'Covers SC-001.',
-    isc: [{ criterion: 'The audit completes without error.' }],
-  }];
-  const r = analyze({ blueprint: BLUEPRINT, cards: inIsc });
-  ok('RED: a drifted term in an ISC criterion is detected (documented inclusion, not an accident)',
-    r.findings.some((f) => /"audit"/.test(f.detail) && /card CLR-902/.test(f.source)));
+  // THE RED/GREEN, SHIPPED. FRW-BL-117's blind reviewer failed ISC-2 because the only thing that
+  // "failed against the pre-fix code" was the test file crashing at import (cardText did not exist
+  // yet) — a SyntaxError, not a behavioural assertion — and the real side-by-side proof lived in an
+  // ad-hoc shell command that was never committed. The reviewer had to reconstruct it. So the two
+  // source shapes are now BOTH constructed here and compared in-repo, reproducible forever.
+  const card = {
+    id: 'CLR-904', status: 'backlog', title: 'Pilot', description: 'Covers SC-001.',
+    technicalNotes: 'The audit step runs first.', isc: [],
+  };
+  const glossary = extractGlossary(BLUEPRINT);
+  const preFixSource = [{ name: 'card CLR-904', text: [card.title, card.description].filter(Boolean).join('\n') }];
+  const postFixSource = [{ name: 'card CLR-904', text: cardText(card, { includeIsc: false }) }];
+
+  ok('RED: the pre-fix field set (title+description) finds NOTHING in technicalNotes',
+    detectDrift(glossary, preFixSource).length === 0);
+  ok('GREEN: the shared helper finds it — same card, same glossary, only the field set differs',
+    detectDrift(glossary, postFixSource).length === 1);
 }
 {
-  // The invariant, asserted directly: one definition of a card's text, shared by both readers.
+  // ISC text is EXCLUDED from drift. The reviewer falsified the original "speculative" framing with
+  // a legitimate criterion describing the glossary check itself; reproduced before acting on it.
+  const metaIsc = [{
+    id: 'CLR-902', status: 'backlog', title: 'Drift gate', description: 'Covers SC-001.',
+    isc: [{ criterion: 'The analyzer rejects any card that still says audit instead of assessment.' }],
+  }];
+  const r = analyze({ blueprint: BLUEPRINT, cards: metaIsc });
+  ok('a legitimate meta-criterion quoting a forbidden variant is NOT reported as drift',
+    !r.findings.some((f) => /card CLR-902/.test(f.source)));
+  ok('...while that same ISC text is still read for COVERAGE (asymmetry is deliberate)',
+    cardText(metaIsc[0]).includes('assessment')
+    && !cardText(metaIsc[0], { includeIsc: false }).includes('rejects any card'));
+}
+{
+  // The invariant, asserted directly: one definition of a card's text, one documented option.
   const card = {
     id: 'CLR-903', title: 'T', description: 'D', technicalNotes: 'N',
     criteria: 'C', isc: [{ criterion: 'I' }],
   };
-  const text = cardText(card);
   ok('cardText includes every field the coverage mapper relies on',
-    ['CLR-903', 'T', 'D', 'N', 'C', 'I'].every((frag) => text.includes(frag)));
+    ['CLR-903', 'T', 'D', 'N', 'C', 'I'].every((frag) => cardText(card).includes(frag)));
+  ok('includeIsc:false drops ONLY the isc text',
+    ['CLR-903', 'T', 'D', 'N', 'C'].every((frag) => cardText(card, { includeIsc: false }).includes(frag))
+    && !cardText(card, { includeIsc: false }).split('\n').includes('I'));
   ok('cardText tolerates a null card', cardText(null) === '');
   ok('cardText tolerates missing fields', cardText({ id: 'X' }) === 'X');
-  ok('cardText drops null isc entries rather than emitting "null"',
+  // NOT a behaviour change: Array.join already coerced a null entry to '', so no "null" text ever
+  // existed. filter(Boolean) only removes incidental whitespace. Asserted so the claim stays honest.
+  ok('a null isc entry contributes no text (true before and after filter(Boolean))',
     !cardText({ id: 'X', isc: [null, { criterion: 'ok' }] }).includes('null'));
 }
 

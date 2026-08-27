@@ -99,18 +99,35 @@ export function citedIds(text) {
  * field list — it was two places independently deciding what a card's text is. With one function
  * they cannot drift apart again, which is the actual invariant worth holding.
  *
- * ISC CRITERIA ARE INCLUDED, deliberately. The alternative was excluding them on the theory that
- * assertion-shaped text may quote a term it is asserting about and produce noise. That was
- * rejected: it is speculative, it would recreate the very divergence this helper removes, and a
- * drifted noun inside an acceptance criterion is real drift — the criterion is part of the spec a
- * developer reads. If ISC scanning turns out noisy in practice that is measurable and can be
- * revisited with evidence; a documented decision beats an accidental one either way.
+ * ISC CRITERIA ARE INCLUDED FOR COVERAGE AND EXCLUDED FROM DRIFT — a measured decision, not a
+ * symmetry violation. The first version of this helper included them everywhere, arguing the
+ * false-positive risk was speculative. FRW-BL-117's blind reviewer falsified that within minutes
+ * with a legitimate criterion: "The analyzer rejects any card that still says audit instead of
+ * assessment." That is correct prose about a glossary check, and it was reported as glossary drift.
+ * Reproduced independently before acting on it.
+ *
+ * ISC text is disproportionately META — criteria describe checks, and describing a check about a
+ * forbidden term means naming the forbidden term. Coverage matching does not care, because it looks
+ * for literal requirement ids that prose never contains by accident. Drift matching cares a lot.
+ *
+ * The exclusion is expressed as ONE option on ONE function rather than a second text builder,
+ * because the original defect was two call sites independently deciding what a card's text is. A
+ * flag with a documented default and a fixture pinning both sides cannot drift silently; a second
+ * builder can.
+ *
+ * KNOWN REMAINING LIMITATION, not fixed here: `detectDrift` has no negation/meta-reference
+ * awareness at all, so the same false positive is reachable from a `description` that discusses a
+ * forbidden term. That is a PRE-EXISTING gap in detectDrift affecting SoWs and descriptions alike —
+ * this card only widened its surface area, and narrowing that surface is not a fix for the class.
+ * Tracked separately; do not mistake this exclusion for a solution to it.
  */
-export function cardText(card) {
+export function cardText(card, { includeIsc = true } = {}) {
   if (!card || typeof card !== 'object') return '';
   return [
     card.id, card.title, card.description, card.technicalNotes, card.criteria,
-    Array.isArray(card.isc) ? card.isc.map((c) => c && c.criterion).filter(Boolean).join(' ') : '',
+    includeIsc && Array.isArray(card.isc)
+      ? card.isc.map((c) => c && c.criterion).filter(Boolean).join(' ')
+      : '',
   ].filter(Boolean).join('\n');
 }
 
@@ -309,10 +326,11 @@ export function analyze({ blueprint = '', cards = [], sows = [], constraints = '
   const requirements = extractRequirements(blueprint);
   const coverage = mapCoverage(requirements, cards);
   const glossary = extractGlossary(blueprint);
-  // FRW-BL-117: same text the coverage mapper reads. Previously this joined only title +
-  // description, so drift hiding in technicalNotes / criteria / isc was silently invisible.
+  // FRW-BL-117: same helper the coverage mapper uses, so the field sets cannot diverge silently.
+  // ISC text is excluded here and only here — criteria describe checks, and describing a check
+  // about a forbidden term means naming it, which measurably produces false drift. See cardText.
   const cardSources = (Array.isArray(cards) ? cards : [])
-    .map((c) => ({ name: `card ${c?.id}`, text: cardText(c) }));
+    .map((c) => ({ name: `card ${c?.id}`, text: cardText(c, { includeIsc: false }) }));
   const drift = detectDrift(glossary, [...sows, ...cardSources]);
   const conflicts = detectConstraintConflicts(cards, extractActiveRules(constraints));
   const duplicates = requirements.filter((r) => r.duplicate).map((r) => ({
