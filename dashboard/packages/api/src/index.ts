@@ -172,10 +172,40 @@ server.on('error', (err: NodeJS.ErrnoException) => {
 const AGENT_TTL_MS = 4 * 60 * 60 * 1000;
 const AGENT_TTL_CHECK_INTERVAL_MS = 10 * 60 * 1000; // check every 10 minutes
 
+/**
+ * Format an epoch-ms instant the way `agents.started_at` actually stores it:
+ * SQLite `datetime('now')` → `'YYYY-MM-DD HH:MM:SS'`, UTC, space-separated, no zone marker.
+ *
+ * FRW-BL-095 (second source). This cutoff used to be built with `.toISOString()`, producing
+ * `'2026-08-27T07:33:14.262Z'`, and was then compared to `started_at` with SQL `lt()` — a
+ * LEXICOGRAPHIC comparison of two different formats. At index 10 the stored value has a space
+ * (0x20) and the ISO cutoff has 'T' (0x54), and 0x20 < 0x54 unconditionally. So EVERY
+ * non-volundr running row compared as "older than the cutoff" regardless of its real age, and
+ * the sweep marked every live subagent completed on a 10-minute timer.
+ *
+ * Measured, not theorised: on 2026-08-27 this completed `listing-probe-095` at 11:33:14Z (9
+ * minutes old) and `reviewer-frw-bl-114` at 11:53:14Z (2 minutes old); the container log shows
+ * `TTL cleanup: marked 1 orphaned agent(s) as completed` for each. It is also silent — the sweep
+ * writes status directly and emits no `agent_completed` event, so a row killed this way can never
+ * receive its one terminal event from session-end.js, which only sweeps rows still `running`.
+ *
+ * This is the same timestamp-format trap `framework/hook-coverage.md` documents for the phantom
+ * query ("startedAt is the dashboard's 'YYYY-MM-DD HH:MM:SS' while completedAt is an ISO string
+ * ... comparing them as strings never matches"). There it silently reported zero; here it
+ * silently matched everything.
+ *
+ * Formatting the cutoff to match the column keeps the comparison lexicographic-safe, because
+ * fixed-width same-format timestamps sort chronologically. All 366 `started_at` values in the
+ * live DB were verified to be space-format, with zero ISO, before choosing this direction.
+ */
+export function ttlCutoff(nowMs: number, ttlMs: number): string {
+  return new Date(nowMs - ttlMs).toISOString().replace('T', ' ').slice(0, 19);
+}
+
 function runAgentTtlCleanup() {
   try {
     const db = getDb();
-    const cutoff = new Date(Date.now() - AGENT_TTL_MS).toISOString();
+    const cutoff = ttlCutoff(Date.now(), AGENT_TTL_MS);
     const staleAgents = db.select().from(schema.agents)
       .where(and(
         eq(schema.agents.status, 'running'),
