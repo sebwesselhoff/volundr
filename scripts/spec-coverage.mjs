@@ -236,6 +236,23 @@ const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * every widening below has cost a false negative.
  */
 const CONNECTIVE = '(?:instead of|rather than|as opposed to|not:?|never|i\\.e\\.|e\\.g\\.|meaning|aka)';
+
+/**
+ * Quote characters that can wrap a mentioned word, and arrow glyphs that can express a rename.
+ *
+ * BOTH ARE CHARACTER CLASSES, not the two or three glyphs that happened to be tested. FRW-BL-118's
+ * reviewer found the first version recognised only ASCII `"` `'` and backtick, so a sentence carrying
+ * curly quotes — the default output of Word, Google Docs and most markdown auto-formatting — was
+ * reported as drift while the identical sentence with straight quotes was not. Same for arrows: `->`
+ * and `→` were covered, `=>` and `⟶` were not. Neither is exotic; both are what ordinary tools emit.
+ *
+ * Enumerating a class rather than the reported instances, because the reported instance is only ever
+ * the one someone happened to type. U+2018/2019 single curly, U+201C/201D double curly, U+2039/203A
+ * and U+00AB/00BB guillemets; arrows spanning the ASCII forms and the U+2190-U+21FF / U+27F0-U+27FF
+ * arrow blocks.
+ */
+const QUOTE_CHARS = '["\'`\\u2018\\u2019\\u201C\\u201D\\u2039\\u203A\\u00AB\\u00BB]';
+const ARROW = '(?:[-=]+>|<[-=]+|[\\u2190-\\u21FF\\u27F0-\\u27FF])';
 const RENAME_VERB = '(?:renam(?:e|ed|es|ing)|replac(?:e|ed|es|ing)|chang(?:e|ed|es|ing)|call(?:ed|s)?|spell(?:ed|ing)?|prefer(?:red|s)?|writ(?:e|ten))';
 const METALINGUISTIC = '(?:the term|the word|the noun|the spelling|spell(?:ed|ing)?|says?|said|written|reads?)';
 
@@ -255,15 +272,15 @@ function mentionSpans(src, variant, canonical) {
     // "audit instead of assessment" / "assessment not audit" — either order, tight gap.
     `${A}${V}${B}[^.]{0,4}?\\s*${CONNECTIVE}\\s+(?:the\\s+)?${C}${B}`,
     `${A}${C}${B}[^.]{0,4}?\\s*${CONNECTIVE}\\s+(?:the\\s+)?${V}${B}`,
-    // "audit -> assessment", "assessment → audit"
-    `${A}${V}${B}\\s*(?:→|->)\\s*${C}${B}`,
-    `${A}${C}${B}\\s*(?:→|->)\\s*${V}${B}`,
+    // "audit -> assessment", "audit => assessment", "assessment → audit", "audit ⟶ assessment"
+    `${A}${V}${B}\\s*${ARROW}\\s*${C}${B}`,
+    `${A}${C}${B}\\s*${ARROW}\\s*${V}${B}`,
     // "rename the audit field to assessment" — verb, variant, binder, canonical, all one clause.
     `${RENAME_VERB}\\b[^.]{0,30}?${A}${V}${B}[^.]{0,25}?\\b(?:to|with|as|into|over)\\b[^.]{0,25}?${C}${B}`,
-    // "the term audit", 'says "audit"'
-    `${METALINGUISTIC}\\s+["'\`]?${V}${B}`,
+    // "the term audit", 'says "audit"' — straight or curly quotes
+    `${METALINGUISTIC}\\s+${QUOTE_CHARS}?${V}${B}`,
     // a quoted variant — you quote a word to talk about it
-    `["'\`]${V}["'\`]`,
+    `${QUOTE_CHARS}${V}${QUOTE_CHARS}`,
     // "audit, assessment" — comma apposition, only when immediately adjacent
     `${A}${V},\\s*${C}${B}`,
     `${A}${C},\\s*${V}${B}`,

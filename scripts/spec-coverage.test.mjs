@@ -219,6 +219,23 @@ const CARDS = [
     drift('We call the audit process every night, per the assessment schedule.'));
   ok('ADVERSARIAL: "canonical" in ordinary prose does not suppress a real use',
     drift('The canonical audit workflow feeds the assessment pipeline every night.'));
+
+  // ROUND 2 of the same review. The first rewrite recognised only ASCII quotes and two arrow
+  // glyphs, so a mention typed in Word, Google Docs or auto-formatted markdown — curly quotes —
+  // was reported as drift while the straight-quoted twin was not. Both are now character CLASSES
+  // rather than the specific glyphs someone happened to test, which is the actual lesson: the
+  // reported instance is only ever the one that got typed.
+  ok('ADVERSARIAL: curly double quotes are a quoting marker', !drift('The word “audit” is forbidden here.'));
+  ok('ADVERSARIAL: curly single quotes are a quoting marker', !drift('The word ‘audit’ is forbidden here.'));
+  ok('ADVERSARIAL: guillemets are a quoting marker', !drift('The word «audit» is forbidden here.'));
+  ok('ADVERSARIAL: "=>" is a rename arrow', !drift('audit => assessment, per the new glossary.'));
+  ok('ADVERSARIAL: a long unicode arrow is a rename arrow', !drift('audit ⟶ assessment, per the new glossary.'));
+  ok('ADVERSARIAL: a leftwards arrow binds in the other direction', !drift('assessment <- audit, per the new glossary.'));
+
+  // Widening the quote and arrow classes must not have widened suppression generally.
+  ok('REGRESSION after widening: a bare use is still drift', drift('The audit produces a score for each project.'));
+  ok('REGRESSION after widening: the real-data list case is still drift',
+    drift('assessment CSVs + evidence catalog + audit plan + manifest'));
 }
 {
   // The invariant, asserted directly: one definition of a card's text, one documented option.
