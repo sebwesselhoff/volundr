@@ -1,10 +1,17 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useProject } from '@/contexts/project-context';
 import type { Project } from '@vldr/shared';
 import { apiFetch } from '@/lib/api-client';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 
 const NAV_ITEMS = [
   { href: '/forge', label: 'The Forge' },
@@ -23,22 +30,11 @@ function ProjectSwitcher({ visible }: { visible: boolean }) {
   const { project, projectId, setProjectId } = useProject();
   const [open, setOpen] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
-  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
       apiFetch<Project[]>('/api/projects').then(setProjects).catch(() => {});
     }
-  }, [open]);
-
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
   const initials = project?.name
@@ -49,37 +45,40 @@ function ProjectSwitcher({ visible }: { visible: boolean }) {
     .toUpperCase() || '..';
 
   return (
-    <div ref={ref} className={`relative transition-opacity duration-500 delay-300 ${visible ? 'opacity-100' : 'opacity-0'}`}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="text-[0.65rem] uppercase tracking-[0.1em] text-[#8899b3] hover:text-[#c5d0e6] transition-colors duration-200"
-        title={project?.name || 'Select project'}
-      >
-        {initials}
-      </button>
-
-      {open && (
-        <div className="absolute top-8 right-0 min-w-[200px] py-2 bg-[#0a0e17]/95 backdrop-blur-xl border border-[rgba(36,48,68,0.5)]"
-             style={{ animation: 'kindle 300ms ease-out both' }}>
-          {projects.map(p => (
-            <button
-              key={p.id}
-              onClick={() => { setProjectId(p.id); setOpen(false); }}
-              className={`block w-full text-left px-4 py-2 text-[0.8rem] transition-colors duration-150
-                ${p.id === projectId
-                  ? 'text-[#e8a838]'
-                  : 'text-[#8899b3] hover:text-[#c5d0e6] hover:bg-[rgba(36,48,68,0.3)]'}`}
-              style={{ fontFamily: 'var(--font-outfit), Outfit, sans-serif' }}
-            >
-              {p.name}
-              <span className="block text-[0.65rem] text-[#8899b3] mt-0.5"
-                    style={{ fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace' }}>
-                {p.phase}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
+    <div className={`transition-opacity duration-500 delay-300 ${visible ? 'opacity-100' : 'opacity-0'}`}>
+      <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
+        <DropdownMenuTrigger
+          className="text-[0.65rem] uppercase tracking-[0.1em] text-[#8899b3] hover:text-[#c5d0e6] transition-colors duration-200"
+          title={project?.name || 'Select project'}
+        >
+          {initials}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          sideOffset={12}
+          className="w-auto min-w-[200px] rounded-none border border-[rgba(36,48,68,0.5)] bg-[#0a0e17]/95 p-0 shadow-none ring-0 backdrop-blur-xl"
+        >
+          <DropdownMenuGroup className="py-2">
+            {projects.map(p => (
+              <DropdownMenuItem
+                key={p.id}
+                onClick={() => setProjectId(p.id)}
+                className={`block rounded-none px-4 py-2 text-[0.8rem] transition-colors duration-150
+                  ${p.id === projectId
+                    ? 'text-[#e8a838] focus:text-[#e8a838]'
+                    : 'text-[#8899b3] hover:text-[#c5d0e6] hover:bg-[rgba(36,48,68,0.3)] focus:text-[#c5d0e6] focus:bg-[rgba(36,48,68,0.3)]'}`}
+                style={{ fontFamily: 'var(--font-outfit), Outfit, sans-serif' }}
+              >
+                {p.name}
+                <span className="block text-[0.65rem] mt-0.5"
+                      style={{ fontFamily: 'var(--font-jetbrains), "JetBrains Mono", monospace', color: '#8899b3' }}>
+                  {p.phase}
+                </span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
