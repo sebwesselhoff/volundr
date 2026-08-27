@@ -1615,6 +1615,19 @@ Step 7b: Load session context (WARM tier - phase-selective):
          │   (`vldr.journal.log`) or confirm they're already captured BEFORE resuming. This closes the
          │   "captured state on the way OUT but not IN" gap; it complements (does not replace) the DB
          │   recovery protocol (`vldr.cards.list` knows card STATUS, this knows journal coverage).
+         ├── Pending-verification register (FRW-BL-111): run `node scripts/pending-verification.mjs`.
+         │   It lists ISC criteria that a previous session could NOT verify, split into two kinds:
+         │     • RESTART-GATED — boot-read state (hook matcher registration, settings.json env pins,
+         │       the skills listing, boot artifacts). THIS BOOT IS THE NEW SESSION, so these are
+         │       actionable right now and are the cheapest wins available — do them BEFORE other
+         │       work, because a later restart costs another whole session. One restart can close
+         │       several at once, which is the whole economy of the register.
+         │     • OPERATOR-GATED — a human must act outside the session (run a recorder from a plain
+         │       shell, type a slash command, set an env key, change a ruleset). Restarting will
+         │       never close these; surface them to the developer and move on. Do NOT burn time
+         │       re-deriving why they are blocked — the entry's `--verbose` text says so.
+         │   Exit 2 means the register could not be READ (dashboard down). That is NOT "nothing
+         │   pending" — say so rather than reporting a clean register.
          └── Present to developer: "Last session: {summary}. Key decisions: {list}. Continuing from: {next_steps}"
 Step 8:  Read framework/machine-constraints.md
          ├── exists and file modified < 7 days ago → use it

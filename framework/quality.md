@@ -206,6 +206,44 @@ worth more than a paragraph asking people to remember the order.
 procedural requirement with no exit code, it was violated in a live session, and nothing noticed.
 A rule that cannot be checked is a preference.
 
+### Criteria the implementing session cannot verify — REGISTER them (FRW-BL-111)
+
+A third class sits beside runtime and procedural claims: criteria that are **structurally
+unobservable by the session that implements them**. Hook matcher registration, `settings.json` env
+pins, the skills listing and boot artifacts are all read at STARTUP (`framework/hook-coverage.md`,
+the registration-vs-body distinction), so the session that changes one cannot watch its own change
+take effect. Others wait on a human who is not in the loop.
+
+**The convention, and it is mandatory: a deferred criterion goes in the REGISTER, not only in the
+card's own evidence text.**
+
+```bash
+node scripts/pending-verification.mjs --add --card FRW-BL-093 --isc ISC-4 --gate restart \
+  --criterion "..." --why "why this session cannot observe it" --how "how the next one closes it"
+node scripts/pending-verification.mjs                      # what is waiting (boot Step 7b runs this)
+node scripts/pending-verification.mjs --resolve --card FRW-BL-093 --isc ISC-4 --outcome "..."
+```
+
+Pick the gate honestly — the two are not interchangeable, and conflating them produces a list
+nobody trusts:
+
+| Gate | Means | Closed by |
+|---|---|---|
+| `restart` | Boot-read state. Nobody needs to be asked. | The next boot. One restart can close several entries at once — that economy is the point. |
+| `operator` | A human must act outside the session. | Only that action. Restarting forever will not help. |
+
+**Why a register and not just evidence text.** Four cards hit this before anything recorded it
+(FRW-BL-084, 089, 092, 093). Each rediscovered the deferral rule independently and wrote its pending
+criterion into its own evidence, so the next session could learn what was waiting only by opening
+individual cards it had no reason to open. **A deferred criterion nobody remembers is
+indistinguishable from an abandoned one** — and the card still reads as incomplete either way, so
+the deferral silently becomes a failure.
+
+**This does not loosen FRW-BL-045.** Registering a criterion does NOT let you mark it `passed`. It
+stays `passed: false` with its evidence explaining the deferral; the register exists so the deferral
+is *findable*, not so it counts. Writing "deferred, see register" and passing the criterion anyway is
+the same falsification the anti-rationalization table exists to catch.
+
 ---
 
 ## Garden lint — framework drift + size caps (FRW-BL-067)
