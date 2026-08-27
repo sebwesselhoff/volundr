@@ -550,7 +550,9 @@ or runs `/vldr-shutdown`, execute the graceful shutdown sequence. Full spec: `fr
 1. Announce: "Starting shutdown protocol."
 2. Update heartbeat to `shutting_down`, log `shutdown_started` event
 3. Commit any WIP on card branches
-4. Complete all running agents except Volundr
+4. Inventory running agents for the final report — do NOT complete them (FRW-BL-095: `session-end.js`
+   is the sole emitter of a subagent's terminal `agent_completed` and sweeps only rows still at
+   `status='running'`, so completing them here produces zero events per lifetime instead of one)
 5. Gather session metrics from dashboard (`vldr.metrics.get()`, `vldr.cards.list()`, etc.)
 6. Write session summary (`POST /api/session-summaries` - narrative, decisions, blockers, next steps)
 7. Write pending journal entries (`POST /api/journal`)

@@ -12,7 +12,7 @@ Read `framework/shutdown-protocol.md` for the full specification, then execute t
 ### Phase 1: Save in-progress work
 - Query all cards: `vldr.cards.list()`
 - For each `in_progress` card: if you were actively working, commit WIP to the card branch
-- Complete all running agents EXCEPT the Volundr agent
+- Inventory running agents for the final report — **do NOT complete them** (FRW-BL-095). `session-end.js` is the sole emitter of a subagent's terminal `agent_completed` and emits only for rows it finds at `status='running'`; completing them here empties that sweep and yields zero events per lifetime instead of one
 - Log: `vldr.events.log({ type: 'state_saved', detail: 'WIP saved at shutdown' })`
 
 ### Phase 2: Gather session metrics

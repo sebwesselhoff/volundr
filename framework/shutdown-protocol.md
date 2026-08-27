@@ -391,7 +391,7 @@ Execute the Volundr graceful shutdown protocol.
 
 Steps:
 1. Commit any in-progress work on card branches (WIP commits)
-2. Complete all running agents except Volundr
+2. Inventory running agents for the final report - do NOT complete them (FRW-BL-095; session-end.js owns terminal completion)
 3. Gather session metrics from the dashboard API (vldr.metrics.get())
 4. Write a session summary to the dashboard (POST /api/session-summaries)
 5. Write any pending journal entries (POST /api/journal)
@@ -426,15 +426,25 @@ Shutdown Protocol (runs first, while Volundr has context)
   v  Developer closes terminal / types /exit
   |
   v  SessionEnd hook fires (5s budget)
-      - Completes any still-running agents (should be none after protocol)
+      - Completes this session's still-running agents and emits their ONE agent_completed each
       - Clears activeProject in registry
       - Logs session_ended event (idempotent - skips if already logged)
 ```
 
 If the shutdown protocol ran successfully, the SessionEnd hook finds:
-- Zero running agents (already completed in Phase 7)
+- This session's subagents still at `status='running'` — **this is correct, not a leak** (FRW-BL-095)
 - activeProject still set (hook clears it)
 - session_ended event already exists (hook logs another - harmless duplicate)
+
+**Why the hook, not the protocol, completes subagents.** FRW-BL-095 made `session-end.js` the sole
+emitter of a subagent's terminal `agent_completed`, precisely so the count can be exactly one per
+lifetime — `agent-stop.js` previously emitted one per idle/wake CYCLE, each republishing the
+cumulative token total, which made any cost sum over the event stream double-count. The hook emits
+only for rows it finds at `status='running'` and scopes the sweep by `sessionId`. So a protocol that
+completes subagents first hands the hook an empty sweep and drives the count to **zero** — the
+opposite failure, and the one this card had already been bitten by once. An earlier revision of this
+document said the hook should find "zero running agents"; that was written when `agent-stop.js` still
+owned terminal status, and it was not updated when ownership moved.
 
 If the shutdown protocol did NOT run (user killed terminal), the SessionEnd hook provides full mechanical cleanup as today.
 
@@ -578,7 +588,7 @@ or runs `/vldr-shutdown`, execute the graceful shutdown sequence:
 
 1. Announce: "Starting shutdown protocol."
 2. Commit any WIP on card branches
-3. Complete all non-Volundr running agents
+3. Inventory non-Volundr running agents — do NOT complete them (FRW-BL-095; session-end.js owns terminal completion and emits the one `agent_completed` per lifetime)
 4. Gather metrics from dashboard
 5. Write session summary (POST /api/session-summaries)
 6. Write pending journal entries

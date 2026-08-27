@@ -33,13 +33,35 @@ git status --short
 # If changes exist: git add <relevant files> && git commit -m "wip(card-XX-NNN): shutdown save"
 ```
 
-### Step 4: Complete running agents
+### Step 4: Inventory running agents — do NOT complete them (FRW-BL-095)
+
 ```bash
-# Get running agents
+# Read only. Record what is still running for the final report.
 curl -s "http://localhost:3141/api/projects/<PROJECT_ID>/agents?status=running"
-# For each non-volundr agent, mark complete:
-# curl -s -X PATCH http://localhost:3141/api/agents/<AGENT_ID> -H "Content-Type: application/json" -d '{"status":"completed"}'
 ```
+
+**Do not PATCH subagents to `completed` here.** `session-end.js` is the SOLE emitter of a
+subagent's terminal `agent_completed` event, and it emits only for agents it finds at
+`status='running'`. Completing them first empties that sweep, so the event count per subagent
+lifetime becomes **zero** instead of one — the same "exactly one became exactly zero" failure
+FRW-BL-095 already had to fix once, re-entering through this step.
+
+This step used to say "for each non-volundr agent, mark complete". That was correct while
+`agent-stop.js` wrote terminal status per idle/wake cycle; FRW-BL-095 moved terminal emission into
+`session-end.js` and this instruction was not updated with it, so the documented graceful path
+silently produced the wrong event count while an *ungraceful* kill produced the right one.
+
+Leave the rows running. The SessionEnd hook completes them and emits exactly one
+`agent_completed` each, scoped to this session's `sessionId`.
+
+**Teammates torn down MID-session are a separate case, and an acknowledged gap rather than a
+clean exception.** The § Team Cleanup Procedure still applies — send `shutdown_request`, wait for
+acknowledgement, complete the dashboard rows, then `TeamDelete` (which cleans local files only and
+never touches the dashboard). But completing those rows by hand means they, too, never receive an
+`agent_completed` event, for exactly the reason above. That is the accepted cost of tearing a team
+down long before session end; do not "fix" it by re-adding a hand-rolled emission here, because
+scattering terminal emission across callers is what FRW-BL-095 centralised away from. If the
+missing teammate events start mattering, that is its own card.
 
 ### Step 5: Gather metrics
 ```bash
