@@ -17,6 +17,7 @@ import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { validatePacksIndexForRepo } from './validate-packs-index.mjs';
+import { parseVocabulary, unknownTraitRefs } from './trait-select.mjs';
 
 export const MD_BYTE_CAP = 16000; // generous; flags egregiously bloated prompt/skill files
 
@@ -532,6 +533,29 @@ function main() {
     // 4d. denylisted skills must not be model-invocable (FRW-BL-112). Same loop, same read: a
     // skill's frontmatter is one artifact, and both checks are distribution defects, not warnings.
     for (const e of skillInvocationErrors(rel, src)) errors.push(e);
+  }
+
+  // 4d-bis. trait vocabulary + registry defaultTraits refs (FRW-BL-110).
+  // This belongs beside check 1: promptTemplate, personaTemplate and pack refs are already guarded
+  // against pointing at nothing, and `defaultTraits` was the one registry cross-reference that was
+  // not. A trait name that resolves to nothing injects nothing while still consuming a slot in a
+  // 5-trait budget, which is a silent weakening of every prompt that selects it.
+  {
+    const traitsPath = join(repo, 'framework', 'agents', 'traits.yaml');
+    if (!existsSync(traitsPath)) {
+      errors.push('traits: framework/agents/traits.yaml not found');
+    } else {
+      const vocab = parseVocabulary(readFileSync(traitsPath, 'utf8'));
+      for (const e of vocab.errors) errors.push(`traits: ${e}`);
+      let regSrc = '';
+      for (const f of ['registry.data.mjs', 'registry.ts']) {
+        const p = join(repo, 'framework', 'agents', f);
+        if (existsSync(p)) regSrc += '\n' + readFileSync(p, 'utf8');
+      }
+      for (const name of unknownTraitRefs(regSrc, vocab.traits)) {
+        errors.push(`traits: registry defaultTraits names "${name}", which is not defined in traits.yaml`);
+      }
+    }
   }
 
   // 4e. third-party attribution (FRW-BL-097 / FRW-BL-098).

@@ -2,6 +2,56 @@
 # Volundr selects relevant traits based on card metadata, project constraints, and steering rules
 # Max 5 traits per agent. Typical: 1-3.
 # Duplicates from multiple sources are deduplicated before injection (keep first occurrence).
+#
+# These strings are injected into LIVE prompts, so adding one changes agent behaviour. Treat an
+# addition with the same care as a steering rule, and check for a near-duplicate first: two
+# synonyms compete for the same budget slot, and the dedup rule means the loser is silently
+# dropped rather than merged. `node scripts/trait-select.mjs` validates this file and every
+# registry defaultTraits reference against it.
+#
+# ---------------------------------------------------------------------------------------------
+# FRW-BL-110 selection record — five candidates assessed, three added, one merged, one rejected.
+# Recorded here because "we checked for near-duplicates" is not checkable unless the outcome of
+# the check is written down where the next person to edit this file will read it.
+#
+#   determinism-first   ADDED. No near-duplicate. `infra` says "reproducible environments", which
+#                       is environment-scoped; this is code-scoped and testability-driven. It also
+#                       encodes an existing project constraint ("clocks and randomness are
+#                       injected, not called") that previously lived only in constraints.md.
+#   trade-off-explicit  ADDED. Closest existing is `pragmatic`, but that is a BIAS (ship the
+#                       simplest thing); this is a DISCLOSURE duty (name what you gave up). An
+#                       agent can be pragmatic and still hide the cost of its choice.
+#   causal-rigor        ADDED. Closest existing is `thorough`, but that is about COVERAGE (verify
+#                       every edge case); this is about MECHANISM (do not mistake correlation for
+#                       cause). This project has paid for the difference: FRW-BL-091's ISC-3
+#                       retraction and FRW-BL-092 were both coverage-complete and causally wrong.
+#   threat-modeling     MERGED into expertise.security rather than added. It is a genuine
+#                       near-duplicate: both would be selected by the same card signals, so two
+#                       traits would compete for one budget slot and the dedup rule would silently
+#                       drop whichever arrived second. `security` was a checklist of known
+#                       vulnerability classes; it gains the one thing threat-modeling adds that a
+#                       checklist cannot — naming the adversary before designing.
+#   constructive-review REJECTED. Its content already exists, richer and calibrated, in the blind
+#                       reviewer's own disposition section (framework/packs/quality/prompts/
+#                       card-reviewer.md), whose behaviour is pinned by the judge-calibration
+#                       corpus. A trait restating it would be a second, uncalibrated copy of the
+#                       same guidance that can drift from the first — and drift between two
+#                       statements of how to review is worse than having only one.
+# ---------------------------------------------------------------------------------------------
+
+provenance:
+  source: msitarzewski/agency-agents
+  commit: 3c9588880b7cafaec325a104899fd8bbe27e7d72
+  license: MIT
+  copyright: Copyright (c) 2025 AgentLand Contributors
+  date: 2026-08-27
+  reviewer: sebastian.wesselhoff@contica.se
+  taken: >
+    Trait VOCABULARY only - the names determinism-first, trade-off-explicit, causal-rigor, and the
+    threat-modeling concept folded into expertise.security. Every inject: body below is written
+    fresh against Volundr's own failure history; no upstream wording was copied. Attributed anyway
+    because the derivative-work question for short names with original definitions is genuinely
+    arguable, and an unnecessary entry is cheaper than a missing one.
 
 expertise:
   security:
@@ -9,6 +59,8 @@ expertise:
       Apply security-first thinking. Review for OWASP Top 10.
       Validate all inputs at boundaries. Never trust external data.
       Flag any hardcoded credentials or secrets.
+      Before designing, name the adversary and the attack surface:
+      who benefits from this failing, and what do they reach if it does?
   performance:
     inject: |
       Profile before optimizing. Prefer algorithmic improvements
@@ -56,6 +108,23 @@ approach:
     inject: |
       Minimize scope. Skip nice-to-haves. One approach, execute,
       verify, done. No over-engineering.
+  determinism-first:
+    inject: |
+      Inject clocks, randomness and IDs rather than calling them.
+      A function that reads the current time cannot be tested, only
+      observed. Same inputs, same outputs, every run - including in CI
+      on a different machine in a different timezone.
+  trade-off-explicit:
+    inject: |
+      Name what you gave up, not just what you chose. State the
+      alternative you rejected and the condition that would flip the
+      decision. A choice with no stated cost has not been analysed.
+  causal-rigor:
+    inject: |
+      Establish the mechanism, not the correlation. "It worked when I
+      tried it" is not a cause. Testing a handler is not testing its
+      registration; a passing gate can be scanning nothing. Prove the
+      thing you claim, by the path it actually takes in production.
 
 domain:
   frontend:

@@ -45,10 +45,27 @@ of false statement. Field-level rules and the marker format live in `framework/p
 
 ### MIT
 
-No MIT-licensed third-party content is currently incorporated.
-
 <!-- vldr:entries-begin MIT -->
+```yaml
+- source: msitarzewski/agency-agents
+  commit: 3c9588880b7cafaec325a104899fd8bbe27e7d72
+  license: MIT
+  copyright: Copyright (c) 2025 AgentLand Contributors
+  date: 2026-08-27
+  taken: Trait vocabulary only - the names determinism-first, trade-off-explicit and causal-rigor, plus the threat-modeling concept folded into expertise.security. All definitions in framework/agents/traits.yaml are written fresh against Volundr's own failure history; no upstream wording was copied.
+```
 <!-- vldr:entries-end MIT -->
+
+**On this entry.** Whether a short trait name paired with an originally-written definition is a
+derivative work at all is genuinely arguable, and the honest answer is probably not. It is attributed
+regardless, per the rule in `framework/provenance.md`: when it is arguable, attribute. Four lines
+here cost nothing; being wrong in the other direction is a licence violation in redistributed
+software.
+
+Note the copyright holder. The upstream `LICENSE` at the pinned commit reads **"AgentLand
+Contributors"** — a project name that appears nowhere in the repository URL or the maintainer's
+account name. Recording `msitarzewski` here would have produced a file that looks discharged while
+being wrong, which is the failure mode this register exists to avoid.
 
 ---
 
@@ -58,4 +75,31 @@ Reproduced in full, as MIT requires. A licence text is included here only while 
 above depends on it.
 
 <!-- vldr:licences-begin -->
+
+### MIT — as published by `msitarzewski/agency-agents` at `3c95888`
+
+```text
+MIT License
+
+Copyright (c) 2025 AgentLand Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
 <!-- vldr:licences-end -->
