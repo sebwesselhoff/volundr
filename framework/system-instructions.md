@@ -441,6 +441,14 @@ Two consequences to remember rather than rediscover:
   inside the framework, since the platform scopes the denial to the session. Each affected SKILL.md
   states that blast radius in its own body, because the original defect was silence as much as scope.
 
+**A `decision` entry is always written. An ADR is written IN ADDITION when the decision is
+hard to reverse AND surprising AND carries a real trade-off** — all three (FRW-BL-104). The journal
+is the chronological record the boot sequence reads; an ADR in `framework/adr/` is the durable
+answer to "why is it like this?" months later, filed under the thing it explains rather than under a
+date. Never write an ADR *instead of* a journal entry: boot loads the journal, so a decision recorded
+only in `framework/adr/` is invisible to the next session. Applied honestly the gate excludes most
+decisions — see `framework/adr/0000` for worked rejections.
+
 **Entry types and when to log:**
 | Type | When | Example |
 |------|------|---------|
