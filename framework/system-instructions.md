@@ -1036,6 +1036,25 @@ Ask questions one at a time. Be opinionated. Suggest defaults. Adapt follow-ups 
 **Final checkpoint — full summary.** Restate every decision as a structured list. Get explicit "yes, proceed" before moving to Phase 2.
 
 ### Phase 2: Blueprint & Planning
+
+**Give every requirement a stable identifier (FRW-BL-099).** In `blueprint.md`, declare each one on
+its own line as `- **FR-001**: text` — `FR` functional, `NFR` non-functional, `SC` success criterion,
+always three digits. Cards then cite the id, and `node scripts/spec-coverage.mjs --project {id}`
+reports requirements no card covers, cards citing requirements the blueprint never declared, and
+cards that contradict an active steering rule (CRITICAL).
+
+**The id is the key; the prose around it is not.** Rewrite the wording freely — never renumber, and
+never reuse a retired id. A coverage report that renumbers is worse than none: it shows churn where
+nothing changed, and trains people to ignore it.
+
+Add a `## Glossary` section for terms that drift, in the form
+`- **assessment** (not: audit, review) — definition`. Drift detection compares against that list
+rather than diffing documents, because free-text diffing produces noise proportional to document
+length, and noise is how a check gets switched off.
+
+Without ids the analyzer reports **"nothing to check"** — which is not the same as "everything is
+covered", and it says so.
+
 1. Write `VLDR_HOME/projects/{id}/blueprint.md`
 2. Write `VLDR_HOME/projects/{id}/sow/sow-{domain}-001.md` per domain
 3. Write `VLDR_HOME/projects/{id}/board.md`
