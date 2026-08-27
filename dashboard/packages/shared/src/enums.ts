@@ -62,6 +62,11 @@ export const AgentType = {
   planner: 'planner',
   guardian: 'guardian',
   researcher: 'researcher',
+  // FRW-BL-114: the honest type for a spawn the classifier cannot identify. It exists so that
+  // `developer` stops being the dumping ground for everything unrecognised — `extractSkills`
+  // weights persona skill confidence on `developer` rows, so a misfiled row is not inert, it
+  // dilutes a real signal. A row typed `unknown` is a prompt to find out what produced it.
+  unknown: 'unknown',
 } as const;
 export type AgentType = (typeof AgentType)[keyof typeof AgentType];
 

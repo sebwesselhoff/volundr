@@ -94,6 +94,85 @@ than positional, which is a change to attribution plumbing that deserves its own
 exposure in this repo is nil, since the standing instruction here is not to use the Workflow tool.
 Tracked as **FRW-BL-094**.
 
+### Three attribution defects that share one symptom — keep them apart (FRW-BL-114)
+
+All three produce a dashboard `agents` row with a null `cardId`, which is why they look like one
+bug and must not be merged into one. They have different causes and different fixes:
+
+| Card | What is wrong | The row represents |
+|---|---|---|
+| **FRW-BL-094** | The descriptor pop is positional, so a spawn can claim **someone else's** `cardId`/`personaId` | a real agent, **mis**-attributed |
+| **FRW-BL-095** | `SubagentStop` writes terminal status on every idle/wake cycle, so a working agent reads `completed` | a real agent, wrongly **completed** |
+| **FRW-BL-114** | Unclassifiable events were typed `developer` | **no agent at all** — there is nothing to attribute correctly or complete late |
+
+FRW-BL-114 is the one with no agent behind it. Fixing 094's keying would not remove those rows,
+and fixing 095's lifecycle would not either.
+
+### Telling a phantom row from a real spawn
+
+The observed phantom signature, from project `snow-addendum` (session `17a84942`, 2026-08-26), where
+a session that spawned **zero** subagents registered 150 `developer` rows:
+
+- `startedAt === completedAt` to the millisecond — zero duration
+- `promptTokens === 0 && completionTokens === 0`
+- `cardId`, `personaId`, `parentAgentId` and `sessionId` all null
+- `detail` is a bare `a`-prefixed hex id (e.g. `a7322189b24dcbc4b`) rather than a name or description
+
+That last field is the tell. It is `input.agent_id`, which `agent-start.js` falls back to when
+`input.agent_type` is **empty** — so these are `SubagentStart` events arriving with no agent type at
+all. A real spawn carries either a descriptive name or a description from the Agent tool.
+
+```bash
+# Phantom candidates for one project — near-zero duration, zero tokens, no parent, id-shaped detail.
+curl -s "http://localhost:3141/api/projects/<id>/agents" | node -e "
+let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{
+  // MUST normalise before comparing: startedAt is the dashboard's 'YYYY-MM-DD HH:MM:SS' (UTC, no
+  // marker) while completedAt is an ISO string from an API write. Comparing them as strings never
+  // matches and the query silently reports zero — the same trap FRW-BL-103 hit in procedural-order.
+  const ms = (t) => Date.parse(/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\$/.test(String(t||''))
+    ? String(t).replace(' ', 'T') + 'Z' : t);
+  const rows = JSON.parse(d).filter(a => {
+    const dur = ms(a.completedAt) - ms(a.startedAt);
+    return Number.isFinite(dur) && dur >= 0 && dur < 1000        // sub-second lifetime
+      && !a.promptTokens && !a.completionTokens
+      && !a.parentAgentId && /^a[0-9a-f]{8,}\$/.test(String(a.detail || ''));
+  });
+  console.log(rows.length + ' phantom candidate(s)');
+  rows.forEach(r => console.log('  ' + r.id + '  ' + r.startedAt + '  ' + r.detail));
+});"
+```
+
+Duration is compared as a **sub-second window**, not as equality. The two columns are written by
+different code paths at slightly different instants, so exact equality is the wrong test — and it is
+the test that made the first version of this query report zero against a project that demonstrably
+has them.
+
+**Read it as candidates, not a verdict.** A genuine subagent that fails instantly would share the
+zero-duration and zero-token columns; what separates a phantom is the id-shaped `detail` together
+with the null parent. Cost already recorded against phantom rows cannot be recomputed from here —
+this query identifies them so a human can decide, which is the whole of what FRW-BL-114 scoped.
+
+**Relabelling is not enough — the row must not be written.** Typing a phantom `unknown` stops it
+polluting persona skill confidence, but it still inflates the agent count and the cost model, and a
+session that spawned nothing still would not register "exactly one row". `resolveRegistration()`
+therefore declines to write at all when a `SubagentStart` firing carries **no identity of any kind**:
+no `agent_type`, no queued descriptor, and no resolvable parent.
+
+The test is deliberately narrow, because suppressing a *real* spawn would lose tracking and be a
+worse defect than a mislabelled row. A genuine spawn always has at least one of those three — a
+name, a description from the Agent tool, or a parent it was spawned from. **An `agent_id` is not
+identity**: it is generated per firing, and it was the entire content of every phantom row's
+`detail`. Every suppression is logged (`registration_suppressed`) with its reason, because a silent
+decline would be its own version of this bug — an invisible policy nobody can audit.
+
+**The classifier fix** is in `inferAgentType`: its two fallbacks returned `developer`, so `developer` was the
+type of everything it could not classify — and `extractSkills` weights persona skill confidence on
+exactly those rows. They now return `unknown`, and a generic `subagent_type` (`general-purpose`,
+`Explore`, `Plan`, `workflow-subagent`) no longer overrides the agent's own name. That second half
+was found live in **this** repo, not on snow-addendum: blind reviewers named `reviewer-frw-bl-NNN`
+were being registered as `developer`, because the type was taken from `general-purpose` rather than
+from the name that actually identified them.
+
 **Whenever a new tool that runs commands, writes files, or spawns agents appears in the platform,
 add it here and to the matcher.** The audit is only true as of its date.
 

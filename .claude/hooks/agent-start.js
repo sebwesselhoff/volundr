@@ -12,9 +12,64 @@ const os = require('os');
 
 const log = createLogger('agent-start');
 
-function inferAgentType(name) {
-  if (!name) return 'developer';
+/**
+ * FRW-BL-114 — the Agent-tool `subagent_type` values that say nothing about ROLE.
+ * `general-purpose` is the default for almost every Agent call, so classifying by it labels a
+ * blind reviewer, a researcher and a real developer identically.
+ */
+const GENERIC_SUBAGENT_TYPES = ['general-purpose', 'explore', 'plan', 'subagent', 'workflow-subagent'];
+
+/**
+ * FRW-BL-114 — decide whether a SubagentStart firing describes an agent at all.
+ *
+ * A session on snow-addendum that spawned ZERO subagents produced 150 rows. Typing them `unknown`
+ * instead of `developer` stops them polluting persona skill confidence, but it does NOT stop them
+ * being written — and the card asks for a no-spawn session to register exactly ONE row, the lead.
+ * That requires declining to write, not relabelling.
+ *
+ * The test is deliberately narrow: decline ONLY when the firing carries no identity of any kind —
+ * no `agent_type`, no queued descriptor, and no resolvable parent. A real spawn always has at least
+ * one of those (a name, a description from the Agent tool, or a parent it was spawned from), so
+ * this cannot swallow genuine work. An `agent_id` alone is NOT identity: it is what the phantom rows
+ * carried as their entire content, and it is generated for the firing rather than describing an agent.
+ *
+ * Returns a REASON rather than a bare boolean so the suppression is logged and countable. A silent
+ * decline would be its own version of this bug — an invisible policy nobody can audit.
+ *
+ * Pure over its inputs. Exported for the self-test, because the decision to write a row is exactly
+ * the wiring that "testing a handler is not testing its registration" warns about leaving untested.
+ */
+function resolveRegistration({ agentType, preToolData, parentAgentId } = {}) {
+  const hasType = Boolean(String(agentType ?? '').trim());
+  const hasDescriptor = Boolean(preToolData && (preToolData.name || preToolData.description || preToolData.cardId));
+  const hasParent = Boolean(parentAgentId);
+  if (hasType || hasDescriptor || hasParent) return { register: true, reason: null };
+  return {
+    register: false,
+    reason: 'SubagentStart carried no agent_type, no queued descriptor and no resolvable parent — '
+      + 'nothing identifies an agent, so no row is written (FRW-BL-114)',
+  };
+}
+
+/**
+ * Classify an agent by its name.
+ *
+ * FRW-BL-114 — the fallback is `unknown`, NOT `developer`.
+ *
+ * Both fallbacks here used to return 'developer', which made 'developer' the type of every event
+ * this function could not classify — including SubagentStart events arriving with no agent_type at
+ * all. That is not a cosmetic mislabel: `vldr.personas.extractSkills` weights skill confidence on
+ * `developer` rows, so every unclassifiable row silently diluted the signal FRW-002 depends on. One
+ * observed session registered 150 developer rows having spawned no developers.
+ *
+ * `unknown` is honest and inert: it cannot be mistaken for implementation work, and a row that
+ * appears under it is a prompt to find out what produced it rather than a number nobody questions.
+ */
+function inferAgentType(name, fallback = 'unknown') {
+  if (!name) return fallback;
   const lower = name.toLowerCase();
+  // A generic subagent_type carries no role information — say so rather than guessing.
+  if (GENERIC_SUBAGENT_TYPES.includes(lower)) return fallback;
   // v6 teammate types — check specific roles first
   if (lower.includes('architect') || lower.match(/\barch\b/) || lower.endsWith('-arch') || lower.startsWith('arch-')) return 'architect';
   if (lower.includes('qa-eng') || lower.includes('qa_eng')) return 'qa-engineer';
@@ -32,7 +87,7 @@ function inferAgentType(name) {
   if (lower.includes('explore')) return 'developer';
   // Tester only if no dev match
   if (lower.includes('test')) return 'tester';
-  return 'developer';
+  return fallback;
 }
 
 // FRW-BL-031: map an Agent-tool `model` param (sonnet|haiku|opus, or a full API id like
@@ -247,9 +302,22 @@ async function main() {
   let preToolPersonaId = preToolData ? preToolData.personaId : null;
   const preToolModel = preToolData ? preToolData.model : null;
 
-  // Override agentType with the actual subagent_type from the queue if available
-  // This is more accurate than inferring from the teammate name
-  const effectiveAgentType = (preToolData?.subagentType) ? inferAgentType(preToolData.subagentType) : agentType;
+  // Resolve the agent's TYPE.
+  //
+  // FRW-BL-114: this used to prefer `preToolData.subagentType` unconditionally, on the reasoning
+  // that the declared subagent_type beats a guess from the teammate name. That holds only when the
+  // subagent_type is INFORMATIVE. In practice almost every Agent-tool call declares
+  // `general-purpose`, which says nothing about role — so a blind reviewer named
+  // `reviewer-frw-bl-111` was classified from 'general-purpose' and registered as a `developer`,
+  // discarding the one string that actually identified it. Observed live in this repo, not inferred.
+  //
+  // So: prefer the subagent_type only when it is not generic; otherwise classify by the agent's own
+  // name, which is where the role information lives.
+  const declaredType = preToolData?.subagentType;
+  const nameForType = preToolName || rawAgentName;
+  const effectiveAgentType = (declaredType && !GENERIC_SUBAGENT_TYPES.includes(String(declaredType).toLowerCase()))
+    ? inferAgentType(declaredType)
+    : inferAgentType(nameForType);
 
   // Fallback for teammates: if queue had no card/persona, try reading from the team config
   // Teammates have their prompt stored in ~/.claude/teams/{team}/config.json
@@ -289,7 +357,9 @@ async function main() {
   const effectiveName = preToolName || rawAgentName;
 
   // Build label: prefer PreToolUse description, fall back to agent name
-  const isGenericType = ['general-purpose', 'Explore', 'Plan'].includes(rawAgentName);
+  // FRW-BL-114: one list, not two. A second, differently-cased copy here would drift from the
+  // exported GENERIC_SUBAGENT_TYPES and quietly disagree with the type classifier.
+  const isGenericType = GENERIC_SUBAGENT_TYPES.includes(String(rawAgentName ?? '').toLowerCase());
   const agentLabel = preToolDescription
     ? (isGenericType ? preToolDescription : `${effectiveName}: ${preToolDescription}`)
     : effectiveName;
@@ -407,6 +477,20 @@ async function main() {
     || 'sonnet-4'; // last resort ONLY when the spawn specified no model at all; agent-stop reconciles from the transcript in that case
   log.info('model_resolved', `Spawn model = ${resolvedModel} (source: ${preToolModel ? 'agent-tool param' : (process.env.CLAUDE_CODE_SUBAGENT_MODEL ? 'env' : 'default')})`, { agentId: input.agent_id });
 
+  // FRW-BL-114: decline to write a row for a firing that identifies no agent. Checked HERE, after
+  // parent resolution, because a resolvable parent is itself identity — a genuine spawn with an
+  // empty agent_type still belongs to something.
+  const registration = resolveRegistration({
+    agentType: input.agent_type,
+    preToolData,
+    parentAgentId,
+  });
+  if (!registration.register) {
+    log.warn('registration_suppressed', registration.reason, { agentId: input.agent_id });
+    emitAdditionalContext();
+    return;
+  }
+
   // Register in dashboard - BLOCKING if this fails
   // Register in dashboard — retry without optional FK refs if constraint fails
   let agent = await apiPost('/api/agents', {
@@ -476,4 +560,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { resolveParentDashboardId, inferAgentType };
+module.exports = { resolveParentDashboardId, inferAgentType, resolveRegistration, GENERIC_SUBAGENT_TYPES };
