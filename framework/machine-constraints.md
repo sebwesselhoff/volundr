@@ -2,7 +2,7 @@
 
 Auto-detected environment info shared across all projects. Refreshed if older than 7 days.
 
-**Last refresh:** 2026-08-11 (boot for volundr-meta)
+**Last refresh:** 2026-08-26 (boot for volundr-meta)
 
 ---
 
@@ -13,12 +13,12 @@ Auto-detected environment info shared across all projects. Refreshed if older th
 - **Node.js:** v24.4.1
 - **npm:** 11.4.2
 - **TypeScript:** per-project devDependency (no global tsc; run via the project's `npx tsc`/`npm` scripts)
-- **Claude Code CLI:** 2.1.227 (min supported **2.1.219** — see `framework/cc-version-baseline.md`)
+- **Claude Code CLI:** 2.1.246 (min supported **2.1.219** — see `framework/cc-version-baseline.md`)
 
 ## Azure tooling
 
 - **Azure CLI:** 2.87.0
-- **GitHub Copilot CLI:** 1.0.61
+- **GitHub Copilot CLI:** 1.0.80
 - On Windows: `az` resolves to `az.cmd`; `copilot` resolves to `copilot.cmd`. Subprocess
   spawners must use the `.cmd` form.
 
@@ -27,7 +27,8 @@ Auto-detected environment info shared across all projects. Refreshed if older th
 - **Version:** git 2.54.0.windows.1
 - **User:** Sebastian Wesselhoff <sebastian.wesselhoff@contica.se>
 - **Long path support:** required on Windows for deep `node_modules` trees;
-  set `git config --global core.longpaths true` if not already.
+  **currently NOT set** on this machine (`git config --global core.longpaths` is empty) — set it before
+  any deep `node_modules` checkout or worktree operation that could hit MAX_PATH.
 
 ## Constraints
 
