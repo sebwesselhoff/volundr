@@ -165,9 +165,18 @@ async function main() {
     // would have been a plausible and wrong guess. So a payload condition cannot fix this.
     //
     // Since finality is unknowable here, claiming it is the defect. `status` now means lifecycle
-    // and is written terminally only by session-end (and the boot orphan sweep); liveness —
+    // and is written terminally by session-end.js and the boot orphan sweep; liveness —
     // working / idle / stalled — is COMPUTED by the API from the agent's latest event timestamp
     // (FRW-BL-063), which is what actually answers "is it alive?".
+    //
+    // CORRECTION 2026-08-27: this comment said "only by session-end (and the boot orphan sweep)".
+    // There is a THIRD writer, and missing it cost most of a session. The API runs a 10-minute
+    // agent TTL sweep (`runAgentTtlCleanup`, dashboard/packages/api/src/index.ts) that writes
+    // terminal status directly and emits NO event. Its cutoff comparison was broken in a way that
+    // matched every running row regardless of age, so it silently reaped every live subagent on a
+    // timer — the exact symptom this card is named for, arriving from outside the hooks entirely.
+    // Fixed, guarded by scripts/agent-ttl-guard.test.mjs. Kept here as a standing warning: when
+    // reasoning about who can end an agent, the hooks are not the whole set.
     //
     // The trade, made deliberately: this under-completes (a finished agent reads `running` until
     // session end) where the old code over-completed (a working agent read `completed`, so
