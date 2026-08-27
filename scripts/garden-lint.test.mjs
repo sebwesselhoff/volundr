@@ -1,7 +1,8 @@
 // Self-test for garden-lint.mjs (FRW-BL-067). Run: node scripts/garden-lint.test.mjs
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import { extractRegistryRefs, sizeViolations, pinDrift, skillLicenceErrors, skillInvocationErrors, MD_BYTE_CAP,
-  extractProvenance, parseNotices, provenanceErrors, isProvenanceDoc, PROVENANCE_FIELDS } from './garden-lint.mjs';
+  extractProvenance, parseNotices, provenanceErrors, isProvenanceDoc, PROVENANCE_FIELDS,
+  ARTIFACT_PROVENANCE_FIELDS } from './garden-lint.mjs';
 
 let pass = 0, fail = 0;
 function ok(label, cond) { if (cond) { pass++; console.log(`  ✓ ${label}`); } else { fail++; console.log(`  ✗ ${label}`); } }
@@ -179,6 +180,7 @@ const PROV_BLOCK = [
   '  copyright: Copyright (c) 2025 AgentLand Contributors',
   '  date: 2026-08-27',
   '  taken: trait vocabulary; definitions written fresh',
+  '  reviewer: sebastian.wesselhoff@contica.se',
   '---',
   '',
   '# Body',
@@ -321,6 +323,29 @@ const NOTICES_EMPTY = [
   const chomped = literal.replace('  taken: |', '  taken: |-');
   ok('a chomping indicator (|-) is also recognised',
     extractProvenance('a.md', chomped).declarations[0].taken !== '|-');
+}
+
+{
+  // FRW-BL-098: an ARTIFACT must additionally name who reviewed the external instruction. The
+  // notices file must NOT — it is the public legal artifact and has no business naming an
+  // internal reviewer. If both sides required the same fields, this split would be untested.
+  ok('the artifact field set is the notices set plus reviewer',
+    ARTIFACT_PROVENANCE_FIELDS.length === PROVENANCE_FIELDS.length + 1
+    && ARTIFACT_PROVENANCE_FIELDS.includes('reviewer')
+    && !PROVENANCE_FIELDS.includes('reviewer'));
+
+  const noReviewer = PROV_BLOCK.replace('  reviewer: sebastian.wesselhoff@contica.se\n', '');
+  const { declarations, errors } = extractProvenance('a.md', noReviewer);
+  ok('an artifact with NO reviewer is an ERROR',
+    errors.some((e) => /provenance-incomplete/.test(e) && /reviewer/.test(e)));
+  ok('the reviewer error explains WHY, not just what is missing',
+    errors.some((e) => /unreviewed is not a state this repo can be in silently/.test(e)));
+  ok('it is still parsed as a declaration, so it cannot dodge the notices cross-check by being incomplete',
+    declarations.length === 1);
+
+  // The notices entry must NOT be forced to carry a reviewer.
+  ok('a notices entry with no reviewer is VALID',
+    parseNotices(NOTICES_WITH_ENTRY).errors.length === 0);
 }
 
 {

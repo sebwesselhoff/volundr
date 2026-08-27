@@ -50,13 +50,18 @@ provenance:
   copyright: Copyright (c) 2025 Upstream Holder
   date: 2026-08-27
   taken: what specifically was taken, and how far the derivation goes
+  reviewer: who read this before it was allowed to direct tool use here
 ---
 ```
 
 In a YAML data file, the same block nests under the item it describes.
 
-All six fields are required; the linter refuses an incomplete block, because an incomplete notice
-looks discharged while being unusable.
+**Artifacts require seven fields; notices entries require six.** The extra one is `reviewer`, and
+the asymmetry is deliberate: `THIRD-PARTY-NOTICES.md` is the public legal artifact discharging a
+copyright obligation, and it has no business naming an internal reviewer. The block on the artifact
+is *governance* — it answers "who read this instruction before it was allowed to act here?" The
+linter refuses an incomplete block either way, because an incomplete notice looks discharged while
+being unusable.
 
 `taken` often wants more than one line, so **YAML block scalars are supported** — `taken: |` keeps
 the line breaks, `taken: >` folds them into one line, and the chomping forms (`|-`, `>-`) are
@@ -76,7 +81,60 @@ Two field-level rules earn their place:
   attribution file whose first entry names the wrong holder is worse than no file, because it looks
   discharged while being wrong.
 
-## 3. Enforcement
+## 3. The review step — for INSTRUCTION, which is not what memory-guard covers
+
+This is a different gate from the memory-safety one, and conflating them is the mistake this section
+exists to prevent.
+
+`memory-guard` fences **data** — lessons, patterns, journal entries, blueprint excerpts, steering
+rules — in nonce-delimited envelopes with an ignore-embedded-instructions preamble and an
+HMAC-signed manifest, so an embedded directive cannot act as a command. That machinery works and is
+not in question here.
+
+**A skill, prompt or pack artifact is instruction.** It reaches the model to be acted on, and it can
+direct tool use. Nothing fences it, and nothing could — fencing instruction so it cannot be acted on
+would leave it doing nothing. `memory-loader.js` wraps a poisoned lesson; **nothing wraps a poisoned
+skill.**
+
+### The step
+
+Before any third-party-derived instruction artifact enters a pack:
+
+1. **Pin it.** Record the exact upstream commit. A review of "whatever main said that day" is not a
+   review of anything retrievable.
+2. **Read it in full, adversarially.** Specifically: does it instruct the model to bypass a guard,
+   disable a check, exfiltrate anything, or treat its own text as higher-priority than the operating
+   manual? Does it declare tool permissions? Does it claim router priority in a way that would
+   collide with an existing meta-skill?
+3. **Rewrite rather than vendor, wherever possible.** A reimplementation in Volundr's own wording
+   against Volundr's own interfaces is reviewable line-by-line and carries no attribution obligation.
+4. **Record who reviewed it** in the artifact's `provenance.reviewer` field. The linter fails without
+   it, so "nobody is on record" is not a reachable state.
+5. **Add the notices entry** if any bytes or recognisable phrasing came across (§1).
+
+### What this buys, stated honestly
+
+Porting converts **continuous** trust in a source that can change under you into a **one-time,
+auditable** diff. That is a real and worthwhile improvement over installing.
+
+It does **not** make the content safe. A reviewer can miss something, and a reviewed artifact is
+still instruction the model will act on. The honest claim is "trust was made one-time and auditable",
+not "this is now safe" — and the weaker true statement matters more than the stronger false one,
+because the false one is exactly what would justify skipping step 2.
+
+### Why wholesale installs are refused
+
+Not a style preference. `NousResearch/hermes-agent` ships `optional-skills/security/godmode`: a
+ready-to-fire jailbreak with credited techniques from public jailbreak-prompt repositories, aimed at
+Claude, GPT, Gemini and Grok. **Installing that repo's skill set installs that**, and it activates on
+a description match rather than a deliberate call. `affaan-m/ECC` ships 287 skills of which 286 are
+auto-invocable with no runtime router. `addyosmani/agent-skills` warns in its own comparison document
+that stacked meta-routers fight over command names — the collision Volundr already had to patch for
+`using-superpowers`.
+
+**Port, never install.**
+
+## 4. Enforcement
 
 `node scripts/garden-lint.mjs` cross-checks artifacts against the register **in both directions**:
 

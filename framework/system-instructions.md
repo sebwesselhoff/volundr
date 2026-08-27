@@ -701,6 +701,46 @@ command:
   outside the VLDR_HOME write boundary closes it; tracked as a follow-up framework card. Until
   then, monitor for unexpected manifest resets and treat a bootstrap event as suspicious.
 
+### The other half: third-party INSTRUCTION is not covered by any of the above (FRW-BL-098)
+
+Everything above governs **data**. A lesson, a pattern, a journal entry, a blueprint excerpt is
+fenced, preambled and manifest-gated so an embedded directive cannot act as a command.
+
+**A skill, prompt or pack artifact is not data. It is instruction, and it directs tool use.**
+`memory-loader.js` wraps a poisoned lesson; **nothing wraps a poisoned skill**, and no amount of
+nonce-fencing could — the whole point of instruction is that the model acts on it. Do not reason
+about ported skills as though the memory-guard covers them. It does not, and the temptation to
+assume it does is exactly what this section exists to remove.
+
+**Why this is not theoretical.** Three findings from assessing 11 external repos for adoption:
+
+- `NousResearch/hermes-agent` ships `optional-skills/security/godmode` — a ready-to-fire jailbreak
+  with credited techniques from public jailbreak-prompt repositories, targeting Claude, GPT, Gemini
+  and Grok. **Anyone installing that repo's skill set wholesale installs that**, and it activates on
+  a description match, not on a deliberate call. This is the concrete reason wholesale installs are
+  refused — a hard line, not a style preference.
+- `affaan-m/ECC` ships 287 skills of which 286 are auto-invocable, with no runtime router or
+  disambiguator. Every one of those descriptions is a candidate on every turn.
+- `addyosmani/agent-skills` warns in its **own** comparison document that stacked meta-routers fight
+  over command names — the precise collision Volundr already had to patch for `using-superpowers`.
+
+**PORT, NEVER INSTALL — and be honest about what that buys.** Porting means: reimplement in
+Volundr's own wording against Volundr's own interfaces, review it once at a pinned commit, and from
+then on it is Volundr's own code under Volundr's own review discipline. Installing means ongoing
+trust in a source that can change under you.
+
+Porting **reduces** the exposure to a single reviewable diff. It does **not eliminate** it. A
+reviewer can miss something, and a reviewed artifact is still instruction the model will act on.
+The honest claim is "trust was converted from continuous to one-time and made auditable", not
+"the content is now safe". Stating the weaker, true version matters more than the stronger, false
+one, because the false one is what would justify skipping the review.
+
+**The review step**, distinct from the memory-guard data path, is in `framework/provenance.md`:
+every third-party-derived instruction artifact carries a `provenance:` block naming the source, the
+**pinned** commit, the licence, the copyright holder verbatim, the date, what was taken, and **who
+reviewed it**. `scripts/garden-lint.mjs` fails the gate when such an artifact has no matching
+`THIRD-PARTY-NOTICES.md` entry, and when an entry names content the repo does not ship.
+
 ### Global Lessons
 At startup, load lessons via `vldr.lessons.list({ isGlobal: true })`. LLM selects relevant lessons based on the project's stack and domain. Load into session context.
 

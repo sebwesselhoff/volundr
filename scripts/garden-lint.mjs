@@ -160,6 +160,22 @@ export function skillInvocationErrors(rel, src) {
 export const PROVENANCE_FIELDS = ['source', 'commit', 'license', 'copyright', 'date', 'taken'];
 
 /**
+ * FRW-BL-098 — an ARTIFACT carries one field the notices entry does not: `reviewer`.
+ *
+ * The split is deliberate. `THIRD-PARTY-NOTICES.md` is the public, legal artifact; it discharges a
+ * copyright obligation and has no business naming an internal reviewer. The provenance block on the
+ * artifact is GOVERNANCE: it answers "who looked at this instruction before it was allowed to direct
+ * tool use in this repo?"
+ *
+ * That question only exists for instruction. A poisoned lesson is fenced as untrusted data by
+ * memory-guard; a poisoned SKILL is trusted instruction that nothing can fence, because acting on it
+ * is the whole point. Porting converts continuous trust in an updatable upstream into a one-time
+ * reviewable diff — it does NOT make the content safe. An unnamed reviewer means nobody is on record
+ * as having read it, which is the state this field exists to make impossible to reach silently.
+ */
+export const ARTIFACT_PROVENANCE_FIELDS = [...PROVENANCE_FIELDS, 'reviewer'];
+
+/**
  * Pure: is this path one whose subject IS the marker format, so a mention is not a declaration?
  *
  * Matched as EXACT repo-relative paths, not by bare filename. A filename-anywhere match would let a
@@ -259,11 +275,15 @@ export function extractProvenance(rel, src) {
     const baseIndent = m[1].length;
     const { fields, next } = parseBlock(lines, i + 1, baseIndent);
     i = next - 1;
-    const missing = PROVENANCE_FIELDS.filter((f) => !fields[f]);
+    const missing = ARTIFACT_PROVENANCE_FIELDS.filter((f) => !fields[f]);
     if (missing.length) {
+      const onlyReviewer = missing.length === 1 && missing[0] === 'reviewer';
       errors.push(
         `provenance-incomplete: ${rel} declares provenance but is missing ${missing.join(', ')} — `
-        + 'an incomplete notice looks discharged while being unusable (FRW-BL-097)',
+        + (onlyReviewer
+          ? 'external instruction must name who reviewed it before it was allowed to direct tool '
+            + 'use here; unreviewed is not a state this repo can be in silently (FRW-BL-098)'
+          : 'an incomplete notice looks discharged while being unusable (FRW-BL-097)'),
       );
     }
     if (fields.commit && /^(main|master|head)$/i.test(fields.commit)) {
