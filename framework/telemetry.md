@@ -49,7 +49,7 @@ FRW-BL-119.
 
 That is the whole payload. **`tool_name`, `duration_ms`, `effort_level` and `session_id` are NOT
 sent** (FRW-BL-116 ISC-5). They are computed locally, folded into `detail`, and then deliberately
-dropped: `POST /api/events` destructures exactly
+dropped: `POST /api/events` reads exactly
 `{ projectId, cardId, agentId, type, detail, costEstimate }` and the events table has no columns for
 the rest, so sending them meant they were silently discarded server-side. An earlier version of this
 document listed all four in a fields table with sourcing and validation notes, which read as
