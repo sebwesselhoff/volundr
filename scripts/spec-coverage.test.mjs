@@ -196,6 +196,31 @@ const CARDS = [
     isMetaReference('nothing here', 'audit', 'assessment') === false);
 }
 {
+  // ADVERSARIAL SET — every string here broke the FIRST version of isMetaReference, which asked
+  // two loose questions (is the canonical term in the same clause; is any marker word in it).
+  // FRW-BL-118's blind reviewer found all four on ORDINARY prose, not edge-case trivia, and each
+  // was reproduced before the rewrite. They are permanent fixtures because the failure mode is
+  // subtle in both directions and a future loosening would silently restore it.
+  const g = extractGlossary(BLUEPRINT);
+  const drift = (text) => detectDrift(g, [{ name: 's', text }]).length > 0;
+
+  // A run-on sentence: an unrelated "never" + "assessment" pair must NOT excuse a genuine "audit"
+  // fifty characters later. The old 90-char window merged them because no period separated them.
+  ok('ADVERSARIAL: a run-on sentence does not let an unrelated marker excuse a real use',
+    drift('The compliance assessment must never be skipped, and separately the audit runs nightly for verification of unrelated infra.'));
+
+  // The old clause split used indexOf('.'), which lands inside "i.e." and cut the canonical term
+  // out of view — so a genuine mention was reported as drift.
+  ok('ADVERSARIAL: an abbreviation period does not truncate a legitimate mention',
+    !drift('Note re: the audit i.e. assessment naming, this sentence is just a rename explanation.'));
+
+  // "call" and "canonical" were marker words, so ordinary prose suppressed itself.
+  ok('ADVERSARIAL: "call" in ordinary prose does not suppress a real use',
+    drift('We call the audit process every night, per the assessment schedule.'));
+  ok('ADVERSARIAL: "canonical" in ordinary prose does not suppress a real use',
+    drift('The canonical audit workflow feeds the assessment pipeline every night.'));
+}
+{
   // The invariant, asserted directly: one definition of a card's text, one documented option.
   const card = {
     id: 'CLR-903', title: 'T', description: 'D', technicalNotes: 'N',

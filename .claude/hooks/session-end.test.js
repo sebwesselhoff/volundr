@@ -14,7 +14,7 @@
 // 2026-08-12) as part of the COMMON input fields, carrying the literal firing event's name.
 
 const assert = require('assert');
-const { isConfirmedSessionEnd } = require('./session-end.js');
+const { isConfirmedSessionEnd, selectSweepTargets } = require('./session-end.js');
 
 let passed = 0;
 let failed = 0;
@@ -152,6 +152,58 @@ test('INTEGRATION COUNTER-PROOF: a genuine SessionEnd DOES clear activeProject',
 test('INTEGRATION: SessionEnd with reason=clear leaves activeProject UNTOUCHED (pre-existing rule)', () => {
   const r = runHookWithHome({ hook_event_name: 'SessionEnd', reason: 'clear', session_id: 'test-session' });
   assert.strictEqual(r.activeProject, 'canary-project');
+});
+
+
+// --- FRW-BL-095: the sessionId-scoped sweep ---------------------------------------------------
+// This was the untested half of making session-end.js the SOLE emitter of a subagent's terminal
+// agent_completed. The rule has already been got wrong once: a project-scoped sweep completed every
+// OTHER live session's agents, and because a swept row can never be swept again (sweeps only look
+// at status='running'), "exactly one agent_completed" silently became "exactly zero" for them.
+
+const SWEEP_SESSION = 'sess-aaa';
+const SWEEP_ROWS = [
+  { id: 'mine-1', sessionId: SWEEP_SESSION },
+  { id: 'mine-2', sessionId: SWEEP_SESSION },
+  { id: 'other-1', sessionId: 'sess-bbb' },
+  { id: 'legacy-1', sessionId: null },
+  { id: 'legacy-2' },
+];
+const sweptIds = (list) => list.map((a) => a.id).sort().join(',');
+
+test('sweeps this session\'s agents plus legacy NULL-sessionId rows', () => {
+  assert.strictEqual(sweptIds(selectSweepTargets(SWEEP_ROWS, SWEEP_SESSION)),
+    'legacy-1,legacy-2,mine-1,mine-2');
+});
+
+test('COUNTER-PROOF: another live session\'s agent is NOT swept (the exactly-one → exactly-zero bug)', () => {
+  assert.ok(!selectSweepTargets(SWEEP_ROWS, SWEEP_SESSION).some((a) => a.id === 'other-1'));
+});
+
+test('the same rule holds from the other session\'s point of view', () => {
+  assert.strictEqual(sweptIds(selectSweepTargets(SWEEP_ROWS, 'sess-bbb')),
+    'legacy-1,legacy-2,other-1');
+});
+
+test('a payload with NO session_id sweeps everything — an unidentifiable SessionEnd must clean up, not leak', () => {
+  assert.strictEqual(selectSweepTargets(SWEEP_ROWS, undefined).length, SWEEP_ROWS.length);
+});
+
+test('an empty-string session_id is treated as absent, not as a value that matches nothing', () => {
+  assert.strictEqual(selectSweepTargets(SWEEP_ROWS, '').length, SWEEP_ROWS.length);
+});
+
+test('no running agents is not an error', () => {
+  assert.strictEqual(selectSweepTargets([], SWEEP_SESSION).length, 0);
+});
+
+test('a null or undefined agent list does not throw', () => {
+  assert.strictEqual(selectSweepTargets(null, SWEEP_SESSION).length, 0);
+  assert.strictEqual(selectSweepTargets(undefined, SWEEP_SESSION).length, 0);
+});
+
+test('a null row inside the list is skipped rather than throwing', () => {
+  assert.strictEqual(selectSweepTargets([null, { id: 'ok', sessionId: SWEEP_SESSION }], SWEEP_SESSION).length, 1);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

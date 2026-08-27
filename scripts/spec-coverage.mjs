@@ -231,35 +231,96 @@ const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * to mention the canonical term nearby is missed. That is the right way round for a warn-level
  * signal whose value depends on being believed.
  */
-const MENTION_MARKER_RE = /\b(?:instead of|rather than|not:|never|rename[ds]?|renaming|call(?:ed|s)?|say[s]?|said|spell(?:ed|ing)?|the term|the word|prefer(?:red|s)?|replac(?:e|ed|es|ing)|use[sd]?\s+\w+\s+not|deprecated|forbidden|glossary|canonical|terminology)\b|→|->/i;
+/**
+ * Correction connectives that BIND two terms into "wrong word, right word". Kept small on purpose;
+ * every widening below has cost a false negative.
+ */
+const CONNECTIVE = '(?:instead of|rather than|as opposed to|not:?|never|i\\.e\\.|e\\.g\\.|meaning|aka)';
+const RENAME_VERB = '(?:renam(?:e|ed|es|ing)|replac(?:e|ed|es|ing)|chang(?:e|ed|es|ing)|call(?:ed|s)?|spell(?:ed|ing)?|prefer(?:red|s)?|writ(?:e|ten))';
+const METALINGUISTIC = '(?:the term|the word|the noun|the spelling|spell(?:ed|ing)?|says?|said|written|reads?)';
 
+/**
+ * PURE: spans in `blob` where `variant` is BOUND to `canonical` by the grammar of correcting a word.
+ * Returns [start, end) index pairs.
+ *
+ * Binding, not proximity. Every pattern here requires the two terms to be joined by an explicit
+ * connective within a tight gap — not merely to co-occur near a marker word somewhere in a window.
+ */
+function mentionSpans(src, variant, canonical) {
+  const V = escapeRe(variant);
+  const C = escapeRe(canonical);
+  const B = '(?![A-Za-z0-9-])';
+  const A = '(?:^|[^A-Za-z0-9-])';
+  const patterns = [
+    // "audit instead of assessment" / "assessment not audit" — either order, tight gap.
+    `${A}${V}${B}[^.]{0,4}?\\s*${CONNECTIVE}\\s+(?:the\\s+)?${C}${B}`,
+    `${A}${C}${B}[^.]{0,4}?\\s*${CONNECTIVE}\\s+(?:the\\s+)?${V}${B}`,
+    // "audit -> assessment", "assessment → audit"
+    `${A}${V}${B}\\s*(?:→|->)\\s*${C}${B}`,
+    `${A}${C}${B}\\s*(?:→|->)\\s*${V}${B}`,
+    // "rename the audit field to assessment" — verb, variant, binder, canonical, all one clause.
+    `${RENAME_VERB}\\b[^.]{0,30}?${A}${V}${B}[^.]{0,25}?\\b(?:to|with|as|into|over)\\b[^.]{0,25}?${C}${B}`,
+    // "the term audit", 'says "audit"'
+    `${METALINGUISTIC}\\s+["'\`]?${V}${B}`,
+    // a quoted variant — you quote a word to talk about it
+    `["'\`]${V}["'\`]`,
+    // "audit, assessment" — comma apposition, only when immediately adjacent
+    `${A}${V},\\s*${C}${B}`,
+    `${A}${C},\\s*${V}${B}`,
+  ];
+  const spans = [];
+  for (const p of patterns) {
+    const re = new RegExp(p, 'gi');
+    let m;
+    while ((m = re.exec(src))) {
+      spans.push([m.index, m.index + m[0].length]);
+      if (re.lastIndex === m.index) re.lastIndex++;
+    }
+  }
+  return spans;
+}
+
+/**
+ * PURE: is EVERY occurrence of `variant` a mention of the word rather than a use of it?
+ *
+ * REWRITTEN after FRW-BL-118's blind review. The first design asked two loose questions — is the
+ * canonical term in the same clause, and is any marker word in that clause — and the reviewer broke
+ * it four ways on ordinary prose, all reproduced before this rewrite:
+ *
+ *   FALSE NEGATIVE  "The compliance assessment must never be skipped, and separately the audit runs
+ *                    nightly..." — one run-on sentence, so an unrelated "never"+"assessment" pair
+ *                    excused a genuine "audit" 50 characters later.
+ *   FALSE NEGATIVE  "We call the audit process every night, per the assessment schedule." — "call"
+ *                    was a marker word, so ordinary prose suppressed itself.
+ *   FALSE NEGATIVE  "The canonical audit workflow feeds the assessment pipeline." — same, via
+ *                    "canonical".
+ *   FALSE POSITIVE  "Note re: the audit i.e. assessment naming..." — the clause was split on the
+ *                    first ".", which is inside "i.e.", cutting the canonical term out of view.
+ *
+ * Two root causes, and the marker list was only the visible one. Splitting clauses on "." is wrong
+ * because abbreviations contain periods; and a marker ANYWHERE in a window says nothing about THIS
+ * occurrence. Both are fixed by asking a different question: is this occurrence BOUND to the
+ * canonical term by correction grammar? An occurrence inside "audit instead of assessment" is a
+ * mention. An occurrence 50 characters from an unrelated "never" is not.
+ *
+ * Same shape as before and as `isNegatedOccurrence`: all-or-nothing over occurrences, so one bare
+ * use anywhere makes the whole source a finding. Residual error stays false-NEGATIVE — an exotic
+ * correction phrasing this list does not know is treated as drift, which is the safe direction for
+ * a warn-level check whose value depends on being believed.
+ */
 export function isMetaReference(blob, variant, canonical) {
   const src = String(blob ?? '');
   const canon = String(canonical ?? '');
   if (!canon) return false;
+  const spans = mentionSpans(src, variant, canon);
   const re = new RegExp(`(^|[^A-Za-z0-9-])${escapeRe(variant)}(?![A-Za-z0-9-])`, 'gi');
-  const canonRe = new RegExp(`(^|[^A-Za-z0-9-])${escapeRe(canon)}(?![A-Za-z0-9-])`, 'i');
   let m;
   let sawAny = false;
   while ((m = re.exec(src))) {
     sawAny = true;
     const hit = m.index + m[1].length;
-    // Same-clause window on both sides. Wide enough for "rename the audit field to assessment",
-    // narrow enough that the canonical term a paragraph away does not excuse a real violation.
-    const before = src.slice(Math.max(0, hit - 90), hit);
-    const after = src.slice(hit, Math.min(src.length, hit + 90));
-    const clause = before.slice(before.lastIndexOf('.') + 1)
-      + after.slice(0, after.indexOf('.') === -1 ? after.length : after.indexOf('.') + 1);
-
-    // Quoting the variant is an independent marker — you quote a word to talk about it.
-    const quoted = /["'`]$/.test(before.trimEnd())
-      || /^["'`]/.test(after.slice(variant.length));
-
-    // BOTH signals required, because proximity alone measured as a net loss on real prose:
-    // the canonical term nearby AND the grammar of correcting a word. A list containing both
-    // nouns ("assessment CSVs + ... + audit plan") has no marker and stays a finding.
-    const isMention = quoted || (canonRe.test(clause) && MENTION_MARKER_RE.test(clause));
-    if (!isMention) return false; // a bare use — real drift
+    const bound = spans.some(([s, e]) => hit >= s && hit < e);
+    if (!bound) return false; // a bare use — real drift
   }
   return sawAny;
 }

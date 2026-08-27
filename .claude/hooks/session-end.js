@@ -35,6 +35,32 @@ function isConfirmedSessionEnd(hookEventName) {
   return hookEventName === 'SessionEnd';
 }
 
+/**
+ * PURE: which running agents may this SessionEnd terminate?
+ *
+ * FRW-BL-095. Extracted from an inline filter so it can be self-tested — it was the only untested
+ * piece of the change that made session-end.js the SOLE emitter of a subagent's terminal
+ * `agent_completed`, and the rule it encodes has already been got wrong once.
+ *
+ * The sweep is PROJECT-scoped by the query, so before this it completed every OTHER live session's
+ * agents in the same project. That was survivable while `agent-stop.js` rewrote status on the next
+ * idle/wake cycle — a wrongly-completed row healed itself. FRW-BL-095 removed that per-cycle write,
+ * which removed the self-healing: a row wrongly marked completed now stays completed forever, and
+ * since sweeps only look at `status: 'running'` it can never receive its terminal event either.
+ * So "exactly one" silently became "exactly zero" for any agent caught by a sibling session's exit.
+ *
+ * NULL-sessionId rows are still swept deliberately. They predate the propagation added in the same
+ * card, and excluding them would leave legacy agents running forever with nothing to close them.
+ * That keeps the old cross-session behaviour for old rows ONLY, and it drains as they age out.
+ *
+ * A missing `sessionId` on the incoming payload also sweeps everything, for the same reason: an
+ * unidentifiable SessionEnd must still clean up rather than leak.
+ */
+function selectSweepTargets(allRunning, sessionId) {
+  return (Array.isArray(allRunning) ? allRunning : [])
+    .filter((a) => a && (!a.sessionId || !sessionId || a.sessionId === sessionId));
+}
+
 async function main() {
   const input = readStdin();
 
@@ -78,7 +104,7 @@ async function main() {
     // card, and excluding them would leave legacy agents running forever with nothing to close them.
     // That keeps the old cross-session behaviour for old rows only, and it drains as they age out.
     const sessionId = input && input.session_id;
-    const agents = (allRunning || []).filter((a) => !a.sessionId || !sessionId || a.sessionId === sessionId);
+    const agents = selectSweepTargets(allRunning, sessionId);
     const skipped = (allRunning || []).length - agents.length;
     if (skipped > 0) {
       log.info('cross_session_agents_skipped',
@@ -158,7 +184,7 @@ async function main() {
   }
 }
 
-module.exports = { isConfirmedSessionEnd };
+module.exports = { isConfirmedSessionEnd, selectSweepTargets };
 
 if (require.main === module) {
   main().catch((e) => {
