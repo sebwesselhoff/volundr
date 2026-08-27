@@ -129,6 +129,251 @@ export function skillInvocationErrors(rel, src) {
   return out;
 }
 
+/**
+ * FRW-BL-097 / FRW-BL-098 — third-party attribution, checked rather than remembered.
+ *
+ * Volundr is MIT and REDISTRIBUTED, so incorporating third-party content obliges us to retain the
+ * upstream copyright notice and licence text. Prose asking a future session to remember that is not
+ * a mechanism (this project's own anti-pattern list). These functions make it a gate.
+ *
+ * THE MARKER. A third-party-derived artifact declares a `provenance:` block — in markdown
+ * frontmatter, or inline in a YAML data file:
+ *
+ *     provenance:
+ *       source: owner/repo
+ *       commit: <full sha or tag>          # "main" is not a pin; it moves
+ *       license: MIT
+ *       copyright: Copyright (c) 2025 Upstream Holder   # VERBATIM from upstream LICENSE
+ *       date: 2026-08-27
+ *       taken: what specifically was taken
+ *
+ * THE FRW-BL-090 TRAP, designed around rather than discovered. This project has now watched a
+ * text-scanning gate read English prose as code FOUR times in one day (the hook-config extractor
+ * pulling a field out of a comment; anti-stub-scan blocking on its own pattern table; the platform's
+ * own guard reading a commit message as a command). So this scanner:
+ *   - reads `provenance:` ONLY from a leading frontmatter fence or a `.yaml`/`.yml` file, never
+ *     from free prose or a fenced code sample;
+ *   - EXCLUDES its own source, its test, and the two documents whose whole subject is this format
+ *     (THIRD-PARTY-NOTICES.md, framework/provenance.md), which necessarily quote the marker.
+ * Both exclusions are asserted by the self-test, not just intended.
+ */
+export const PROVENANCE_FIELDS = ['source', 'commit', 'license', 'copyright', 'date', 'taken'];
+
+/**
+ * Pure: is this path one whose subject IS the marker format, so a mention is not a declaration?
+ *
+ * Matched as EXACT repo-relative paths, not by bare filename. A filename-anywhere match would let a
+ * ported artifact placed under a scanned directory and named `THIRD-PARTY-NOTICES.md` exempt itself
+ * from the very scan that exists to catch it — a small hole, but a hole in an exclusion list is
+ * exactly the thing that must not be approximate.
+ */
+const PROVENANCE_DOC_PATHS = new Set([
+  'THIRD-PARTY-NOTICES.md',
+  'framework/provenance.md',
+  'scripts/garden-lint.mjs',
+  'scripts/garden-lint.test.mjs',
+]);
+
+export function isProvenanceDoc(rel) {
+  return PROVENANCE_DOC_PATHS.has(String(rel ?? '').replace(/\\/g, '/').replace(/^\.\//, ''));
+}
+
+/**
+ * Pure: parse a minimal YAML subset — `key: value` lines under a known indent, plus `- ` list items.
+ * Deliberately tiny: framework scripts are dependency-free by constraint, and a full YAML parser is
+ * not needed to read a six-field block. Unknown/again-indented lines end the block.
+ */
+function parseBlock(lines, startIdx, baseIndent) {
+  const out = {};
+  let i = startIdx;
+  for (; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent <= baseIndent) break;
+    const m = /^[ \t]*([A-Za-z][A-Za-z0-9_-]*)[ \t]*:[ \t]*(.*)$/.exec(line);
+    if (!m) continue;
+    const key = m[1];
+    const raw = m[2].trim();
+
+    // BLOCK SCALARS (`taken: |` / `>`). Without this the value parses to the literal "|" — a
+    // non-empty string, so the required-field check passes and the real content is silently lost.
+    // `taken` is the field most likely to want several lines, so this is the exact place a silent
+    // mis-parse would hurt most and be noticed least.
+    if (raw === '|' || raw === '>' || /^[|>][-+]?$/.test(raw)) {
+      const fold = raw.startsWith('>');
+      const parts = [];
+      let j = i + 1;
+      let contIndent = null;
+      for (; j < lines.length; j++) {
+        if (!lines[j].trim()) { parts.push(''); continue; }
+        const ind = lines[j].length - lines[j].trimStart().length;
+        if (contIndent === null) {
+          if (ind <= indent) break;
+          contIndent = ind;
+        } else if (ind < contIndent) break;
+        parts.push(lines[j].slice(contIndent));
+      }
+      while (parts.length && parts[parts.length - 1] === '') parts.pop();
+      out[key] = fold ? parts.join(' ').replace(/\s+/g, ' ').trim() : parts.join('\n').trim();
+      i = j - 1;
+      continue;
+    }
+
+    out[key] = raw.replace(/^["']|["']$/g, '');
+  }
+  return { fields: out, next: i };
+}
+
+/**
+ * Pure: extract every `provenance:` declaration from one artifact's source.
+ * @returns {{declarations: Array, errors: string[]}}
+ */
+export function extractProvenance(rel, src) {
+  const declarations = [];
+  const errors = [];
+  if (isProvenanceDoc(rel)) return { declarations, errors };
+
+  const text = String(src ?? '');
+  const path = String(rel ?? '').replace(/\\/g, '/');
+  const isYaml = /\.ya?ml$/.test(path);
+
+  let searchable = null;
+  if (isYaml) {
+    searchable = text;
+  } else {
+    // Markdown/other: ONLY the leading frontmatter fence counts. A `provenance:` in the body is
+    // documentation about the format, not a declaration.
+    const lines = text.split(/\r?\n/);
+    if (lines[0]?.trim() === '---') {
+      const close = lines.findIndex((l, i) => i > 0 && l.trim() === '---');
+      if (close > 0) searchable = lines.slice(1, close).join('\n');
+    }
+  }
+  if (searchable == null) return { declarations, errors };
+
+  const lines = searchable.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^([ \t]*)provenance[ \t]*:[ \t]*$/.exec(lines[i]);
+    if (!m) continue;
+    const baseIndent = m[1].length;
+    const { fields, next } = parseBlock(lines, i + 1, baseIndent);
+    i = next - 1;
+    const missing = PROVENANCE_FIELDS.filter((f) => !fields[f]);
+    if (missing.length) {
+      errors.push(
+        `provenance-incomplete: ${rel} declares provenance but is missing ${missing.join(', ')} — `
+        + 'an incomplete notice looks discharged while being unusable (FRW-BL-097)',
+      );
+    }
+    if (fields.commit && /^(main|master|head)$/i.test(fields.commit)) {
+      errors.push(
+        `provenance-unpinned: ${rel} pins commit "${fields.commit}", which is a moving branch — `
+        + 'pin a full sha or a tag, or the notice describes content nobody can retrieve',
+      );
+    }
+    declarations.push({ file: rel, ...fields });
+  }
+  return { declarations, errors };
+}
+
+/**
+ * Pure: read the notices registry out of THIRD-PARTY-NOTICES.md.
+ * Entries live in ```yaml fences between the `vldr:entries-begin`/`-end` markers, so the file stays
+ * readable as markdown while remaining machine-checkable.
+ * @returns {{entries: Array, errors: string[]}}
+ */
+export function parseNotices(src) {
+  const entries = [];
+  const errors = [];
+  const text = String(src ?? '');
+  if (!text.trim()) {
+    errors.push('notices-missing: THIRD-PARTY-NOTICES.md is absent or empty — Volundr is MIT and redistributed, so it must exist (FRW-BL-097)');
+    return { entries, errors };
+  }
+  const region = /<!--\s*vldr:entries-begin[^>]*-->([\s\S]*?)<!--\s*vldr:entries-end[^>]*-->/g;
+  let block;
+  let sawRegion = false;
+  while ((block = region.exec(text))) {
+    sawRegion = true;
+    const fenced = /```ya?ml\s*([\s\S]*?)```/g;
+    let f;
+    while ((f = fenced.exec(block[1]))) {
+      const lines = f[1].split(/\r?\n/);
+      let current = null;
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const item = /^-[ \t]+([A-Za-z][A-Za-z0-9_-]*)[ \t]*:[ \t]*(.*)$/.exec(line);
+        if (item) {
+          if (current) entries.push(current);
+          current = { [item[1]]: item[2].trim().replace(/^["']|["']$/g, '') };
+          continue;
+        }
+        const kv = /^[ \t]+([A-Za-z][A-Za-z0-9_-]*)[ \t]*:[ \t]*(.*)$/.exec(line);
+        if (kv && current) current[kv[1]] = kv[2].trim().replace(/^["']|["']$/g, '');
+      }
+      if (current) entries.push(current);
+    }
+  }
+  if (!sawRegion) {
+    errors.push('notices-markers: THIRD-PARTY-NOTICES.md has no vldr:entries-begin/end region — the linter cannot find the registry');
+  }
+  for (const e of entries) {
+    const missing = PROVENANCE_FIELDS.filter((f) => !e[f]);
+    if (missing.length) {
+      errors.push(`notices-incomplete: entry for "${e.source ?? '(no source)'}" is missing ${missing.join(', ')}`);
+    }
+  }
+  return { entries, errors };
+}
+
+/** Pure: the identity a declaration and its notice entry must agree on. */
+const provKey = (o) => `${String(o?.source ?? '').trim().toLowerCase()}@${String(o?.commit ?? '').trim().toLowerCase()}`;
+
+/**
+ * Pure: cross-check declarations against the notices registry, BOTH directions.
+ *
+ * Both directions matter and for different reasons. An artifact with no entry is an unmet licence
+ * obligation. An entry with no artifact is a stale notice claiming we incorporate something we do
+ * not — which is its own kind of false statement in a redistributed file.
+ */
+export function provenanceErrors(declarations, entries) {
+  const out = [];
+  const declared = new Map();
+  for (const d of declarations || []) declared.set(provKey(d), d);
+  const noticed = new Map();
+  for (const e of entries || []) noticed.set(provKey(e), e);
+
+  for (const [key, d] of declared) {
+    if (!noticed.has(key)) {
+      out.push(
+        `provenance-unattributed: ${d.file} declares provenance ${d.source}@${String(d.commit).slice(0, 12)} `
+        + 'with no matching THIRD-PARTY-NOTICES.md entry — Volundr is redistributed, so this is an '
+        + 'unmet attribution obligation (FRW-BL-097)',
+      );
+      continue;
+    }
+    const e = noticed.get(key);
+    if (e.copyright && d.copyright && e.copyright.trim() !== d.copyright.trim()) {
+      out.push(
+        `provenance-mismatch: ${d.file} and THIRD-PARTY-NOTICES.md disagree on the copyright holder `
+        + `for ${d.source} ("${d.copyright}" vs "${e.copyright}") — the holder must be verbatim from `
+        + 'the upstream LICENSE in both places',
+      );
+    }
+  }
+  for (const [key, e] of noticed) {
+    if (!declared.has(key)) {
+      out.push(
+        `notices-orphan: THIRD-PARTY-NOTICES.md lists ${e.source}@${String(e.commit).slice(0, 12)} but no `
+        + 'artifact in the repo declares that provenance — a notice for content we do not ship is a '
+        + 'false statement; remove it or restore the artifact',
+      );
+    }
+  }
+  return out;
+}
+
 export function pinDrift(settingsSrc, guardrailsSrc) {
   const errors = [];
 
@@ -267,6 +512,43 @@ function main() {
     // 4d. denylisted skills must not be model-invocable (FRW-BL-112). Same loop, same read: a
     // skill's frontmatter is one artifact, and both checks are distribution defects, not warnings.
     for (const e of skillInvocationErrors(rel, src)) errors.push(e);
+  }
+
+  // 4e. third-party attribution (FRW-BL-097 / FRW-BL-098).
+  // Volundr is MIT and redistributed, so incorporated third-party content obliges us to retain the
+  // upstream notice. Checked in BOTH directions: an artifact with no entry is an unmet licence
+  // obligation; an entry with no artifact is a notice claiming we ship something we do not.
+  // Scanned surfaces are the ones that can carry a ported artifact — packs (prompts + manifests),
+  // skills, personas/traits data, and the agent registry data.
+  {
+    const provRoots = [
+      packsDir,
+      join(repo, '.claude', 'skills'),
+      join(repo, 'framework', 'agents'),
+      join(repo, 'framework', 'personas'),
+      join(repo, 'framework', 'skills'),
+    ];
+    const declarations = [];
+    for (const root of provRoots) {
+      for (const f of listFiles(root, (p) => /\.(md|ya?ml)$/i.test(p))) {
+        const rel = f.replace(repo + '\\', '').replace(repo + '/', '').replace(/\\/g, '/');
+        let src;
+        try { src = readFileSync(f, 'utf8'); } catch { continue; }
+        const { declarations: d, errors: e } = extractProvenance(rel, src);
+        declarations.push(...d);
+        for (const err of e) errors.push(err);
+      }
+    }
+    const noticesPath = join(repo, 'THIRD-PARTY-NOTICES.md');
+    // Absent notices file is an ERROR only once something actually declares provenance — an empty
+    // repo owes nobody an attribution, and a gate that fires on a clean tree gets disabled.
+    if (!existsSync(noticesPath)) {
+      if (declarations.length) errors.push('notices-missing: THIRD-PARTY-NOTICES.md not found, but artifacts declare third-party provenance');
+    } else {
+      const { entries, errors: nerr } = parseNotices(readFileSync(noticesPath, 'utf8'));
+      for (const e of nerr) errors.push(e);
+      for (const e of provenanceErrors(declarations, entries)) errors.push(e);
+    }
   }
 
   // 5. orphan prompt templates (warn only)
