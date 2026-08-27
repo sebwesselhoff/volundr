@@ -538,6 +538,13 @@ async function main() {
     projectId: PROJECT_ID,
     type: effectiveAgentType,
     model: resolvedModel,
+    // FRW-BL-095: the SubagentStart payload HAS session_id, and nothing was reading it. Every
+    // subagent row has carried sessionId=null since migration 018 — not a platform limitation,
+    // a propagation gap in our own hook. FRW-BL-068 made agents.session_id the PRIMARY,
+    // code-invariant attribution key and demoted the tmpdir map to a fallback; the primary key
+    // was absent the whole time because nobody wrote the field the platform was already sending.
+    // Safe to set on subagents: parent resolution queries ?type=volundr, so these never collide.
+    ...(input.session_id ? { sessionId: input.session_id } : {}),
     ...(parentAgentId ? { parentAgentId } : {}),
     ...(preToolCardId ? { cardId: preToolCardId } : {}),
     ...(preToolPersonaId ? { personaId: preToolPersonaId } : {}),

@@ -62,13 +62,55 @@ async function main() {
 
   // Complete all running agents for the active project
   if (PROJECT_ID) {
-    const agents = await apiGet(`/api/projects/${PROJECT_ID}/agents?status=running`);
+    const allRunning = await apiGet(`/api/projects/${PROJECT_ID}/agents?status=running`);
+
+    // FRW-BL-095: sweep only THIS SESSION's agents.
+    //
+    // The query is project-scoped, so this used to complete every OTHER live session's agents in
+    // the same project too. That was survivable before, because agent-stop.js rewrote status on the
+    // next idle/wake cycle and agent-start reactivated on wake — a wrongly-completed agent healed
+    // itself. This card removed the per-cycle status write, which removes that self-healing: a row
+    // wrongly marked completed now stays completed for the rest of its life, and since future
+    // sweeps only look at status='running' it can never receive its terminal agent_completed event
+    // either. So narrowing the sweep is not a nicety here, it is required by the rest of the fix.
+    //
+    // Rows with a NULL sessionId are still swept: they predate the propagation added in this same
+    // card, and excluding them would leave legacy agents running forever with nothing to close them.
+    // That keeps the old cross-session behaviour for old rows only, and it drains as they age out.
+    const sessionId = input && input.session_id;
+    const agents = (allRunning || []).filter((a) => !a.sessionId || !sessionId || a.sessionId === sessionId);
+    const skipped = (allRunning || []).length - agents.length;
+    if (skipped > 0) {
+      log.info('cross_session_agents_skipped',
+        `Left ${skipped} running agent(s) belonging to other sessions untouched (FRW-BL-095)`);
+    }
+
     if (agents && agents.length > 0) {
       const now = new Date().toISOString();
       // Complete all agents concurrently - they're independent, and we have limited time (5s budget)
-      await Promise.all(agents.map(agent =>
-        apiPatch(`/api/agents/${agent.id}`, { status: 'completed', completedAt: now })
-      ));
+      //
+      // FRW-BL-095: this is now the ONLY place a subagent's terminal `agent_completed` event is
+      // emitted, and therefore the only place it can be emitted exactly ONCE per lifetime.
+      // agent-stop.js used to emit it per idle/wake CYCLE, so a single agent produced several —
+      // each republishing the CUMULATIVE token total, which made any cost sum over the event
+      // stream double-count. It emits `agent_yielded` with MARGINAL tokens now instead.
+      //
+      // This hook is the right owner because it is the first point that genuinely KNOWS the agent
+      // is finished. The SubagentStop payload carries no finality signal (probed and enumerated),
+      // so nothing earlier can honestly claim it.
+      await Promise.all(agents.map(async (agent) => {
+        await apiPatch(`/api/agents/${agent.id}`, { status: 'completed', completedAt: now });
+        if (agent.type === 'volundr') return; // the lead's end is the session_ended event below
+        await apiPost('/api/events', {
+          projectId: PROJECT_ID,
+          type: 'agent_completed',
+          agentId: agent.id,
+          ...(agent.cardId ? { cardId: agent.cardId } : {}),
+          detail: `${agent.type} completed: ${agent.detail || agent.id}`
+            + `${agent.promptTokens || agent.completionTokens
+              ? ` (${((agent.promptTokens || 0) + (agent.completionTokens || 0)).toLocaleString()} tokens total)` : ''}`,
+        });
+      }));
       log.info('agents_completed', `Completed ${agents.length} running agent(s) on session end`);
     }
 

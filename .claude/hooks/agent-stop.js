@@ -57,6 +57,44 @@ function parseTranscriptTokens(transcriptPath) {
 }
 
 // Map Claude API model IDs to our pricing model names
+/**
+ * FRW-BL-095 — build the PATCH body for one SubagentStop cycle. Pure; exported for the self-test.
+ *
+ * The whole point of this function existing separately is the thing it must NEVER contain:
+ * `status`. SubagentStop fires once per idle/wake cycle — this hook's own comments have said so
+ * for a long time, and it accumulated tokens for exactly that reason — yet it also wrote
+ * `status: 'completed'` on every one of those cycles. So a working agent read `completed` between
+ * turns, `?status=running` undercounted a live fan-out (one row shown during a six-agent wave),
+ * and stalled-scan could not tell idle-but-alive from finished.
+ *
+ * A payload probe settled whether a condition could fix it: the SubagentStop payload has NO
+ * finality signal. `stop_hook_active` is hook RE-ENTRANCY, not completion. Since finality is
+ * unknowable here, claiming it is the defect — so this returns tokens and model only, and
+ * session-end owns the terminal write.
+ *
+ * Token accumulation is UNCHANGED and deliberately so: each cycle reports only that turn's tokens,
+ * and they are added to the row's running totals. That was already correct (an earlier claim that
+ * it double-counted was withdrawn after reading the code) and this card must not break it.
+ *
+ * @returns {object} patch body — possibly EMPTY, which is a legitimate outcome for an idle yield
+ *   that produced no tokens and no model change.
+ */
+function buildStopPatch({ tokenData, existing, normalizedModel } = {}) {
+  const patch = {};
+  const total = tokenData
+    ? (tokenData.inputTokens || 0) + (tokenData.completionTokens || 0)
+      + (tokenData.cacheCreationTokens || 0) + (tokenData.cacheReadTokens || 0)
+    : 0;
+  if (total > 0) {
+    patch.promptTokens = ((existing && existing.promptTokens) || 0) + (tokenData.inputTokens || 0);
+    patch.completionTokens = ((existing && existing.completionTokens) || 0) + (tokenData.completionTokens || 0);
+    patch.cacheCreationTokens = ((existing && existing.cacheCreationTokens) || 0) + (tokenData.cacheCreationTokens || 0);
+    patch.cacheReadTokens = ((existing && existing.cacheReadTokens) || 0) + (tokenData.cacheReadTokens || 0);
+  }
+  if (normalizedModel) patch.model = normalizedModel;
+  return patch;
+}
+
 function normalizeModel(apiModel) {
   if (!apiModel) return null;
   const m = apiModel.toLowerCase();
@@ -102,6 +140,7 @@ async function main() {
   }
 
   let existing = null;
+
   if (dashboardAgentId) {
     // Fetch existing agent to accumulate tokens across idle/wake cycles
     // Use project agents list and filter - single-agent GET may not be available yet
@@ -109,34 +148,44 @@ async function main() {
       const allAgents = await apiGet(`/api/projects/${PROJECT_ID}/agents`);
       if (allAgents) existing = allAgents.find(a => a.id === dashboardAgentId);
     }
-    const patchBody = {
-      status: 'completed',
-      completedAt: new Date().toISOString(),
-    };
-
-    // Accumulate tokens - teammates cycle through multiple SubagentStop events,
-    // each reporting only that turn's tokens. Add to existing totals.
-    if (totalTokens > 0) {
-      const prevPrompt = (existing && existing.promptTokens) || 0;
-      const prevCompletion = (existing && existing.completionTokens) || 0;
-      const prevCacheCreation = (existing && existing.cacheCreationTokens) || 0;
-      const prevCacheRead = (existing && existing.cacheReadTokens) || 0;
-
-      patchBody.promptTokens = prevPrompt + tokenData.inputTokens;
-      patchBody.completionTokens = prevCompletion + tokenData.completionTokens;
-      patchBody.cacheCreationTokens = prevCacheCreation + tokenData.cacheCreationTokens;
-      patchBody.cacheReadTokens = prevCacheRead + tokenData.cacheReadTokens;
-    }
-
-    // FRW-BL-031: RECONCILE/finalize the model from actual transcript usage. agent-start now
-    // sets the REQUESTED model at spawn (from the Agent-tool param), so this is no longer
-    // back-correcting a hardcoded 'sonnet-4' guess — it confirms the model, or records a
-    // genuine runtime downgrade (economy/fallback), which is the accurate model for cost.
-    if (normalizedModel) {
-      patchBody.model = normalizedModel;
-    }
+    // FRW-BL-095: do NOT write terminal status here.
+    //
+    // This hook's own comments already record that SubagentStop "fires multiple times (once per
+    // idle/wake cycle)" and accumulate tokens for exactly that reason — then wrote
+    // status:'completed' unconditionally on every one of those cycles anyway. The author saw the
+    // repeat-firing, handled its token consequence, and missed its status consequence.
+    //
+    // A probe captured a real payload and enumerated its fields: agent_id, agent_transcript_path,
+    // agent_type, background_tasks, cwd, hook_event_name, last_assistant_message, permission_mode,
+    // prompt_id, session_crons, session_id, stop_hook_active, transcript_path. THERE IS NO FINALITY
+    // SIGNAL. `stop_hook_active` is hook RE-ENTRANCY, not completion — reading it as completion
+    // would have been a plausible and wrong guess. So a payload condition cannot fix this.
+    //
+    // Since finality is unknowable here, claiming it is the defect. `status` now means lifecycle
+    // and is written terminally only by session-end (and the boot orphan sweep); liveness —
+    // working / idle / stalled — is COMPUTED by the API from the agent's latest event timestamp
+    // (FRW-BL-063), which is what actually answers "is it alive?".
+    //
+    // The trade, made deliberately: this under-completes (a finished agent reads `running` until
+    // session end) where the old code over-completed (a working agent read `completed`, so
+    // ?status=running undercounted a live fan-out). Under-completion is bounded and already swept
+    // at both ends; over-completion gave wrong answers all session long.
+    // Token accumulation (teammates cycle through multiple SubagentStop events, each reporting
+    // only that turn's tokens) and FRW-BL-031 model reconciliation both live in buildStopPatch,
+    // which is pure and self-tested. The hook calls it rather than duplicating the logic — a
+    // tested helper the production path does not use would be worse than no helper at all.
+    const patchBody = buildStopPatch({ tokenData, existing, normalizedModel });
 
     // Retry once on failure - transient API errors should not permanently orphan agents
+    // FRW-BL-095: patchBody can now be legitimately EMPTY — this hook no longer writes a status,
+    // so a cycle that produced no tokens and no model change has nothing to say. Sending `{}` would
+    // be a pointless round trip whose failure would then trip the fatal path below and kill the
+    // hook over a no-op.
+    if (Object.keys(patchBody).length === 0) {
+      log.debug('agent_patch_skipped', `Nothing to update for ${dashboardAgentId} (idle yield, no new tokens)`, {
+        agentId: dashboardAgentId,
+      });
+    } else {
     let result = await apiPatch(`/api/agents/${dashboardAgentId}`, patchBody);
     if (!result) {
       log.warn('agent_patch_retry', `First PATCH failed for ${dashboardAgentId} - retrying in 1s`);
@@ -153,9 +202,12 @@ async function main() {
 
     const accumulatedTotal = (patchBody.promptTokens || 0) + (patchBody.completionTokens || 0) +
       (patchBody.cacheCreationTokens || 0) + (patchBody.cacheReadTokens || 0);
-    log.info('agent_updated', `Agent ${dashboardAgentId} completed: ${accumulatedTotal.toLocaleString()} tokens (turn: ${totalTokens.toLocaleString()}), model=${normalizedModel || 'unknown'}`, {
+    // FRW-BL-095: "yielded", not "completed" — this fires once per idle/wake cycle and we cannot
+    // know from here whether it is the last one.
+    log.info('agent_updated', `Agent ${dashboardAgentId} yielded: ${accumulatedTotal.toLocaleString()} tokens accumulated (turn: ${totalTokens.toLocaleString()}), model=${normalizedModel || 'unknown'}`, {
       agentId: dashboardAgentId,
     });
+    }
   } else {
     // No mapping found — SubagentStart may not have fired (happens for read-only agent types like architect).
     // Register the agent now with completion data so it appears on the dashboard.
@@ -217,17 +269,21 @@ async function main() {
     }
 
     if (agent) {
-      // Log spawn event so it shows in the dashboard feed
+      // Log spawn event so it shows in the dashboard feed.
+      // FRW-BL-094: carry the attribution the row has — an unattributed event is invisible to
+      // anything that filters the stream by cardId, and to the computed liveness signal.
       await apiPost('/api/events', {
         projectId: PROJECT_ID,
         type: 'agent_spawned',
+        agentId: agent.id,
+        ...(agent.cardId ? { cardId: agent.cardId } : {}),
         detail: `${agent.type} spawned: ${agentDetailName}`,
       });
 
-      // Immediately complete with token data
+      // Record token data. FRW-BL-095: NOT terminal status — this hook repeats per idle/wake
+      // cycle here exactly as it does on the mapped path above, so "late-registered" does not
+      // mean "finished". Same reasoning, same fix: session-end owns the terminal write.
       await apiPatch(`/api/agents/${agent.id}`, {
-        status: 'completed',
-        completedAt: new Date().toISOString(),
         promptTokens: tokenData.inputTokens,
         completionTokens: tokenData.completionTokens,
         cacheCreationTokens: tokenData.cacheCreationTokens,
@@ -254,13 +310,28 @@ async function main() {
     log.info('agent_final_message', `Final message (${input.agent_id || 'agent'}): ${finalMsg}`, { agentId: input.agent_id });
   }
 
+  // FRW-BL-095: this fires once per idle/wake CYCLE, so it was never "agent_completed" — one
+  // agent routinely produced several, and each republished the CUMULATIVE token total. Anything
+  // summing cost from the event stream therefore double-counted (one observed agent reported
+  // 1 286 962 then 1 615 166, where the marginal spend of the second cycle was ~329k). The ROW was
+  // right all along; the EVENTS were wrong.
+  //
+  // It is now `agent_yielded`, which is what actually happened, and it carries:
+  //   - agentId, so it feeds the API's computed liveness signal (FRW-BL-063 reads the agent's
+  //     newest event timestamp). Without it, a working agent looked idle between turns.
+  //   - MARGINAL tokens for this cycle, not the running total, so summing the stream is correct.
+  // The single terminal `agent_completed` per lifetime is emitted by session-end.js.
+  const marginalTokens = tokenData
+    ? (tokenData.inputTokens || 0) + (tokenData.completionTokens || 0)
+    : 0;
   const eventResult = await apiPost('/api/events', {
     projectId: PROJECT_ID,
-    type: 'agent_completed',
-    detail: `${agentLabel}${totalTokens ? ` (${totalTokens.toLocaleString()} tokens)` : ''}${finalMsg ? ` — “${finalMsg.slice(0, 140)}”` : ''}`,
+    type: 'agent_yielded',
+    ...(dashboardAgentId ? { agentId: dashboardAgentId } : {}),
+    detail: `${agentLabel} yielded${marginalTokens ? ` (+${marginalTokens.toLocaleString()} tokens this turn)` : ''}${finalMsg ? ` — “${finalMsg.slice(0, 140)}”` : ''}`,
   });
   if (!eventResult) {
-    log.warn('event_post_failed', 'Failed to log agent_completed event');
+    log.warn('event_post_failed', 'Failed to log agent_yielded event');
   }
 
   // Clean name mappings for teammates whose team no longer exists
@@ -293,6 +364,8 @@ async function main() {
   // Update Volundr heartbeat — reflect agent completion on dashboard
   await updateHeartbeat('active').catch(() => {});
 }
+
+module.exports = { buildStopPatch, normalizeModel, parseTranscriptTokens };
 
 if (require.main === module) {
   main().catch((e) => {

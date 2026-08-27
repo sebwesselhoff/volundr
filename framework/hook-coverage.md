@@ -71,11 +71,14 @@ FRW-BL-093**: `resolveWriteTarget()` resolves whichever field the tool sent and 
 remediation message, because telling a NotebookEdit caller to correct their "file_path" is a dead
 end. The code landed **before** the matcher, in that order, deliberately.
 
-### The `Workflow` attribution gap — deferred, with the reason
+### The `Workflow` attribution gap — RESOLVED (FRW-BL-094)
+
+*What follows describes the defect as it was, then the fix. The description is kept because the
+reasoning that rejected the obvious fix is still the reasoning that keeps the matcher waiver.*
 
 `PreToolUse: Agent` runs `pre-agent-tool.js`, which parses `# CARD-XX-NNN:` and `personaId:` out of
-an Agent prompt and writes them to a FIFO descriptor queue; `agent-start.js` pops that queue
-(`:224`) and stamps the dashboard agents row (`:417-418`). The `Workflow` tool spawns subagents
+an Agent prompt and writes them to a FIFO descriptor queue; `agent-start.js` **used to pop** that
+queue positionally and stamp the dashboard agents row. The `Workflow` tool spawns subagents
 **without invoking the Agent tool**, so nothing is ever written to the queue for them. `SubagentStart`
 still fires (its matcher is `""`), so the row is created — just unattributed. Consequence:
 workflow-spawned agents carry no `cardId`/`personaId`, which quietly weakens FRW-002 persona skill
@@ -127,6 +130,43 @@ bug and must not be merged into one. They have different causes and different fi
 
 FRW-BL-114 is the one with no agent behind it. Fixing 094's keying would not remove those rows,
 and fixing 095's lifecycle would not either.
+
+### `status` is lifecycle; `liveness` is aliveness (FRW-BL-095)
+
+`SubagentStop` fires **once per idle/wake cycle**, not once at the end. `agent-stop.js` knew that —
+it accumulated tokens per cycle for exactly that reason — and still wrote `status: 'completed'` on
+every one of them. So a working agent read `completed` between turns: `?status=running` undercounted
+a live fan-out (one row shown during a six-agent wave), and `stalled-scan` could not tell
+idle-but-alive from finished.
+
+A payload probe settled whether a condition could fix it. The `SubagentStop` payload carries
+`agent_id`, `agent_transcript_path`, `agent_type`, `background_tasks`, `cwd`, `hook_event_name`,
+`last_assistant_message`, `permission_mode`, `prompt_id`, `session_crons`, `session_id`,
+`stop_hook_active`, `transcript_path` — and **no finality signal**. `stop_hook_active` is hook
+a signal of whether a stop hook already blocked this turn, not of whether the agent is finished; reading it as completion would have been a plausible and wrong guess.
+
+So the split is:
+
+| Field | Means | Written by |
+|---|---|---|
+| `status` | lifecycle — has this agent been closed out? | `session-end.js`, and the boot orphan sweep |
+| `liveness` (computed) | aliveness — working / idle / stalled | derived by the API from the agent's newest event timestamp (FRW-BL-063) |
+
+`agent-stop.js` now writes tokens and model only, and emits **`agent_yielded`** carrying `agentId`
+and that cycle's **marginal** tokens. Both halves matter: the `agentId` is what feeds the liveness
+signal, and marginal-not-cumulative is what stops a cost sum over the event stream double-counting
+(one observed agent reported 1 286 962 then 1 615 166 tokens, where the second cycle's real spend
+was ~329k). The row was right all along; the events were not.
+
+**The trade, made deliberately.** This under-completes — a finished agent reads `running` until
+session end — where the old code over-completed. Under-completion is bounded and already swept at
+both ends (`session-end.js` closes every running agent; `session-start.js` cleans orphans from
+crashes). Over-completion gave wrong answers for the whole session. A finished-but-unswept agent
+drifting to `stalled` is a *correct* signal, not noise: it means something finished and nothing
+closed it.
+
+Note this only became usable once `agent_spawned` carried an `agentId` (FRW-BL-094) — before that,
+spawn events fed the liveness signal nothing at all.
 
 ### Telling a phantom row from a real spawn
 

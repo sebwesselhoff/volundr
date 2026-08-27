@@ -80,6 +80,12 @@ export type AgentStatus = (typeof AgentStatus)[keyof typeof AgentStatus];
 
 export const EventType = {
   agent_spawned: 'agent_spawned',
+  // FRW-BL-095: an idle/wake YIELD, not a completion. SubagentStop fires once per cycle and the
+  // payload carries no finality signal, so what it can honestly report is "this agent stopped for
+  // now". It was previously emitted as `agent_completed`, which made one agent look like several
+  // and — because each event republished the CUMULATIVE token total — made any cost sum over the
+  // event stream double-count. This carries MARGINAL tokens for the cycle.
+  agent_yielded: 'agent_yielded',
   agent_completed: 'agent_completed',
   agent_timeout: 'agent_timeout',
   card_status_changed: 'card_status_changed',
