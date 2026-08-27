@@ -4,6 +4,7 @@
 
 const { apiPost, readStdin, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
+const { resolveAgentId } = require('./vldr-agent-resolve');
 
 const log = createLogger('tool-failure');
 
@@ -36,18 +37,26 @@ async function emitTelemetry(input) {
     const durPart = durOk ? ` ${d}ms` : '';
     const detail = `${toolName}${durPart} effort=${effortLevel}`;
 
+    // FRW-BL-116: same attribution as the PostToolUse emitter — a failing tool call is still
+    // activity, and a turn that fails repeatedly is exactly when an agent most looks dead. Shared
+    // resolver rather than a second copy: agent_id before session_id, because a subagent's payload
+    // carries the PARENT's session_id. Unresolvable ⇒ field omitted, as before.
+    const agentId = resolveAgentId(input);
+
+    // FRW-BL-116 ISC-5: tool_name/effort_level/duration_ms/session_id were silently discarded by
+    // POST /api/events (it destructures only projectId, cardId, agentId, type, detail, costEstimate
+    // and the table has no columns for them). Stopped sending rather than adding columns — `detail`
+    // already carries tool, duration and effort in parseable form. Same decision as post-bash-git.js;
+    // if structured columns are ever added, re-add these fields in the same change.
     const payload = {
       projectId: PROJECT_ID,
       type: 'tool_telemetry',
       detail,
-      tool_name: toolName,
-      effort_level: effortLevel,
     };
-    if (durOk) payload.duration_ms = d;
-    if (sessionId) payload.session_id = sessionId;
+    if (agentId) payload.agentId = agentId;
 
     await apiPost('/api/events', payload);
-    log.info('tool_telemetry', detail);
+    log.info('tool_telemetry', detail, agentId ? { agentId } : {});
   } catch {
     // Telemetry failure must NOT affect hook exit behaviour
   }

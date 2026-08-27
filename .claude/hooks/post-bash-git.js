@@ -19,6 +19,7 @@
 const { readStdin, apiPost, apiGet, PROJECT_ID } = require('./vldr-api');
 const { createLogger } = require('./vldr-logger');
 const { scanTargets } = require('./enforce-bash-rules');
+const { resolveAgentId } = require('./vldr-agent-resolve');
 const { execSync } = require('child_process');
 const log = createLogger('post-bash-git');
 
@@ -112,18 +113,33 @@ async function emitTelemetry(input) {
     const durPart = durOk ? ` ${d}ms` : '';
     const detail = `${toolName}${durPart} effort=${effortLevel}`;
 
+    // FRW-BL-116: attribute the event to the agent whose tool call produced it, so the dashboard's
+    // computed liveness (FRW-BL-063) has an activity signal DURING a turn rather than only at turn
+    // boundaries. Resolution order (agent_id before session_id) is load-bearing — a subagent's
+    // payload carries the PARENT's session_id, so the reverse order would attribute every
+    // subagent's tool calls to the lead. See vldr-agent-resolve.js. Unresolvable ⇒ null ⇒ the
+    // field is omitted, exactly as before; telemetry never becomes a hard dependency on attribution.
+    const agentId = resolveAgentId(input);
+
+    // FRW-BL-116 ISC-5: this used to also send tool_name, effort_level, duration_ms and session_id.
+    // POST /api/events destructures exactly { projectId, cardId, agentId, type, detail, costEstimate }
+    // (routes/events.ts) and the events table has no columns for the rest, so all four were silently
+    // DISCARDED server-side. Sending fields the API drops is a trap for the next reader — it looks
+    // like structured telemetry exists when only the `detail` string survives.
+    //
+    // Resolved by stopping, not by adding columns: `detail` already carries tool, duration and
+    // effort in a parseable form ("Bash 2478ms effort=xhigh"), and adding columns would need a
+    // migration that cannot take effect until the dashboard image is rebuilt. If structured columns
+    // are ever wanted, add them and re-add these fields together — never one without the other.
     const payload = {
       projectId: PROJECT_ID,
       type: 'tool_telemetry',
       detail,
-      tool_name: toolName,
-      effort_level: effortLevel,
     };
-    if (durOk) payload.duration_ms = d;
-    if (sessionId) payload.session_id = sessionId;
+    if (agentId) payload.agentId = agentId;
 
     await apiPost('/api/events', payload);
-    log.info('tool_telemetry', detail);
+    log.info('tool_telemetry', detail, agentId ? { agentId } : {});
   } catch {
     // Telemetry failure must NOT affect hook exit behaviour
   }
