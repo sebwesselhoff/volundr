@@ -106,20 +106,34 @@ export function citedIds(text) {
  * assessment." That is correct prose about a glossary check, and it was reported as glossary drift.
  * Reproduced independently before acting on it.
  *
- * ISC text is disproportionately META — criteria describe checks, and describing a check about a
- * forbidden term means naming the forbidden term. Coverage matching does not care, because it looks
- * for literal requirement ids that prose never contains by accident. Drift matching cares a lot.
+ * THIS EXCLUSION IS A PARTIAL MITIGATION, NOT A PRINCIPLED BOUNDARY — and saying otherwise was the
+ * second thing the reviewer had to correct. The first version of this comment argued ISC text is
+ * "disproportionately meta" and therefore uniquely warranted exclusion. That does not survive
+ * contact: the identical meta-reference sentence ("Rename the audit field to assessment for
+ * glossary compliance") produces the same false drift finding from `technicalNotes`, from
+ * `criteria`, AND from `description`. Measured, all three. So the rationale never distinguished ISC
+ * from the fields left in.
  *
- * The exclusion is expressed as ONE option on ONE function rather than a second text builder,
- * because the original defect was two call sites independently deciding what a card's text is. A
- * flag with a documented default and a fixture pinning both sides cannot drift silently; a second
- * builder can.
+ * What is actually true: ISC is excluded because it is the instance that was DEMONSTRATED, and
+ * removing a known-firing false positive is worth doing. `technicalNotes` and `criteria` are
+ * equally exposed and are deliberately NOT excluded, because excluding them would undo this card —
+ * they are precisely the fields whose invisibility to drift scanning was the defect. `description`
+ * was exposed before this card and remains so.
  *
- * KNOWN REMAINING LIMITATION, not fixed here: `detectDrift` has no negation/meta-reference
- * awareness at all, so the same false positive is reachable from a `description` that discusses a
- * forbidden term. That is a PRE-EXISTING gap in detectDrift affecting SoWs and descriptions alike —
- * this card only widened its surface area, and narrowing that surface is not a fix for the class.
- * Tracked separately; do not mistake this exclusion for a solution to it.
+ * Be honest about the ledger: `technicalNotes` and `criteria` were newly added to the
+ * drift-scanned surface by this card's own first commit. So this card opened three fields and
+ * closed one of them. It is a net improvement — real drift in those fields is now caught, which it
+ * was not before — but it is not a clean trade, and calling the remaining risk purely "pre-existing"
+ * would be false.
+ *
+ * The real fix is meta-reference awareness in `detectDrift`, which has none at all. Tracked as
+ * FRW-BL-118, with a criterion requiring this exclusion to be revisited once that lands so a
+ * workaround cannot silently outlive the problem. `spec-coverage.test.mjs` pins the currently-wrong
+ * behaviour explicitly, so the gap is visible in the suite rather than only in prose.
+ *
+ * The option lives on ONE function rather than in a second text builder, because the original
+ * defect was two call sites independently deciding what a card's text is. A flag with fixtures
+ * pinning both branches cannot diverge silently; a second builder can.
  */
 export function cardText(card, { includeIsc = true } = {}) {
   if (!card || typeof card !== 'object') return '';

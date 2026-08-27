@@ -141,6 +141,27 @@ const CARDS = [
     && !cardText(metaIsc[0], { includeIsc: false }).includes('rejects any card'));
 }
 {
+  // KNOWN-WRONG BEHAVIOUR, PINNED ON PURPOSE (FRW-BL-118).
+  //
+  // The ISC exclusion above is a partial mitigation, not a principled boundary. detectDrift has no
+  // meta-reference awareness, so the SAME legitimate sentence still produces a false drift finding
+  // from technicalNotes, criteria and description. FRW-BL-117's reviewer demonstrated this after the
+  // first fix, and the rationale that had justified excluding only isc did not survive it.
+  //
+  // These assertions describe what the code DOES, not what it SHOULD do. They exist so the gap is
+  // visible in the suite rather than only in a comment. When FRW-BL-118 adds meta-reference
+  // awareness these will fail — that is the intended signal, and they should be inverted then, not
+  // deleted.
+  const meta = 'Rename the audit field to assessment for glossary compliance.';
+  for (const field of ['technicalNotes', 'criteria', 'description']) {
+    const card = { id: `CLR-96${field.length}`, status: 'backlog', title: 'Rename', description: 'Covers SC-001.', isc: [] };
+    card[field] = meta;
+    const r = analyze({ blueprint: BLUEPRINT, cards: [card] });
+    ok(`KNOWN GAP (FRW-BL-118): a legitimate meta-reference in ${field} still false-positives`,
+      r.findings.some((f) => /glossary/.test(f.detail)));
+  }
+}
+{
   // The invariant, asserted directly: one definition of a card's text, one documented option.
   const card = {
     id: 'CLR-903', title: 'T', description: 'D', technicalNotes: 'N',
