@@ -106,42 +106,31 @@ export function citedIds(text) {
  * assessment." That is correct prose about a glossary check, and it was reported as glossary drift.
  * Reproduced independently before acting on it.
  *
- * THIS EXCLUSION IS A PARTIAL MITIGATION, NOT A PRINCIPLED BOUNDARY — and saying otherwise was the
- * second thing the reviewer had to correct. The first version of this comment argued ISC text is
- * "disproportionately meta" and therefore uniquely warranted exclusion. That does not survive
- * contact: the identical meta-reference sentence ("Rename the audit field to assessment for
- * glossary compliance") produces the same false drift finding from `technicalNotes`, from
- * `criteria`, AND from `description`. Measured, all three. So the rationale never distinguished ISC
- * from the fields left in.
+ * THE FIELD SET IS NOW UNCONDITIONAL AGAIN, and the round trip is worth recording because it is the
+ * useful part. FRW-BL-117 briefly carried an `includeIsc: false` option that excluded ISC text from
+ * drift scanning, after a reviewer demonstrated that a legitimate criterion ("...still says audit
+ * instead of assessment") was reported as drift. Two things were wrong with that:
  *
- * What is actually true: ISC is excluded because it is the instance that was DEMONSTRATED, and
- * removing a known-firing false positive is worth doing. `technicalNotes` and `criteria` are
- * equally exposed and are deliberately NOT excluded, because excluding them would undo this card —
- * they are precisely the fields whose invisibility to drift scanning was the defect. `description`
- * was exposed before this card and remains so.
+ *   1. The stated reason — that ISC text is "disproportionately meta" — was not a discriminator.
+ *      The identical sentence false-positived from `technicalNotes`, `criteria` and `description`
+ *      too. Measured, all three.
+ *   2. It treated the symptom. The real defect was that `detectDrift` could not tell a MENTION of a
+ *      word from a USE of it, which no field list can fix.
  *
- * Be honest about the ledger: `technicalNotes` and `criteria` were newly added to the
- * drift-scanned surface by this card's own first commit. So this card opened three fields and
- * closed one of them. It is a net improvement — real drift in those fields is now caught, which it
- * was not before — but it is not a clean trade, and calling the remaining risk purely "pre-existing"
- * would be false.
+ * FRW-BL-118 fixed the actual defect (`isMetaReference`), so the workaround was removed rather than
+ * left to ossify — the card that fixed the class carried a criterion requiring exactly that, so a
+ * mitigation could not silently outlive the problem it mitigated. ISC text is scanned for both
+ * coverage and drift again, and the meta-criterion that started this no longer fires.
  *
- * The real fix is meta-reference awareness in `detectDrift`, which has none at all. Tracked as
- * FRW-BL-118, with a criterion requiring this exclusion to be revisited once that lands so a
- * workaround cannot silently outlive the problem. `spec-coverage.test.mjs` pins the currently-wrong
- * behaviour explicitly, so the gap is visible in the suite rather than only in prose.
- *
- * The option lives on ONE function rather than in a second text builder, because the original
- * defect was two call sites independently deciding what a card's text is. A flag with fixtures
- * pinning both branches cannot diverge silently; a second builder can.
+ * Keep it unconditional. One field list, one definition, no call site deciding for itself what a
+ * card's text is — which was the original FRW-BL-117 defect and is the only invariant here that has
+ * survived every revision.
  */
-export function cardText(card, { includeIsc = true } = {}) {
+export function cardText(card) {
   if (!card || typeof card !== 'object') return '';
   return [
     card.id, card.title, card.description, card.technicalNotes, card.criteria,
-    includeIsc && Array.isArray(card.isc)
-      ? card.isc.map((c) => c && c.criterion).filter(Boolean).join(' ')
-      : '',
+    Array.isArray(card.isc) ? card.isc.map((c) => c && c.criterion).filter(Boolean).join(' ') : '',
   ].filter(Boolean).join('\n');
 }
 
@@ -202,14 +191,87 @@ export function extractGlossary(src) {
 
 const wordRe = (term) => new RegExp(`(^|[^A-Za-z0-9-])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9-])`, 'i');
 
-/** Pure: find forbidden variants used in a named source. */
+const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * PURE: is every occurrence of `variant` a MENTION of the word rather than a USE of it?
+ *
+ * FRW-BL-118. `detectDrift` matched forbidden variants literally, with no idea whether an
+ * occurrence was use or mention, so correct prose ABOUT the glossary rule was reported as breaking
+ * it. Demonstrated by FRW-BL-117's blind reviewer and reproduced from three separate fields:
+ *
+ *   "The analyzer rejects any card that still says audit instead of assessment."
+ *   "Rename the audit field to assessment for glossary compliance."
+ *
+ * Both name the forbidden term because naming it is unavoidable when stating the rule. A gate that
+ * fires on its own documentation trains people to switch it off — which is the failure this module
+ * was built to prevent, so it is not acceptable to leave in place.
+ *
+ * WHY NOT `isNegatedOccurrence`, the existing precedent. It was checked first, and it does NOT
+ * generalise: it looks for negation words ("do not X") in the preceding clause, and a terminology
+ * correction contains no negation. "Rename the audit field to assessment" is affirmative. The two
+ * need different SIGNALS — but the same SHAPE, which is copied deliberately: a short same-clause
+ * window, all-or-nothing over occurrences, and an error direction chosen on purpose.
+ *
+ * THE SIGNAL, and the first version of it was WRONG. Proximity alone — "the canonical term appears
+ * in the same clause" — looked right and passed every synthetic fixture. Measured against clear's
+ * 120 real cards it removed ZERO false positives and lost ONE true positive: "assessment CSVs +
+ * evidence catalog + audit plan" is a real use of "audit" that happened to sit near "assessment" in
+ * a list. Net negative on real prose, which is exactly what ISC-4 exists to expose and what the
+ * fixtures could not.
+ *
+ * So proximity is necessary but not sufficient. A mention also carries an explicit MARKER — the
+ * grammar of correcting a word: "instead of", "rather than", "not:", "never", "rename X to Y",
+ * "says", "the term", "spelled", "prefer X over Y", an arrow. A list that merely contains both nouns
+ * has no marker and stays a finding. Quoting the variant is an independent marker.
+ *
+ * ERROR DIRECTION, chosen the same way `detectConstraintConflicts` chose its: any occurrence that is
+ * a bare use makes the whole source a finding, so a card that discusses the rule in one sentence and
+ * violates it in another is still caught. The residual error is false-NEGATIVE — drift that happens
+ * to mention the canonical term nearby is missed. That is the right way round for a warn-level
+ * signal whose value depends on being believed.
+ */
+const MENTION_MARKER_RE = /\b(?:instead of|rather than|not:|never|rename[ds]?|renaming|call(?:ed|s)?|say[s]?|said|spell(?:ed|ing)?|the term|the word|prefer(?:red|s)?|replac(?:e|ed|es|ing)|use[sd]?\s+\w+\s+not|deprecated|forbidden|glossary|canonical|terminology)\b|→|->/i;
+
+export function isMetaReference(blob, variant, canonical) {
+  const src = String(blob ?? '');
+  const canon = String(canonical ?? '');
+  if (!canon) return false;
+  const re = new RegExp(`(^|[^A-Za-z0-9-])${escapeRe(variant)}(?![A-Za-z0-9-])`, 'gi');
+  const canonRe = new RegExp(`(^|[^A-Za-z0-9-])${escapeRe(canon)}(?![A-Za-z0-9-])`, 'i');
+  let m;
+  let sawAny = false;
+  while ((m = re.exec(src))) {
+    sawAny = true;
+    const hit = m.index + m[1].length;
+    // Same-clause window on both sides. Wide enough for "rename the audit field to assessment",
+    // narrow enough that the canonical term a paragraph away does not excuse a real violation.
+    const before = src.slice(Math.max(0, hit - 90), hit);
+    const after = src.slice(hit, Math.min(src.length, hit + 90));
+    const clause = before.slice(before.lastIndexOf('.') + 1)
+      + after.slice(0, after.indexOf('.') === -1 ? after.length : after.indexOf('.') + 1);
+
+    // Quoting the variant is an independent marker — you quote a word to talk about it.
+    const quoted = /["'`]$/.test(before.trimEnd())
+      || /^["'`]/.test(after.slice(variant.length));
+
+    // BOTH signals required, because proximity alone measured as a net loss on real prose:
+    // the canonical term nearby AND the grammar of correcting a word. A list containing both
+    // nouns ("assessment CSVs + ... + audit plan") has no marker and stays a finding.
+    const isMention = quoted || (canonRe.test(clause) && MENTION_MARKER_RE.test(clause));
+    if (!isMention) return false; // a bare use — real drift
+  }
+  return sawAny;
+}
+
+/** Pure: find forbidden variants USED in a named source (mentions of the word are not uses). */
 export function detectDrift(glossary, sources) {
   const findings = [];
   for (const { name, text } of Array.isArray(sources) ? sources : []) {
     const src = String(text ?? '');
     for (const term of Array.isArray(glossary) ? glossary : []) {
       for (const variant of term.variants) {
-        if (wordRe(variant).test(src)) {
+        if (wordRe(variant).test(src) && !isMetaReference(src, variant, term.canonical)) {
           findings.push({
             severity: 'warn',
             source: name,
@@ -340,11 +402,11 @@ export function analyze({ blueprint = '', cards = [], sows = [], constraints = '
   const requirements = extractRequirements(blueprint);
   const coverage = mapCoverage(requirements, cards);
   const glossary = extractGlossary(blueprint);
-  // FRW-BL-117: same helper the coverage mapper uses, so the field sets cannot diverge silently.
-  // ISC text is excluded here and only here — criteria describe checks, and describing a check
-  // about a forbidden term means naming it, which measurably produces false drift. See cardText.
+  // FRW-BL-117/118: the same helper the coverage mapper uses, unconditionally. The field sets
+  // cannot diverge, and mention-vs-use is handled in detectDrift where it belongs rather than by
+  // withholding fields from the scan.
   const cardSources = (Array.isArray(cards) ? cards : [])
-    .map((c) => ({ name: `card ${c?.id}`, text: cardText(c, { includeIsc: false }) }));
+    .map((c) => ({ name: `card ${c?.id}`, text: cardText(c) }));
   const drift = detectDrift(glossary, [...sows, ...cardSources]);
   const conflicts = detectConstraintConflicts(cards, extractActiveRules(constraints));
   const duplicates = requirements.filter((r) => r.duplicate).map((r) => ({

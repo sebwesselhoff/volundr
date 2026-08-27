@@ -9,6 +9,7 @@
 import {
   extractRequirements, citedIds, mapCoverage, extractGlossary, detectDrift,
   extractActiveRules, detectConstraintConflicts, isNegatedOccurrence, analyze, formatReport, cardText,
+  isMetaReference,
 } from './spec-coverage.mjs';
 
 let pass = 0, fail = 0;
@@ -119,7 +120,7 @@ const CARDS = [
   };
   const glossary = extractGlossary(BLUEPRINT);
   const preFixSource = [{ name: 'card CLR-904', text: [card.title, card.description].filter(Boolean).join('\n') }];
-  const postFixSource = [{ name: 'card CLR-904', text: cardText(card, { includeIsc: false }) }];
+  const postFixSource = [{ name: 'card CLR-904', text: cardText(card) }];
 
   ok('RED: the pre-fix field set (title+description) finds NOTHING in technicalNotes',
     detectDrift(glossary, preFixSource).length === 0);
@@ -136,30 +137,63 @@ const CARDS = [
   const r = analyze({ blueprint: BLUEPRINT, cards: metaIsc });
   ok('a legitimate meta-criterion quoting a forbidden variant is NOT reported as drift',
     !r.findings.some((f) => /card CLR-902/.test(f.source)));
-  ok('...while that same ISC text is still read for COVERAGE (asymmetry is deliberate)',
-    cardText(metaIsc[0]).includes('assessment')
-    && !cardText(metaIsc[0], { includeIsc: false }).includes('rejects any card'));
+  // FRW-BL-118 removed FRW-BL-117's includeIsc workaround: ISC text is scanned for BOTH coverage
+  // and drift again, and the meta-criterion above is suppressed by mention-awareness rather than by
+  // withholding the field. Genuine drift inside an ISC criterion must therefore still be caught.
+  ok('...and ISC text is scanned for drift again — genuine drift in a criterion IS reported',
+    analyze({
+      blueprint: BLUEPRINT,
+      cards: [{ id: 'CLR-905', status: 'backlog', title: 'X', description: 'Covers SC-001.',
+        isc: [{ criterion: 'The audit completes without error.' }] }],
+    }).findings.some((f) => /"audit"/.test(f.detail) && /card CLR-905/.test(f.source)));
 }
 {
-  // KNOWN-WRONG BEHAVIOUR, PINNED ON PURPOSE (FRW-BL-118).
-  //
-  // The ISC exclusion above is a partial mitigation, not a principled boundary. detectDrift has no
-  // meta-reference awareness, so the SAME legitimate sentence still produces a false drift finding
-  // from technicalNotes, criteria and description. FRW-BL-117's reviewer demonstrated this after the
-  // first fix, and the rationale that had justified excluding only isc did not survive it.
-  //
-  // These assertions describe what the code DOES, not what it SHOULD do. They exist so the gap is
-  // visible in the suite rather than only in a comment. When FRW-BL-118 adds meta-reference
-  // awareness these will fail — that is the intended signal, and they should be inverted then, not
-  // deleted.
+  // FRW-BL-118 CLOSED THIS. These three assertions were added by FRW-BL-117 pinning the
+  // known-WRONG behaviour (a legitimate meta-reference false-positiving from each field), with a
+  // note saying they must be INVERTED when the real fix landed rather than deleted. This is that
+  // inversion — the same three fields, the same sentence, now asserting the correct outcome.
   const meta = 'Rename the audit field to assessment for glossary compliance.';
   for (const field of ['technicalNotes', 'criteria', 'description']) {
     const card = { id: `CLR-96${field.length}`, status: 'backlog', title: 'Rename', description: 'Covers SC-001.', isc: [] };
     card[field] = meta;
     const r = analyze({ blueprint: BLUEPRINT, cards: [card] });
-    ok(`KNOWN GAP (FRW-BL-118): a legitimate meta-reference in ${field} still false-positives`,
-      r.findings.some((f) => /glossary/.test(f.detail)));
+    ok(`FRW-BL-118: a legitimate meta-reference in ${field} is NOT reported as drift`,
+      !r.findings.some((f) => /glossary/.test(f.detail)));
   }
+}
+{
+  // FRW-BL-118: mention vs use. Both directions, because a detector that suppresses everything is
+  // as useless as one that suppresses nothing.
+  const g = extractGlossary(BLUEPRINT);
+  const drift = (text) => detectDrift(g, [{ name: 's', text }]).length > 0;
+
+  ok('MENTION: "instead of" is not drift',
+    !drift('The analyzer rejects any card that still says audit instead of assessment.'));
+  ok('MENTION: "rename X to Y" is not drift',
+    !drift('Rename the audit field to assessment for glossary compliance.'));
+  ok('MENTION: a quoted variant is not drift', !drift('The word "audit" is forbidden here.'));
+  ok('MENTION: "never" correcting terminology is not drift',
+    !drift('Use landing zone, never landingzone, in new docs.'));
+
+  ok('USE: a bare occurrence is drift', drift('The audit produces a score for each project.'));
+  ok('USE: the canonical term in a DIFFERENT sentence does not excuse it',
+    drift('We use assessment terminology. The audit runs nightly.'));
+  ok('USE: one mention plus one real use is still drift',
+    drift('Rename audit to assessment. Also the audit runs nightly.'));
+
+  // REGRESSION FIXTURE, from real data. The first version of isMetaReference required only
+  // proximity, and this exact string from clear's CLR-AUD-005 silently lost a true positive:
+  // "assessment" sits near "audit plan" in a list, with no mention grammar anywhere. Measured over
+  // clear's 120 real cards it removed 0 false positives and lost 1 true positive — a net loss the
+  // synthetic fixtures could not see. Both a canonical term nearby AND a mention marker are now
+  // required.
+  ok('USE: both nouns in a LIST with no mention marker is still drift (real-data regression)',
+    drift('assessment CSVs + evidence catalog + audit plan + manifest + inventory JSON dumps'));
+
+  ok('isMetaReference with no canonical term never suppresses',
+    isMetaReference('the audit runs', 'audit', '') === false);
+  ok('isMetaReference on absent variant reports nothing to suppress',
+    isMetaReference('nothing here', 'audit', 'assessment') === false);
 }
 {
   // The invariant, asserted directly: one definition of a card's text, one documented option.
@@ -169,9 +203,11 @@ const CARDS = [
   };
   ok('cardText includes every field the coverage mapper relies on',
     ['CLR-903', 'T', 'D', 'N', 'C', 'I'].every((frag) => cardText(card).includes(frag)));
-  ok('includeIsc:false drops ONLY the isc text',
-    ['CLR-903', 'T', 'D', 'N', 'C'].every((frag) => cardText(card, { includeIsc: false }).includes(frag))
-    && !cardText(card, { includeIsc: false }).split('\n').includes('I'));
+  // FRW-BL-118: cardText takes no options. FRW-BL-117's includeIsc flag was a workaround for
+  // detectDrift's missing mention-awareness; the class is fixed, so the field set is unconditional
+  // and there is exactly one definition of a card's text again.
+  ok('cardText is unconditional — extra arguments cannot change the field set',
+    cardText(card, { includeIsc: false }) === cardText(card));
   ok('cardText tolerates a null card', cardText(null) === '');
   ok('cardText tolerates missing fields', cardText({ id: 'X' }) === 'X');
   // NOT a behaviour change: Array.join already coerced a null entry to '', so no "null" text ever
