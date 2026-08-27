@@ -14,7 +14,7 @@
 // Run: node .claude/hooks/agent-stop.test.js — exits 0 on success, 1 on failure.
 // Safe to require agent-stop.js: its main() is guarded by require.main === module.
 
-const { buildStopPatch, normalizeModel } = require('./agent-stop.js');
+const { buildStopPatch, normalizeModel, decideLateRegistration } = require('./agent-stop.js');
 
 let pass = 0;
 let fail = 0;
@@ -172,5 +172,60 @@ const lifecycle = [
     row2.promptTokens === 330);
 }
 
+// --- FRW-BL-114 SECOND SITE: the late-registration write guard -------------------------------
+// A git audit on 2026-08-27 found this decision had ZERO coverage — no assertion anywhere
+// referenced late_registration_suppressed, resolveRegistration or inferAgentType from this file —
+// despite being the guard on the exact path that wrote a live phantom row during a session's own
+// shutdown. The load-bearing line is resolvedName: agentDetailName falls back to input.agent_id
+// upstream, and agent_id is generated per firing, so passing it through as a "name" would hand the
+// guard a fake third signal and defeat it. That is precisely how the first fix (agent-start.js
+// only) still left phantoms being written here.
+console.log('\nlate-registration guard (FRW-BL-114 second site)\n');
+
+const LATE = (o) => decideLateRegistration({
+  agentType: undefined, agentId: 'a1b2c3d4e5f6', agentDetailName: 'a1b2c3d4e5f6',
+  cardId: null, personaId: null, ...o,
+});
+
+// THE PHANTOM, reproduced: no type, no card, no persona, and a "name" that is only the agent_id.
+ok('PHANTOM: no identity of any kind is declined',
+  LATE().register === false);
+ok('...and the refusal carries a reason', typeof LATE().reason === 'string' && LATE().reason.length > 0);
+ok('...and agent_id is NOT promoted to a name',
+  LATE().resolvedName === null);
+
+// COUNTER-PROOFS: each single genuine signal is enough on its own. Without these the guard could
+// pass the test above by refusing everything, which would lose real agents — a worse defect.
+ok('REAL: an agent_type alone is enough to register',
+  LATE({ agentType: 'reviewer-frw-bl-114' }).register === true);
+ok('REAL: a cardId alone is enough to register',
+  LATE({ cardId: 'FRW-BL-114' }).register === true);
+// personaId alone is NOT enough, and this assertion documents that rather than wishing otherwise.
+// I first wrote it as `=== true` and the code disagreed. The code is right about what it does:
+// resolveRegistration counts `preToolData.name || .description || .cardId` and does NOT look at
+// personaId at all (agent-start.js:44).
+//
+// THE INCONSISTENCY THAT EXPOSES, worth knowing rather than smoothing over: decideLateRegistration
+// builds a descriptor when `(cardId || personaId || resolvedName)`, so a firing carrying ONLY a
+// personaId constructs a descriptor object that then fails the check anyway — the `|| personaId`
+// reads as if it matters and it does not. Not widened here: resolveRegistration's narrowness is
+// deliberate and was reviewed, and a persona-only spawn is a narrow case. Flagged, not silently
+// changed.
+ok('personaId alone does NOT register — resolveRegistration ignores it (documents actual behaviour)',
+  LATE({ personaId: 'researcher' }).register === false);
+ok('...but a personaId ALONGSIDE a real signal still registers',
+  LATE({ personaId: 'researcher', agentType: 'researcher' }).register === true);
+ok('REAL: a name that differs from the agent_id is enough to register',
+  LATE({ agentDetailName: 'reviewer-frw-bl-114' }).register === true);
+ok('...and that name is passed through for classification',
+  LATE({ agentDetailName: 'reviewer-frw-bl-114' }).resolvedName === 'reviewer-frw-bl-114');
+
+// Degenerate inputs must not throw and must not accidentally look like identity.
+ok('a missing agentDetailName does not become a name',
+  LATE({ agentDetailName: undefined }).resolvedName === null);
+ok('an empty agentDetailName does not become a name',
+  LATE({ agentDetailName: '' }).resolvedName === null);
+ok('a null agentId with a real name still registers',
+  LATE({ agentId: null, agentDetailName: 'dev-frw-bl-120' }).register === true);
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

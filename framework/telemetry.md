@@ -27,27 +27,49 @@ Use `/usage` snapshots to validate that dashboard aggregates match observed spen
 
 ## Per-Tool Telemetry (FRW-BL-038)
 
-Both `post-bash-git.js` (PostToolUse:Bash) and `tool-failure.js` (PostToolUseFailure) emit a `tool_telemetry` dashboard event after each tool invocation:
+`post-bash-git.js` and `tool-failure.js` emit a `tool_telemetry` dashboard event.
+
+**Coverage is SCOPED, and this line used to imply it was not (FRW-BL-119).** `post-bash-git.js` is
+registered `PostToolUse` with matcher `Bash|PowerShell|Monitor` — `Read`, `Grep`, `Glob`, `Edit` and
+every other tool never trigger it on success. `tool-failure.js` uses matcher `""` (all tools) but
+fires only on `PostToolUseFailure`. So **a read-only agent emits zero `tool_telemetry` for an entire
+successful run**, and since the computed liveness signal is fed by these events, such an agent reads
+`idle` and then `stalled` while provably working. Measured 2026-08-27: a read-heavy auditor flipped
+to `idle` within 75 seconds of spawning while a shell-heavy subagent held `working`. Tracked as
+FRW-BL-119.
 
 ```json
 {
+  "projectId": "volundr-meta",
   "type": "tool_telemetry",
   "detail": "Bash 1234ms effort=high",
-  "tool_name": "Bash",
-  "duration_ms": 1234,
-  "effort_level": "high",
-  "session_id": "..."
+  "agentId": "8286103e-4120-4c92-a2c4-13c0144e0c8a"
 }
 ```
+
+That is the whole payload. **`tool_name`, `duration_ms`, `effort_level` and `session_id` are NOT
+sent** (FRW-BL-116 ISC-5). They are computed locally, folded into `detail`, and then deliberately
+dropped: `POST /api/events` destructures exactly
+`{ projectId, cardId, agentId, type, detail, costEstimate }` and the events table has no columns for
+the rest, so sending them meant they were silently discarded server-side. An earlier version of this
+document listed all four in a fields table with sourcing and validation notes, which read as
+convincing evidence that structured telemetry existed when only the `detail` string survived.
 
 ### Fields
 
 | Field | Source | Notes |
 |-------|--------|-------|
-| `tool_name` | `input.tool_name` or `"Bash"` for PostToolUse:Bash | |
-| `duration_ms` | `input.duration_ms` (defensive: `Number.isFinite` check) | **DOC-SILENT** — see caveat below |
-| `effort_level` | `input.effort?.level` | validated against enum |
-| `session_id` | `input.session_id` | omitted when absent |
+| `detail` | composed locally | `"<tool> <duration>ms effort=<level>"` — the ONLY place tool, duration and effort survive. Parse this, not a column. |
+| `agentId` | `.claude/hooks/vldr-agent-resolve.js` | Resolved `agent_id` **first**, then `session_id`. Omitted when unresolvable, which posts exactly as before. |
+
+**The resolution order is load-bearing.** A subagent's hook payload carries the **parent's**
+`session_id` — captured and enumerated on 2026-08-27, where three distinct subagents all reported the
+lead's session id. Resolving by session first would attribute every subagent's tool calls to the
+lead: the lead's liveness would look fixed for the wrong reason while every subagent stayed broken.
+`agent_id` is present only for subagents, and its absence is what identifies the lead.
+
+If structured columns are ever wanted, add the migration and re-add these fields **in the same
+change** — never one without the other.
 
 ### effort.level
 

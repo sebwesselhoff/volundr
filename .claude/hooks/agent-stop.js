@@ -18,6 +18,37 @@ const { extractCardId } = require('./_cardid');
 // FRW-BL-114: reuse agent-start's classifier and registration guard rather than a second copy.
 // agent-start's main() is guarded by require.main === module, so requiring it here is inert.
 const { inferAgentType, resolveRegistration } = require('./agent-start.js');
+
+/**
+ * PURE: should the LATE-REGISTRATION path write an agent row, and under what name?
+ *
+ * FRW-BL-114 second site, extracted 2026-08-27 so it can be tested. A git audit found this decision
+ * had zero coverage — no assertion anywhere referenced `late_registration_suppressed`,
+ * `resolveRegistration` or `inferAgentType` from this file — despite being non-trivial suppression
+ * logic on the exact code path that produced a live phantom row during a session's own shutdown.
+ *
+ * The load-bearing line is `resolvedName`. `agentDetailName` falls back to `input.agent_id` upstream
+ * when nothing better is known, and `agent_id` is generated per firing — it is NOT identity. Passing
+ * it through as a name would hand `resolveRegistration` a fake third signal and defeat the guard,
+ * which is precisely how the first fix (agent-start.js only) still left phantoms being written here.
+ *
+ * `parentAgentId` is deliberately null: by the time this path runs, the spawning parent is no longer
+ * resolvable. That is a real narrowing versus agent-start.js, which has all three signals — flagged
+ * by the FRW-BL-114 blind reviewer and kept, because inventing a parent would be worse than losing
+ * a signal. It means this path relies on `agentType`, or a card/persona/name resolved from a team
+ * config, and nothing else.
+ *
+ * @returns {{register: boolean, reason?: string, resolvedName: string|null}}
+ */
+function decideLateRegistration({ agentType, agentId, agentDetailName, cardId, personaId }) {
+  const resolvedName = agentDetailName && agentDetailName !== agentId ? agentDetailName : null;
+  const decision = resolveRegistration({
+    agentType,
+    preToolData: (cardId || personaId || resolvedName) ? { cardId, personaId, name: resolvedName } : null,
+    parentAgentId: null,
+  });
+  return { ...decision, resolvedName };
+}
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -268,11 +299,12 @@ async function main() {
     // Now it uses the SAME classifier as agent-start (one classifier, not two — a second copy
     // drifts) and the SAME registration guard. Identity here is an agent_type, or a card/persona
     // resolved from a team config, or a name that is not just the generated agent_id.
-    const resolvedName = agentDetailName !== input.agent_id ? agentDetailName : null;
-    const registration = resolveRegistration({
+    const registration = decideLateRegistration({
       agentType: input.agent_type,
-      preToolData: (cardId || personaId || resolvedName) ? { cardId, personaId, name: resolvedName } : null,
-      parentAgentId: null,
+      agentId: input.agent_id,
+      agentDetailName,
+      cardId,
+      personaId,
     });
     if (!registration.register) {
       log.warn('late_registration_suppressed',
@@ -280,7 +312,7 @@ async function main() {
       await updateHeartbeat().catch(() => {});
       return;
     }
-    const inferredType = inferAgentType(input.agent_type || resolvedName);
+    const inferredType = inferAgentType(input.agent_type || registration.resolvedName);
 
     // Try with full metadata first, fall back without personaId/cardId if FK fails
     let agent = await apiPost('/api/agents', {
@@ -398,7 +430,7 @@ async function main() {
   await updateHeartbeat('active').catch(() => {});
 }
 
-module.exports = { buildStopPatch, normalizeModel, parseTranscriptTokens };
+module.exports = { buildStopPatch, normalizeModel, parseTranscriptTokens, decideLateRegistration };
 
 if (require.main === module) {
   main().catch((e) => {
