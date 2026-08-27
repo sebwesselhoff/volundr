@@ -434,8 +434,22 @@ proven enforced, and FRW-BL-101 ISC-2's decision to keep a denylist rather than 
 allowlist depends on that enforcement.
 
 Two consequences to remember rather than rediscover:
-- **You cannot invoke those six.** They will not appear in your available-skills list. Use the API
-  (`POST /api/journal`, `/api/directives`, `/api/routing-rules/test`, `/api/economy`) or plain shell.
+- **You cannot invoke five of the six — and `vldr-journal` was the exception (FRW-BL-112).** The
+  flag reliably hides `vldr-route`, `vldr-directive`, `vldr-doctor`, `vldr-economy`, `vldr-status`
+  and `vldr-compact`. It did NOT hide `vldr-journal`, which kept appearing in the available-skills
+  listing across two independent boots despite byte-identical frontmatter. This paragraph previously
+  asserted the flag held for all six, which is the more dangerous half of the defect: it told you
+  not to check, about the one skill the Journal Protocol tells every session to reach for.
+  **Cause found 2026-08-27:** a legacy `.claude/commands/vldr-journal.md`, superseded by the SKILL.md
+  but never deleted, re-registered the same name as a slash command and outranked the flag.
+  Correlation was exact across eleven vldr skills — the only one carrying both a `true` flag and a
+  same-named command file was the only one where the flag failed, with `vldr-shutdown` as the
+  control in the other direction (same collision, `false` flag, so nothing to override). The file is
+  deleted; the fix is **verified at the next boot**, not now, because the listing is built at session
+  start. Until a boot confirms `vldr-journal` is absent, assume it is still invocable and do not
+  invoke it.
+  Regardless: use the API (`POST /api/journal`, `/api/directives`, `/api/routing-rules/test`,
+  `/api/economy`) or plain shell. That is the documented lead path and it never depended on the flag.
 - **The operator still can, and it still costs the session.** If the developer types one of them
   while a card is in flight, `Write`/`Edit` die for the rest of that session — irreducible from
   inside the framework, since the platform scopes the denial to the session. Each affected SKILL.md
