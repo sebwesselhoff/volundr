@@ -149,7 +149,7 @@ So the split is:
 
 | Field | Means | Written by |
 |---|---|---|
-| `status` | lifecycle — has this agent been closed out? | `session-end.js`, and the boot orphan sweep |
+| `status` | lifecycle — has this agent been closed out? | `session-end.js`, the boot orphan sweep, **and the API's 10-minute TTL sweep** |
 | `liveness` (computed) | aliveness — working / idle / stalled | derived by the API from the agent's newest event timestamp (FRW-BL-063) |
 
 `agent-stop.js` now writes tokens and model only, and emits **`agent_yielded`** carrying `agentId`
@@ -159,11 +159,27 @@ signal, and marginal-not-cumulative is what stops a cost sum over the event stre
 was ~329k). The row was right all along; the events were not.
 
 **The trade, made deliberately.** This under-completes — a finished agent reads `running` until
-session end — where the old code over-completed. Under-completion is bounded and already swept at
-both ends (`session-end.js` closes every running agent; `session-start.js` cleans orphans from
-crashes). Over-completion gave wrong answers for the whole session. A finished-but-unswept agent
-drifting to `stalled` is a *correct* signal, not noise: it means something finished and nothing
+session end — where the old code over-completed. Under-completion is bounded and swept at both
+session boundaries (`session-end.js` closes this session's running agents; `session-start.js` cleans
+orphans from crashes). Over-completion gave wrong answers for the whole session. A finished-but-unswept
+agent drifting to `stalled` is a *correct* signal, not noise: it means something finished and nothing
 closed it.
+
+> **A THIRD writer of terminal `status` exists, and it is not a hook (FRW-BL-095, second source).**
+> The API runs `runAgentTtlCleanup` every 10 minutes (`dashboard/packages/api/src/index.ts`), which
+> writes `status: 'completed'` **directly and emits no event** — so it is invisible to every
+> diagnostic aimed at the hooks, and a row it closes can never receive its terminal `agent_completed`
+> (session-end only sweeps rows still `running`).
+>
+> Its cutoff comparison was broken until 2026-08-27: it compared the space-format `started_at`
+> column against an ISO-format cutoff with a lexicographic `lt()`, and a space (0x20) always sorts
+> before `T` (0x54), so **every** non-volundr running row matched regardless of age. It reaped live
+> subagents aged 2 and 9 minutes under a nominal 4-hour TTL. Fixed by formatting the cutoff to match
+> the column; guarded by `scripts/agent-ttl-guard.test.mjs`.
+>
+> This is the same timestamp-format trap documented for the phantom query below — there it silently
+> matched *nothing*, here it silently matched *everything*. When reasoning about who can end an
+> agent, the hooks are not the whole set.
 
 Note this only became usable once `agent_spawned` carried an `agentId` (FRW-BL-094) — before that,
 spawn events fed the liveness signal nothing at all.

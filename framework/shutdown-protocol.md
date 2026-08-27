@@ -69,18 +69,23 @@ vldr.events.log({ type: 'checkpoint_created', detail: 'Shutdown protocol initiat
   - Update card status if appropriate (leave as `in_progress` - do NOT mark done)
   - Log: `vldr.events.log({ type: 'state_saved', cardId, detail: 'WIP committed at shutdown' })`
 
-3. **Complete running teammates/subagents** (if any are still active):
+3. **Inventory running teammates/subagents — do NOT complete them** (FRW-BL-095):
    ```typescript
+   // READ ONLY. Record what is still running for the final report in Phase 8.
    const running = await vldr.agents.list({ status: 'running' });
-   // Filter out the mother agent - she completes last
-   const nonVolundr = running.filter(a => a.type !== 'mother');
-   for (const agent of nonVolundr) {
-     await vldr.agents.update(agent.id, {
-       status: 'completed',
-       completedAt: new Date().toISOString(),
-     });
-   }
    ```
+
+   > **This step used to complete them, and that was wrong.** `session-end.js` is the sole emitter
+   > of a subagent's terminal `agent_completed`, and it emits only for rows it still finds at
+   > `status: 'running'`. Completing them here empties that sweep, so the event count per subagent
+   > lifetime becomes **zero** instead of one — the same "exactly one became exactly zero" failure
+   > FRW-BL-095 already had to fix once. Leave the rows running; the SessionEnd hook closes them.
+   >
+   > Found by a documentation audit on 2026-08-27: the sequence fix had been applied to this
+   > document's §4 and §8 and to the `/vldr-shutdown` definition, but **not to Phase 1 here** — so a
+   > reader following the protocol top-to-bottom hit the superseded instruction first, in the same
+   > file that argues against it 350 lines later. Editing the places you remember is not the same as
+   > editing the places that exist.
 
 ### Phase 2: Gather session metrics (3-5 seconds)
 
